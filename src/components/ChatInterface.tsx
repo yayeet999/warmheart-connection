@@ -27,11 +27,26 @@ const ChatInterface = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  // Clear messages when component unmounts or user logs out
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setMessages([]);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      setMessages([]); // Clear messages when component unmounts
+    };
+  }, []);
+
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        setMessages([]); // Clear messages if no session
         toast({
           title: "Authentication Required",
           description: "Please log in to access the chat.",
@@ -42,17 +57,6 @@ const ChatInterface = () => {
     };
 
     checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        navigate("/auth");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [navigate]);
 
   const { data: userData, isError: userDataError } = useQuery({
@@ -89,7 +93,7 @@ const ChatInterface = () => {
     }
   });
 
-  // Fetch chat history when component mounts
+  // Fetch chat history when component mounts and userId changes
   useEffect(() => {
     const fetchChatHistory = async () => {
       if (!userData?.userId) {
@@ -111,13 +115,8 @@ const ChatInterface = () => {
           throw error;
         }
 
-        console.log("Received chat history data:", data);
-        
         if (data.messages) {
-          console.log("Setting messages:", data.messages.length, "messages found");
           setMessages(data.messages);
-        } else {
-          console.log("No messages found in response");
         }
       } catch (error) {
         console.error('Error fetching chat history:', error);
