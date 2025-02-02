@@ -27,6 +27,7 @@ const ChatInterface = () => {
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Clear messages when component unmounts or user logs out
@@ -172,9 +173,13 @@ const ChatInterface = () => {
       return;
     }
     
+    // Clear the input immediately and maintain focus
+    setMessage("");
+    inputRef.current?.focus();
+    
     setIsLoading(true);
     setIsTyping(true);
-    const userMessage = { type: "user", content: message };
+    const userMessage = { type: "user", content: message.trim() };
     setMessages(prev => [...prev, userMessage]);
     
     try {
@@ -192,7 +197,7 @@ const ChatInterface = () => {
       // Then get AI response with userId
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
-          message: message.trim(),
+          message: userMessage.content,
           userId: session.user.id
         }
       });
@@ -233,7 +238,8 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
       setIsTyping(false);
-      setMessage("");
+      // No need to setMessage("") here since we already cleared it
+      inputRef.current?.focus();
     }
   };
 
@@ -289,6 +295,7 @@ const ChatInterface = () => {
         <div className="p-4 border-t">
           <div className="flex items-center space-x-2">
             <input
+              ref={inputRef}
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -296,6 +303,7 @@ const ChatInterface = () => {
               placeholder="Type your message..."
               className="flex-1 p-4 rounded-full border focus:outline-none focus:ring-2 focus:ring-coral"
               disabled={isLoading}
+              autoFocus
             />
             <button
               onClick={handleSend}
