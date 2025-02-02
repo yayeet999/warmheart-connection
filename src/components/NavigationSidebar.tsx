@@ -35,7 +35,7 @@ const NavigationSidebar = () => {
 
   return (
     <nav className="fixed left-0 top-0 h-full w-[100px] bg-white shadow-lg flex flex-col items-center py-8">
-      <div className="flex-1 space-y-8">
+      <div className="flex-1 flex flex-col items-center space-y-8">
         {navItems.map(({ icon: Icon, path, label }) => (
           <Link
             key={path}
@@ -54,7 +54,7 @@ const NavigationSidebar = () => {
       
       <button
         onClick={handleLogout}
-        className="p-3 rounded-xl text-gray-500 hover:text-coral transition-all duration-300"
+        className="p-3 rounded-xl text-gray-500 hover:text-coral transition-all duration-300 mt-8"
         title="Logout"
       >
         <LogOut className="w-6 h-6" />
