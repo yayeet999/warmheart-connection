@@ -106,14 +106,16 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // Update message count
+      // Update message count using user_id as the conflict target
       const { error: updateError } = await supabase
         .from('message_counts')
         .upsert({ 
           user_id: userData.userId,
           message_count: currentCount + 1
-        })
-        .eq('user_id', userData.userId);
+        }, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false
+        });
 
       if (updateError) throw updateError;
 
