@@ -50,8 +50,14 @@ serve(async (req) => {
         content: message.content
       });
       
-      // Store message directly without additional stringification
-      const pushResult = await redis.lpush(key, JSON.stringify(message));
+      // Ensure message is a plain object before stringifying
+      const messageToStore = {
+        type: message.type,
+        content: message.content
+      };
+      
+      // Store message as a JSON string
+      const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
       console.log('Redis push result:', pushResult);
       
       const currentLength = await redis.llen(key);
@@ -81,10 +87,8 @@ serve(async (req) => {
       // Parse the messages, handling potential JSON parsing errors
       const parsedMessages = messages.map(msg => {
         try {
-          // If the message is already an object, return it directly
-          if (typeof msg === 'object') return msg;
-          // Otherwise, try to parse it
-          return JSON.parse(msg);
+          // If the message is already a string, parse it
+          return typeof msg === 'string' ? JSON.parse(msg) : msg;
         } catch (e) {
           console.error('Error parsing message:', e, 'Raw message:', msg);
           return null;

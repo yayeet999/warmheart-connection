@@ -69,22 +69,31 @@ serve(async (req) => {
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(key, 0, 19); // Get last 20 messages
-    
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
-    // Parse and format messages for OpenAI
-    const conversationHistory = recentMessages.map(msg => {
-      try {
-        const parsedMsg = JSON.parse(msg);
-        return {
-          role: parsedMsg.type === "ai" ? "assistant" : "user",
-          content: parsedMsg.content
-        };
-      } catch (e) {
-        console.error('Error parsing message:', e);
-        return null;
-      }
-    }).filter(Boolean).reverse(); // Remove any null values and reverse to get chronological order
+    // Parse and format messages for OpenAI with improved error handling
+    const conversationHistory = recentMessages
+      .map(msg => {
+        try {
+          // Handle both string and object formats
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          
+          if (!parsed || !parsed.type || !parsed.content) {
+            console.error('Invalid message format:', msg);
+            return null;
+          }
+
+          return {
+            role: parsed.type === "ai" ? "assistant" : "user",
+            content: parsed.content
+          };
+        } catch (e) {
+          console.error('Error parsing message:', e, 'Raw message:', msg);
+          return null;
+        }
+      })
+      .filter(Boolean) // Remove any null values
+      .reverse(); // Put in chronological order
 
     console.log('Formatted conversation history:', conversationHistory.length, 'messages');
 
