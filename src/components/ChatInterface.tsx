@@ -38,17 +38,17 @@ const ChatInterface = () => {
           .from("subscriptions")
           .select("tier")
           .eq("user_id", user.id)
-          .single(),
+          .maybeSingle(),
         supabase
           .from("message_counts")
           .select("message_count")
           .eq("user_id", user.id)
-          .single()
+          .maybeSingle()
       ]);
 
       return {
-        subscription,
-        messageCount,
+        subscription: subscription || { tier: 'free' },
+        messageCount: messageCount || { message_count: 0 },
         userId: user.id
       };
     },
@@ -109,7 +109,10 @@ const ChatInterface = () => {
       // Update message count
       const { error: updateError } = await supabase
         .from('message_counts')
-        .update({ message_count: currentCount + 1 })
+        .upsert({ 
+          user_id: userData.userId,
+          message_count: currentCount + 1
+        })
         .eq('user_id', userData.userId);
 
       if (updateError) throw updateError;
