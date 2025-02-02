@@ -133,8 +133,8 @@ const ChatInterface = () => {
             </DialogTitle>
             <DialogDescription className="text-base">
               We're excited to have you! You're welcome to chat and interact with Amorine. 
-              Just remember there's a limit of {MESSAGE_LIMITS.free} messages on the free tier. 
-              You can upgrade to our pro plan for {MESSAGE_LIMITS.pro} messages and enhanced features!
+              Just remember there's a limit of 50 daily messages on the free tier. 
+              You can upgrade to our pro plan for unlimited and voice calling/video features!
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
