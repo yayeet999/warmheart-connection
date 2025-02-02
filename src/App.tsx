@@ -7,6 +7,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "./components/LandingPage";
 import ChatInterface from "./components/ChatInterface";
 import NavigationSidebar from "./components/NavigationSidebar";
+import Dashboard from "./components/Dashboard";
+import Memories from "./components/Memories";
+import Settings from "./components/Settings";
+import Support from "./components/Support";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -24,11 +28,47 @@ const App = () => {
               <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<Auth />} />
               <Route
+                path="/dashboard"
+                element={
+                  <>
+                    <NavigationSidebar />
+                    <Dashboard />
+                  </>
+                }
+              />
+              <Route
                 path="/chat"
                 element={
                   <>
                     <NavigationSidebar />
                     <ChatInterface />
+                  </>
+                }
+              />
+              <Route
+                path="/memories"
+                element={
+                  <>
+                    <NavigationSidebar />
+                    <Memories />
+                  </>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <>
+                    <NavigationSidebar />
+                    <Settings />
+                  </>
+                }
+              />
+              <Route
+                path="/support"
+                element={
+                  <>
+                    <NavigationSidebar />
+                    <Support />
                   </>
                 }
               />

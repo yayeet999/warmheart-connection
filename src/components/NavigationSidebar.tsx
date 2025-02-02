@@ -5,7 +5,7 @@ const NavigationSidebar = () => {
   const location = useLocation();
 
   const navItems = [
-    { icon: Home, path: "/", label: "Home" },
+    { icon: Home, path: "/dashboard", label: "Dashboard" },
     { icon: MessageSquare, path: "/chat", label: "Chat" },
     { icon: Brain, path: "/memories", label: "Memories" },
     { icon: Settings, path: "/settings", label: "Settings" },
