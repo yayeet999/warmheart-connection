@@ -19,7 +19,7 @@ serve(async (req) => {
 
   try {
     const { userId, message, action } = await req.json();
-    console.log('Received request:', { userId, action, messageType: message?.type });
+    console.log('Request received:', { userId, action, messageType: message?.type });
 
     if (!userId) {
       console.error('Missing userId in request');
@@ -27,6 +27,7 @@ serve(async (req) => {
     }
 
     const key = `user:${userId}:messages`;
+    console.log('Redis key:', key);
 
     if (action === 'add') {
       if (!message) {
@@ -34,11 +35,15 @@ serve(async (req) => {
         throw new Error('Message is required for add action');
       }
 
-      console.log('Adding message to Redis:', { userId, messageType: message.type });
+      console.log('Adding message to Redis:', { userId, messageType: message.type, content: message.content });
       
-      // Add message to the front of the list and trim to 100 messages
-      await redis.lpush(key, JSON.stringify(message));
-      await redis.ltrim(key, 0, 99);
+      // Add message to Redis and log the result
+      const pushResult = await redis.lpush(key, JSON.stringify(message));
+      console.log('Redis push result:', pushResult);
+      
+      // Trim the list and log the result
+      const trimResult = await redis.ltrim(key, 0, 99);
+      console.log('Redis trim result:', trimResult);
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -52,9 +57,13 @@ serve(async (req) => {
     if (action === 'get') {
       console.log('Fetching messages for user:', userId);
       
+      // Get all messages in the list first to check if any exist
+      const listLength = await redis.llen(key);
+      console.log('Total messages in Redis:', listLength);
+      
       // Get the most recent 50 messages
       const messages = await redis.lrange(key, 0, 49);
-      console.log('Retrieved messages count:', messages.length);
+      console.log('Retrieved messages from Redis:', messages.length);
       
       const parsedMessages = messages.map(msg => {
         try {
@@ -64,6 +73,8 @@ serve(async (req) => {
           return null;
         }
       }).filter(msg => msg !== null);
+
+      console.log('Parsed messages count:', parsedMessages.length);
 
       return new Response(
         JSON.stringify({ messages: parsedMessages.reverse() }), // Reverse to show oldest first
