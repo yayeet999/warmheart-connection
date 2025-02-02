@@ -14,8 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 
 const MESSAGE_LIMITS = {
-  free: 100,
-  pro: 1500
+  free: 50,  // Updated to match the Edge Function limit
+  pro: 500
 };
 
 const ChatInterface = () => {
@@ -79,7 +79,7 @@ const ChatInterface = () => {
     if (limitError || !limitData.canSendMessage) {
       toast({
         title: "Daily Limit Reached",
-        description: `You've reached your daily message limit. Please try again tomorrow or upgrade your plan.`,
+        description: `You've reached your daily limit of ${MESSAGE_LIMITS[userData.subscription?.tier || 'free']} messages. Please try again tomorrow or upgrade your plan.`,
         variant: "destructive"
       });
       return;
