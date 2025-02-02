@@ -92,9 +92,13 @@ const ChatInterface = () => {
   // Fetch chat history when component mounts
   useEffect(() => {
     const fetchChatHistory = async () => {
-      if (!userData?.userId) return;
+      if (!userData?.userId) {
+        console.log("No user ID available yet");
+        return;
+      }
 
       try {
+        console.log("Fetching chat history for user:", userData.userId);
         const { data, error } = await supabase.functions.invoke('chat-history', {
           body: { 
             userId: userData.userId,
@@ -102,9 +106,18 @@ const ChatInterface = () => {
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching chat history:', error);
+          throw error;
+        }
+
+        console.log("Received chat history data:", data);
+        
         if (data.messages) {
+          console.log("Setting messages:", data.messages.length, "messages found");
           setMessages(data.messages);
+        } else {
+          console.log("No messages found in response");
         }
       } catch (error) {
         console.error('Error fetching chat history:', error);
