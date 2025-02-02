@@ -63,3 +63,12 @@
 .user-message {
   @apply bg-cream text-gray-800 self-end;
 }
+
+@keyframes grid-flow {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 50px 50px;
+  }
+}

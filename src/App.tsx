@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "./components/LandingPage";
 import ChatInterface from "./components/ChatInterface";
 import NavigationSidebar from "./components/NavigationSidebar";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,7 @@ const App = () => {
           <div className="min-h-screen bg-softgray">
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/auth" element={<Auth />} />
               <Route
                 path="/chat"
                 element={
