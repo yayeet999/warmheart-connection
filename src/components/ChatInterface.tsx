@@ -153,7 +153,7 @@ const ChatInterface = () => {
       return;
     }
 
-    // Check daily limits using the Edge Function
+    // Check daily limits
     const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
       body: { 
         userId: session.user.id,
@@ -175,7 +175,18 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, userMessage]);
     
     try {
-      // Get AI response with userId
+      // First, analyze emotions with the new message included
+      const { error: emotionError } = await supabase.functions.invoke('emotion-analyzer', {
+        body: { 
+          userId: session.user.id
+        }
+      });
+
+      if (emotionError) {
+        console.error('Error analyzing emotions:', emotionError);
+      }
+
+      // Then get AI response with userId
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: message.trim(),
