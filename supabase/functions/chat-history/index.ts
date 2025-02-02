@@ -47,25 +47,18 @@ serve(async (req) => {
       console.log('Adding message to Redis:', { 
         userId, 
         messageType: message.type, 
-        content: message.content,
-        fullMessage: JSON.stringify(message)
+        content: message.content
       });
       
-      // Add message to Redis and log the result
+      // Store message directly without additional stringification
       const pushResult = await redis.lpush(key, JSON.stringify(message));
       console.log('Redis push result:', pushResult);
       
-      // Verify message was added
-      const justAddedMessage = await redis.lindex(key, 0);
-      console.log('Verification - just added message:', justAddedMessage);
-      
-      // Trim the list and log the result
-      const trimResult = await redis.ltrim(key, 0, 99);
-      console.log('Redis trim result:', trimResult);
-
-      // Get current list length after add
       const currentLength = await redis.llen(key);
       console.log('Current list length after add:', currentLength);
+      
+      // Trim to keep last 100 messages
+      await redis.ltrim(key, 0, 99);
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -79,26 +72,26 @@ serve(async (req) => {
     if (action === 'get') {
       console.log('Fetching messages for user:', userId);
       
-      // Get all messages in the list first to check if any exist
       const listLength = await redis.llen(key);
       console.log('Total messages in Redis:', listLength);
       
-      // Get the most recent 50 messages
       const messages = await redis.lrange(key, 0, 49);
       console.log('Retrieved messages from Redis:', messages.length);
-      console.log('Raw messages:', messages);
       
+      // Parse the messages, handling potential JSON parsing errors
       const parsedMessages = messages.map(msg => {
         try {
+          // If the message is already an object, return it directly
+          if (typeof msg === 'object') return msg;
+          // Otherwise, try to parse it
           return JSON.parse(msg);
         } catch (e) {
           console.error('Error parsing message:', e, 'Raw message:', msg);
           return null;
         }
-      }).filter(msg => msg !== null);
+      }).filter(Boolean); // Remove any null values from parsing errors
 
-      console.log('Parsed messages count:', parsedMessages.length);
-      console.log('First parsed message (if any):', parsedMessages[0]);
+      console.log('Successfully parsed messages count:', parsedMessages.length);
 
       return new Response(
         JSON.stringify({ messages: parsedMessages.reverse() }), // Reverse to show oldest first
