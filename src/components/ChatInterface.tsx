@@ -14,15 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 
 const MESSAGE_LIMITS = {
-  free: 50,  // Updated to match the Edge Function limit
+  free: 50,
   pro: 500
 };
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
-    { type: "ai", content: "Hi! I'm Amorine. How are you feeling today?" }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -47,6 +45,36 @@ const ChatInterface = () => {
       };
     },
   });
+
+  // Fetch chat history when component mounts
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      if (!userData?.userId) return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('chat-history', {
+          body: { 
+            userId: userData.userId,
+            action: 'get'
+          }
+        });
+
+        if (error) throw error;
+        if (data.messages) {
+          setMessages(data.messages);
+        }
+      } catch (error) {
+        console.error('Error fetching chat history:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load chat history",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchChatHistory();
+  }, [userData?.userId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,7 +114,8 @@ const ChatInterface = () => {
     }
     
     setIsLoading(true);
-    setMessages(prev => [...prev, { type: "user", content: message }]);
+    const userMessage = { type: "user", content: message };
+    setMessages(prev => [...prev, userMessage]);
     
     try {
       const recentMessages = messages.slice(-20).map(msg => ({
@@ -94,6 +123,7 @@ const ChatInterface = () => {
         content: msg.content
       }));
 
+      // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: message.trim(),
@@ -103,10 +133,31 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      setMessages(prev => [...prev, {
+      const aiMessage = {
         type: "ai",
         content: data.reply || "I apologize, but I'm having trouble responding right now."
-      }]);
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Store both messages in Redis
+      await Promise.all([
+        supabase.functions.invoke('chat-history', {
+          body: {
+            userId: userData.userId,
+            message: userMessage,
+            action: 'add'
+          }
+        }),
+        supabase.functions.invoke('chat-history', {
+          body: {
+            userId: userData.userId,
+            message: aiMessage,
+            action: 'add'
+          }
+        })
+      ]);
+
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, {
