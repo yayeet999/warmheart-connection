@@ -3,6 +3,7 @@ import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -24,26 +25,66 @@ const ChatInterface = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
-  const { data: userData } = useQuery({
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to access the chat.",
+          variant: "destructive"
+        });
+        navigate("/auth");
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        navigate("/auth");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  const { data: userData, isError: userDataError } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error("No authenticated user");
+      }
 
       const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
           .select("tier")
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
           .maybeSingle(),
       ]);
 
       return {
         subscription: subscription || { tier: 'free' },
-        userId: user.id
+        userId: session.user.id
       };
     },
+    retry: false,
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to load user data. Please try logging in again.",
+        variant: "destructive"
+      });
+      navigate("/auth");
+    }
   });
 
   // Fetch chat history when component mounts
@@ -87,27 +128,29 @@ const ChatInterface = () => {
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
     
-    if (!userData) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
       toast({
         title: "Error",
         description: "Please log in to send messages.",
         variant: "destructive"
       });
+      navigate("/auth");
       return;
     }
 
     // Check daily limits using the Edge Function
     const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
       body: { 
-        userId: userData.userId,
-        tier: userData.subscription?.tier || 'free'
+        userId: session.user.id,
+        tier: userData?.subscription?.tier || 'free'
       }
     });
 
     if (limitError || !limitData.canSendMessage) {
       toast({
         title: "Daily Limit Reached",
-        description: `You've reached your daily limit of ${MESSAGE_LIMITS[userData.subscription?.tier || 'free']} messages. Please try again tomorrow or upgrade your plan.`,
+        description: `You've reached your daily limit of ${MESSAGE_LIMITS[userData?.subscription?.tier || 'free']} messages. Please try again tomorrow or upgrade your plan.`,
         variant: "destructive"
       });
       return;
@@ -144,14 +187,14 @@ const ChatInterface = () => {
       await Promise.all([
         supabase.functions.invoke('chat-history', {
           body: {
-            userId: userData.userId,
+            userId: session.user.id,
             message: userMessage,
             action: 'add'
           }
         }),
         supabase.functions.invoke('chat-history', {
           body: {
-            userId: userData.userId,
+            userId: session.user.id,
             message: aiMessage,
             action: 'add'
           }
