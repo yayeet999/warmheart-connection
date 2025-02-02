@@ -12,21 +12,27 @@ export type Database = {
       message_counts: {
         Row: {
           created_at: string
+          daily_count: number
           id: string
+          last_reset_date: string
           message_count: number
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          daily_count?: number
           id?: string
+          last_reset_date?: string
           message_count?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          daily_count?: number
           id?: string
+          last_reset_date?: string
           message_count?: number
           updated_at?: string
           user_id?: string
@@ -83,7 +89,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      reset_daily_count: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       subscription_tier: "free" | "pro"
