@@ -31,7 +31,6 @@ const WelcomePopup = () => {
         description: isPro 
           ? "Thank you for choosing our premium experience. Enjoy all the advanced features!"
           : "Get started with our free tier and upgrade anytime for premium features.",
-        icon: isPro ? <Award className="h-5 w-5 text-blue-500" /> : <User className="h-5 w-5" />,
       });
     }
   }, [subscription, toast]);
