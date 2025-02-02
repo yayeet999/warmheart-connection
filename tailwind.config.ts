@@ -18,10 +18,11 @@ export default {
     },
     extend: {
       colors: {
-        coral: "#FF7F6E",
-        plum: "#6E3BFF",
-        cream: "#FFF5EB",
-        softgray: "#F8F9FA",
+        coral: "#FF6B4A", // Slightly more saturated and darker
+        plum: "#5B34D9", // Deeper, more masculine purple
+        cream: "#FFF1E6", // Slightly warmer cream
+        softgray: "#F0F2F5", // Slightly cooler gray
+        charcoal: "#403E43", // New dark accent color
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -57,7 +58,7 @@ export default {
         },
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #FF7F6E 0%, #6E3BFF 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #FF6B4A 0%, #5B34D9 100%)',
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -73,10 +74,15 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float": "float 6s ease-in-out infinite",
       },
     },
   },
