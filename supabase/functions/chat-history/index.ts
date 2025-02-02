@@ -18,6 +18,15 @@ serve(async (req) => {
   }
 
   try {
+    // Test Redis connection
+    try {
+      await redis.ping();
+      console.log('Redis connection successful');
+    } catch (redisError) {
+      console.error('Redis connection failed:', redisError);
+      throw new Error('Redis connection failed');
+    }
+
     const { userId, message, action } = await req.json();
     console.log('Request received:', { userId, action, messageType: message?.type });
 
@@ -35,15 +44,28 @@ serve(async (req) => {
         throw new Error('Message is required for add action');
       }
 
-      console.log('Adding message to Redis:', { userId, messageType: message.type, content: message.content });
+      console.log('Adding message to Redis:', { 
+        userId, 
+        messageType: message.type, 
+        content: message.content,
+        fullMessage: JSON.stringify(message)
+      });
       
       // Add message to Redis and log the result
       const pushResult = await redis.lpush(key, JSON.stringify(message));
       console.log('Redis push result:', pushResult);
       
+      // Verify message was added
+      const justAddedMessage = await redis.lindex(key, 0);
+      console.log('Verification - just added message:', justAddedMessage);
+      
       // Trim the list and log the result
       const trimResult = await redis.ltrim(key, 0, 99);
       console.log('Redis trim result:', trimResult);
+
+      // Get current list length after add
+      const currentLength = await redis.llen(key);
+      console.log('Current list length after add:', currentLength);
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -64,17 +86,19 @@ serve(async (req) => {
       // Get the most recent 50 messages
       const messages = await redis.lrange(key, 0, 49);
       console.log('Retrieved messages from Redis:', messages.length);
+      console.log('Raw messages:', messages);
       
       const parsedMessages = messages.map(msg => {
         try {
           return JSON.parse(msg);
         } catch (e) {
-          console.error('Error parsing message:', e);
+          console.error('Error parsing message:', e, 'Raw message:', msg);
           return null;
         }
       }).filter(msg => msg !== null);
 
       console.log('Parsed messages count:', parsedMessages.length);
+      console.log('First parsed message (if any):', parsedMessages[0]);
 
       return new Response(
         JSON.stringify({ messages: parsedMessages.reverse() }), // Reverse to show oldest first
