@@ -33,22 +33,16 @@ const ChatInterface = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const [{ data: subscription }, { data: messageCount }] = await Promise.all([
+      const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
           .select("tier")
           .eq("user_id", user.id)
           .maybeSingle(),
-        supabase
-          .from("message_counts")
-          .select("message_count")
-          .eq("user_id", user.id)
-          .maybeSingle()
       ]);
 
       return {
         subscription: subscription || { tier: 'free' },
-        messageCount: messageCount || { message_count: 0 },
         userId: user.id
       };
     },
@@ -74,16 +68,18 @@ const ChatInterface = () => {
       return;
     }
 
-    const currentCount = userData.messageCount?.message_count || 0;
-    const limit = MESSAGE_LIMITS[userData.subscription?.tier || 'free'];
+    // Check daily limits using the Edge Function
+    const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
+      body: { 
+        userId: userData.userId,
+        tier: userData.subscription?.tier || 'free'
+      }
+    });
 
-    // Check if adding both the user message and potential AI response would exceed the limit
-    if (currentCount + 2 > limit) {
+    if (limitError || !limitData.canSendMessage) {
       toast({
-        title: "Message Limit Reached",
-        description: userData.subscription?.tier === 'free' 
-          ? "You've reached the free tier limit. Please upgrade to continue chatting."
-          : "You've reached your message limit for this period.",
+        title: "Daily Limit Reached",
+        description: `You've reached your daily message limit. Please try again tomorrow or upgrade your plan.`,
         variant: "destructive"
       });
       return;
@@ -107,19 +103,6 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // Update message count for both user message and AI response
-      const { error: updateError } = await supabase
-        .from('message_counts')
-        .upsert({ 
-          user_id: userData.userId,
-          message_count: currentCount + 2  // Increment by 2 to count both messages
-        }, {
-          onConflict: 'user_id',
-          ignoreDuplicates: false
-        });
-
-      if (updateError) throw updateError;
-
       setMessages(prev => [...prev, {
         type: "ai",
         content: data.reply || "I apologize, but I'm having trouble responding right now."
@@ -137,9 +120,7 @@ const ChatInterface = () => {
   };
 
   const isFreeUser = userData?.subscription?.tier === 'free';
-  const messageCount = userData?.messageCount?.message_count || 0;
   const limit = MESSAGE_LIMITS[userData?.subscription?.tier || 'free'];
-  const remainingMessages = limit - messageCount;
 
   return (
     <>
@@ -183,11 +164,6 @@ const ChatInterface = () => {
         </div>
         
         <div className="p-4 border-t">
-          {userData && (
-            <div className="text-sm text-gray-500 mb-2 text-center">
-              {remainingMessages} messages remaining
-            </div>
-          )}
           <div className="flex items-center space-x-2">
             <input
               type="text"
@@ -196,14 +172,14 @@ const ChatInterface = () => {
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
               placeholder="Type your message..."
               className="flex-1 p-4 rounded-full border focus:outline-none focus:ring-2 focus:ring-coral"
-              disabled={isLoading || (messageCount >= limit)}
+              disabled={isLoading}
             />
             <button
               onClick={handleSend}
               className={`p-4 rounded-full bg-gradient-primary text-white transition-opacity ${
-                isLoading || (messageCount >= limit) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
               }`}
-              disabled={isLoading || (messageCount >= limit)}
+              disabled={isLoading}
             >
               <Send className="w-5 h-5" />
             </button>
