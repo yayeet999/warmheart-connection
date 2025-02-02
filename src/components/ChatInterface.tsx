@@ -1,25 +1,41 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([
     { type: "ai", content: "Hi! I'm Amorine. How are you feeling today?" }
   ]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
+  const handleSend = async () => {
+    if (!message.trim() || isLoading) return;
     
-    setMessages([...messages, { type: "user", content: message }]);
-    setMessage("");
+    setIsLoading(true);
+    setMessages(prev => [...prev, { type: "user", content: message }]);
     
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: { message: message.trim() }
+      });
+
+      if (error) throw error;
+
       setMessages(prev => [...prev, {
         type: "ai",
-        content: "I'm here to listen and support you. Would you like to tell me more?"
+        content: data.reply || "I apologize, but I'm having trouble responding right now."
       }]);
-    }, 1000);
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prev => [...prev, {
+        type: "ai",
+        content: "I apologize, but I'm having trouble connecting right now. Please try again later."
+      }]);
+    } finally {
+      setIsLoading(false);
+      setMessage("");
+    }
   };
 
   return (
@@ -46,10 +62,14 @@ const ChatInterface = () => {
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type your message..."
             className="flex-1 p-4 rounded-full border focus:outline-none focus:ring-2 focus:ring-coral"
+            disabled={isLoading}
           />
           <button
             onClick={handleSend}
-            className="p-4 rounded-full bg-gradient-primary text-white hover:opacity-90 transition-opacity"
+            className={`p-4 rounded-full bg-gradient-primary text-white transition-opacity ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+            }`}
+            disabled={isLoading}
           >
             <Send className="w-5 h-5" />
           </button>
