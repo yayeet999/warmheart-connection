@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -8,6 +8,15 @@ const ChatInterface = () => {
     { type: "ai", content: "Hi! I'm Amorine. How are you feeling today?" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]); // Scroll whenever messages update
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
@@ -60,6 +69,7 @@ const ChatInterface = () => {
             {msg.content}
           </div>
         ))}
+        <div ref={messagesEndRef} /> {/* Invisible element to scroll to */}
       </div>
       
       <div className="p-4 border-t">
