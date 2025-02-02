@@ -12,26 +12,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const COMPANION_SYSTEM_PROMPT = `You are a feminine, caring companion participating in an ongoing conversation. Each interaction includes the recent history for context. Previous messages are crucial for:
-- Understanding emotional progression
-- Maintaining conversation continuity
-- Referencing past details
-- Building upon established rapport
-- Tracking emotional state changes
+const COMPANION_SYSTEM_PROMPT = `You are a feminine, caring companion participating in an ongoing conversation. Each interaction includes the recent history and emotional analysis for context.
 
-CONTEXT PROCESSING:
-Before each response:
-   - Review recent emotional states
-   - Note any unresolved topics
-   - Identify recurring themes
-   - Consider previous coping strategies discussed
-When crafting responses:
-   - Reference relevant past conversations
-   - Build upon previous insights
-   - Maintain consistent support approach
-   - Acknowledge any progress or changes noticed
+EMOTIONAL CONTEXT:
+You will receive:
+- Recent emotional analysis of the user
+- Primary and secondary emotions with intensities
+- Context description of their emotional state
+Use this to:
+- Acknowledge and validate their emotions
+- Adjust your tone and support style
+- Show understanding of their emotional journey
+- Provide appropriate emotional support
 
-COMMUNICATION STYLE:
+CONVERSATION GUIDELINES:
 - Use emoticons naturally (35% of messages)
 - Keep each message 2-5 sentences
 - Always validate before exploring deeper
@@ -40,15 +34,15 @@ COMMUNICATION STYLE:
 - Redirect explicit content to respectful conversation
 
 CONVERSATION HISTORY:
-You will receive the last 20 messages of conversation history with each request.
-Each message is labeled as either "user" or "companion".
-Use this history to:
+You will receive:
+- The last 20 messages for context
+- Current emotional analysis
+Use this to:
 - Maintain context and continuity
-- Reference specific details from past exchanges
+- Reference specific details
 - Track emotional progress
 - Build upon previous discussions
-- Ensure responses align with established rapport
-Remember these are the most recent messages and should heavily influence your next response.`;
+- Ensure responses align with emotional state`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -66,16 +60,20 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
     
+    // Fetch emotional analysis from Redis
+    const emotionKey = `user:${userId}:emotional_state`;
+    const emotionalAnalysis = await redis.get(emotionKey);
+    console.log('Fetched emotional analysis:', emotionalAnalysis);
+
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 19); // Get last 20 messages
+    const recentMessages = await redis.lrange(key, 0, 19);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
-    // Parse and format messages for OpenAI with improved error handling
+    // Parse and format messages for OpenAI
     const conversationHistory = recentMessages
       .map(msg => {
         try {
-          // Handle both string and object formats
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
           
           if (!parsed || !parsed.type || !parsed.content) {
@@ -92,10 +90,22 @@ serve(async (req) => {
           return null;
         }
       })
-      .filter(Boolean) // Remove any null values
-      .reverse(); // Put in chronological order
+      .filter(Boolean)
+      .reverse();
 
-    console.log('Formatted conversation history:', conversationHistory.length, 'messages');
+    // Create emotional context message
+    let emotionalContext = "No emotional analysis available.";
+    if (emotionalAnalysis) {
+      try {
+        const analysis = JSON.parse(emotionalAnalysis);
+        emotionalContext = `Current Emotional State:
+- Primary: ${analysis.primary_emotion} (${analysis.primary_sub_emotion}) - Intensity: ${analysis.primary_intensity}
+- Secondary: ${analysis.secondary_emotion} (${analysis.secondary_sub_emotion}) - Intensity: ${analysis.secondary_intensity}
+Context: ${analysis.context_description}`;
+      } catch (e) {
+        console.error('Error parsing emotional analysis:', e);
+      }
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -108,7 +118,7 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: COMPANION_SYSTEM_PROMPT
+            content: `${COMPANION_SYSTEM_PROMPT}\n\nEMOTIONAL ANALYSIS:\n${emotionalContext}`
           },
           ...conversationHistory,
           { role: 'user', content: message }
