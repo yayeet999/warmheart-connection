@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import TypingIndicator from "./TypingIndicator";
 
 const MESSAGE_LIMITS = {
   free: 50,
@@ -24,6 +25,7 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -171,6 +173,7 @@ const ChatInterface = () => {
     }
     
     setIsLoading(true);
+    setIsTyping(true);
     const userMessage = { type: "user", content: message };
     setMessages(prev => [...prev, userMessage]);
     
@@ -229,6 +232,7 @@ const ChatInterface = () => {
       }]);
     } finally {
       setIsLoading(false);
+      setIsTyping(false);
       setMessage("");
     }
   };
@@ -274,6 +278,11 @@ const ChatInterface = () => {
               {msg.content}
             </div>
           ))}
+          {isTyping && (
+            <div className="message-bubble ai-message">
+              <TypingIndicator />
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         
