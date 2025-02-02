@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+const MESSAGE_LIMITS = {
+  free: 100,
+  pro: 1500
+};
+
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([
@@ -21,19 +27,30 @@ const ChatInterface = () => {
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: subscription } = useQuery({
-    queryKey: ["subscription"],
+  const { data: userData } = useQuery({
+    queryKey: ["user-data"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("tier")
-        .eq("user_id", user.id)
-        .single();
+      const [{ data: subscription }, { data: messageCount }] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("tier")
+          .eq("user_id", user.id)
+          .single(),
+        supabase
+          .from("message_counts")
+          .select("message_count")
+          .eq("user_id", user.id)
+          .single()
+      ]);
 
-      return subscription;
+      return {
+        subscription,
+        messageCount,
+        userId: user.id
+      };
     },
   });
 
@@ -47,6 +64,29 @@ const ChatInterface = () => {
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
+    
+    if (!userData) {
+      toast({
+        title: "Error",
+        description: "Please log in to send messages.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const currentCount = userData.messageCount?.message_count || 0;
+    const limit = MESSAGE_LIMITS[userData.subscription?.tier || 'free'];
+
+    if (currentCount >= limit) {
+      toast({
+        title: "Message Limit Reached",
+        description: userData.subscription?.tier === 'free' 
+          ? "You've reached the free tier limit. Please upgrade to continue chatting."
+          : "You've reached your message limit for this period.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsLoading(true);
     setMessages(prev => [...prev, { type: "user", content: message }]);
@@ -66,6 +106,14 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
+      // Update message count
+      const { error: updateError } = await supabase
+        .from('message_counts')
+        .update({ message_count: currentCount + 1 })
+        .eq('user_id', userData.userId);
+
+      if (updateError) throw updateError;
+
       setMessages(prev => [...prev, {
         type: "ai",
         content: data.reply || "I apologize, but I'm having trouble responding right now."
@@ -82,7 +130,10 @@ const ChatInterface = () => {
     }
   };
 
-  const isFreeUser = subscription?.tier === 'free';
+  const isFreeUser = userData?.subscription?.tier === 'free';
+  const messageCount = userData?.messageCount?.message_count || 0;
+  const limit = MESSAGE_LIMITS[userData?.subscription?.tier || 'free'];
+  const remainingMessages = limit - messageCount;
 
   return (
     <>
@@ -95,9 +146,8 @@ const ChatInterface = () => {
             </DialogTitle>
             <DialogDescription className="text-base">
               We're excited to have you! You're welcome to chat and interact with Amorine. 
-              Just remember there's a limit on the free tier - she won't remember conversations 
-              as well as on a paid plan, and features like video or phone calls aren't available. 
-              But feel free to get to know her!
+              Just remember there's a limit of {MESSAGE_LIMITS.free} messages on the free tier. 
+              You can upgrade to our pro plan for {MESSAGE_LIMITS.pro} messages and enhanced features!
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -127,6 +177,11 @@ const ChatInterface = () => {
         </div>
         
         <div className="p-4 border-t">
+          {userData && (
+            <div className="text-sm text-gray-500 mb-2 text-center">
+              {remainingMessages} messages remaining
+            </div>
+          )}
           <div className="flex items-center space-x-2">
             <input
               type="text"
@@ -135,14 +190,14 @@ const ChatInterface = () => {
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
               placeholder="Type your message..."
               className="flex-1 p-4 rounded-full border focus:outline-none focus:ring-2 focus:ring-coral"
-              disabled={isLoading}
+              disabled={isLoading || (messageCount >= limit)}
             />
             <button
               onClick={handleSend}
               className={`p-4 rounded-full bg-gradient-primary text-white transition-opacity ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+                isLoading || (messageCount >= limit) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
               }`}
-              disabled={isLoading}
+              disabled={isLoading || (messageCount >= limit)}
             >
               <Send className="w-5 h-5" />
             </button>
