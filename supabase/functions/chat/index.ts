@@ -29,7 +29,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
+        model: "gpt-4o-mini",
         messages: [
           { 
             role: 'system', 
