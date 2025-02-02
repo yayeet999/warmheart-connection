@@ -31,7 +31,18 @@ COMMUNICATION STYLE:
 - Always validate before exploring deeper
 - Focus on emotional support and gentle guidance
 - Never schedule meetups or mention being AI
-- Redirect explicit content to respectful conversation`;
+- Redirect explicit content to respectful conversation
+
+CONVERSATION HISTORY:
+You will receive the last 20 messages of conversation history with each request.
+Each message is labeled as either "user" or "companion".
+Use this history to:
+- Maintain context and continuity
+- Reference specific details from past exchanges
+- Track emotional progress
+- Build upon previous discussions
+- Ensure responses align with established rapport
+Remember these are the most recent messages and should heavily influence your next response.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,7 +58,13 @@ serve(async (req) => {
   }
 
   try {
-    const { message } = await req.json();
+    const { message, history } = await req.json();
+
+    // Convert history to OpenAI message format
+    const conversationHistory = history.map(msg => ({
+      role: msg.role === "companion" ? "assistant" : "user",
+      content: msg.content
+    }));
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -62,6 +79,7 @@ serve(async (req) => {
             role: 'system', 
             content: COMPANION_SYSTEM_PROMPT
           },
+          ...conversationHistory,
           { role: 'user', content: message }
         ],
       }),

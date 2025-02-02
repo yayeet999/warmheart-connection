@@ -16,8 +16,17 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, { type: "user", content: message }]);
     
     try {
+      // Get the last 20 messages
+      const recentMessages = messages.slice(-20).map(msg => ({
+        role: msg.type === "ai" ? "companion" : "user",
+        content: msg.content
+      }));
+
       const { data, error } = await supabase.functions.invoke('chat', {
-        body: { message: message.trim() }
+        body: { 
+          message: message.trim(),
+          history: recentMessages
+        }
       });
 
       if (error) throw error;
