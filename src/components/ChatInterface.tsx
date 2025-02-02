@@ -77,13 +77,15 @@ const ChatInterface = () => {
       };
     },
     retry: false,
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to load user data. Please try logging in again.",
-        variant: "destructive"
-      });
-      navigate("/auth");
+    meta: {
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to load user data. Please try logging in again.",
+          variant: "destructive"
+        });
+        navigate("/auth");
+      }
     }
   });
 
