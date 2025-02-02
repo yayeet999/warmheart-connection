@@ -77,7 +77,8 @@ const ChatInterface = () => {
     const currentCount = userData.messageCount?.message_count || 0;
     const limit = MESSAGE_LIMITS[userData.subscription?.tier || 'free'];
 
-    if (currentCount >= limit) {
+    // Check if adding both the user message and potential AI response would exceed the limit
+    if (currentCount + 2 > limit) {
       toast({
         title: "Message Limit Reached",
         description: userData.subscription?.tier === 'free' 
@@ -106,12 +107,12 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // Update message count using user_id as the conflict target
+      // Update message count for both user message and AI response
       const { error: updateError } = await supabase
         .from('message_counts')
         .upsert({ 
           user_id: userData.userId,
-          message_count: currentCount + 1
+          message_count: currentCount + 2  // Increment by 2 to count both messages
         }, {
           onConflict: 'user_id',
           ignoreDuplicates: false
