@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { ArrowLeft } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -57,30 +58,22 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-softgray">
-      {/* Header */}
       <header className="w-full bg-charcoal py-4 px-6 flex justify-between items-center">
-        <Link to="/" className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/")}
+            className="text-cream hover:text-coral"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </Button>
           <span className="text-2xl font-bold bg-gradient-primary text-transparent bg-clip-text">
             Amorine
           </span>
-        </Link>
-        <nav className="flex gap-4">
-          <Link 
-            to="/" 
-            className="text-cream hover:text-coral transition-colors"
-          >
-            Home
-          </Link>
-          <a 
-            href="#features" 
-            className="text-cream hover:text-coral transition-colors"
-          >
-            Features
-          </a>
-        </nav>
+        </div>
       </header>
 
-      {/* Auth Form */}
       <div className="container mx-auto flex justify-center items-center min-h-[calc(100vh-72px)] p-4">
         <Card className="w-full max-w-md">
           <CardHeader>

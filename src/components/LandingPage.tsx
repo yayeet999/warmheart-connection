@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Clock, Shield, Heart } from "lucide-react";
+import Header from "./Header";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-white relative overflow-hidden">
       <div className="grid-background absolute inset-0 opacity-30" />
+      <Header />
       
       <div className="container mx-auto px-4 py-20 relative z-10">
         <div className="max-w-3xl mx-auto text-center mb-20">
