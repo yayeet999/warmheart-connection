@@ -1,5 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+
+const redis = new Redis({
+  url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
+  token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,13 +64,29 @@ serve(async (req) => {
   }
 
   try {
-    const { message, history } = await req.json();
+    const { message, userId } = await req.json();
+    
+    // Fetch recent messages from Redis
+    const key = `user:${userId}:messages`;
+    const recentMessages = await redis.lrange(key, 0, 19); // Get last 20 messages
+    
+    console.log('Fetched recent messages from Redis:', recentMessages.length);
 
-    // Convert history to OpenAI message format
-    const conversationHistory = history.map(msg => ({
-      role: msg.role === "companion" ? "assistant" : "user",
-      content: msg.content
-    }));
+    // Parse and format messages for OpenAI
+    const conversationHistory = recentMessages.map(msg => {
+      try {
+        const parsedMsg = JSON.parse(msg);
+        return {
+          role: parsedMsg.type === "ai" ? "assistant" : "user",
+          content: parsedMsg.content
+        };
+      } catch (e) {
+        console.error('Error parsing message:', e);
+        return null;
+      }
+    }).filter(Boolean).reverse(); // Remove any null values and reverse to get chronological order
+
+    console.log('Formatted conversation history:', conversationHistory.length, 'messages');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

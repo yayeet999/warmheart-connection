@@ -175,16 +175,11 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, userMessage]);
     
     try {
-      const recentMessages = messages.slice(-20).map(msg => ({
-        role: msg.type === "ai" ? "companion" : "user",
-        content: msg.content
-      }));
-
-      // Get AI response
+      // Get AI response with userId
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: message.trim(),
-          history: recentMessages
+          userId: session.user.id
         }
       });
 
