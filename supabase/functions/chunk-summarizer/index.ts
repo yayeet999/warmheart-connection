@@ -17,6 +17,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Function to check and increment chunk count
+async function handleChunkCount(userId: string): Promise<boolean> {
+  const chunkCountKey = `user:${userId}:chunk_count`;
+  
+  // Increment the counter and get the new value
+  const newCount = await redis.incr(chunkCountKey);
+  console.log(`Current chunk count for user ${userId}: ${newCount}`);
+  
+  if (newCount >= 55) {
+    // Reset the counter when we hit 55
+    await redis.set(chunkCountKey, 0);
+    return true;
+  }
+  
+  return false;
+}
+
 const SYSTEM_PROMPT = `You are an advanced Summarizer AI. You will be given exactly 55 messages from a conversation between a user and their AI companion (consisting of paired user messages and AI responses). Your task:
 
 1) **Analyze** these 55 messages chronologically, considering both sides of the conversation while focusing on user insights and patterns.
@@ -97,6 +114,22 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
+    // Check if we should perform summarization
+    const shouldSummarize = await handleChunkCount(userId);
+    
+    if (!shouldSummarize) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Chunk count updated, not yet ready for summarization' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      );
+    }
+
     // Get the last 55 messages from Redis
     const key = `user:${userId}:messages`;
     const messages = await redis.lrange(key, 0, 54); // Get 55 messages (0-54)
@@ -163,19 +196,6 @@ serve(async (req) => {
     if (memoryError) {
       console.error('Error storing memory:', memoryError);
       throw memoryError;
-    }
-
-    // Update message count in the database
-    const { error: countError } = await supabase
-      .from('message_counts')
-      .update({ 
-        chunk_message_count: 0  // Reset chunk counter after summarization
-      })
-      .eq('user_id', userId);
-
-    if (countError) {
-      console.error('Error updating message count:', countError);
-      // Don't throw here, as the main operation succeeded
     }
 
     return new Response(

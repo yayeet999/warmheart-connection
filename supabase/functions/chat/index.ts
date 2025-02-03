@@ -67,7 +67,7 @@ serve(async (req) => {
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 29); // Changed from 19 to 29 to get 30 messages
+    const recentMessages = await redis.lrange(key, 0, 29);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
@@ -127,6 +127,12 @@ Context: ${analysis.context_description}`;
     });
 
     const data = await response.json();
+
+    // After storing messages in Redis, call the chunk-summarizer
+    await supabase.functions.invoke('chunk-summarizer', {
+      body: { userId }
+    });
+
     return new Response(
       JSON.stringify({ reply: data.choices[0].message.content }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
