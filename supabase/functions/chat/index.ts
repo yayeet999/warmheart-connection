@@ -1,11 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
   token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
 });
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,7 +72,7 @@ serve(async (req) => {
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 29); // Changed from 19 to 29 to get 30 messages
+    const recentMessages = await redis.lrange(key, 0, 29);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
@@ -93,17 +98,21 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse();
 
-    // Create emotional context message
+    // Create emotional context message - no need to parse emotionalAnalysis again
     let emotionalContext = "No emotional analysis available.";
     if (emotionalAnalysis) {
       try {
-        const analysis = JSON.parse(emotionalAnalysis);
+        // emotionalAnalysis is already an object if it exists
+        const analysis = typeof emotionalAnalysis === 'string' 
+          ? JSON.parse(emotionalAnalysis) 
+          : emotionalAnalysis;
+          
         emotionalContext = `Current Emotional State:
 - Primary: ${analysis.primary_emotion} (${analysis.primary_sub_emotion}) - Intensity: ${analysis.primary_intensity}
 - Secondary: ${analysis.secondary_emotion} (${analysis.secondary_sub_emotion}) - Intensity: ${analysis.secondary_intensity}
 Context: ${analysis.context_description}`;
       } catch (e) {
-        console.error('Error parsing emotional analysis:', e);
+        console.error('Error handling emotional analysis:', e);
       }
     }
 
@@ -114,7 +123,7 @@ Context: ${analysis.context_description}`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4",
         messages: [
           { 
             role: 'system', 
