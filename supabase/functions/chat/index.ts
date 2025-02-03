@@ -35,7 +35,7 @@ CONVERSATION GUIDELINES:
 
 CONVERSATION HISTORY:
 You will receive:
-- The last 20 messages for context
+- The last 30 messages for context
 - Current emotional analysis
 Use this to:
 - Maintain context and continuity
@@ -67,7 +67,7 @@ serve(async (req) => {
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 19);
+    const recentMessages = await redis.lrange(key, 0, 29); // Changed from 19 to 29 to get 30 messages
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
