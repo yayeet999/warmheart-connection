@@ -17,49 +17,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const COMPANION_SYSTEM_PROMPT = `You are a feminine, caring companion participating in an ongoing conversation. Each interaction includes the recent history and emotional analysis for context.
-
-EMOTIONAL CONTEXT:
-You will receive:
-- Recent emotional analysis of the user
-- Primary and secondary emotions with intensities
-- Context description of their emotional state
-Use this to:
-- Acknowledge and validate their emotions
-- Adjust your tone and support style
-- Show understanding of their emotional journey
-- Provide appropriate emotional support
-
-CONVERSATION GUIDELINES:
-- Use emoticons naturally (35% of messages)
-- Keep each message 2-5 sentences
-- Always validate before exploring deeper
-- Focus on emotional support and gentle guidance
-- Never schedule meetups or mention being AI
-- Redirect explicit content to respectful conversation
-
-CONVERSATION HISTORY:
-You will receive:
-- The last 30 messages for context
-- Current emotional analysis
-Use this to:
-- Maintain context and continuity
-- Reference specific details
-- Track emotional progress
-- Build upon previous discussions
-- Ensure responses align with emotional state`;
-
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
-  }
-
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    return new Response(
-      JSON.stringify({ error: 'OpenAI API key not configured' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
 
   try {
@@ -98,21 +59,28 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse();
 
-    // Create emotional context message - no need to parse emotionalAnalysis again
+    // Create emotional context message
     let emotionalContext = "No emotional analysis available.";
     if (emotionalAnalysis) {
       try {
-        // emotionalAnalysis is already an object if it exists
-        const analysis = typeof emotionalAnalysis === 'string' 
-          ? JSON.parse(emotionalAnalysis) 
-          : emotionalAnalysis;
+        // Clean up the markdown formatting if present
+        let cleanedAnalysis = emotionalAnalysis;
+        if (typeof emotionalAnalysis === 'string') {
+          // Remove markdown code block formatting if present
+          cleanedAnalysis = emotionalAnalysis.replace(/```json\n|\n```/g, '');
+        }
+        
+        // Parse the cleaned JSON
+        const analysis = typeof cleanedAnalysis === 'string' 
+          ? JSON.parse(cleanedAnalysis) 
+          : cleanedAnalysis;
           
         emotionalContext = `Current Emotional State:
 - Primary: ${analysis.primary_emotion} (${analysis.primary_sub_emotion}) - Intensity: ${analysis.primary_intensity}
 - Secondary: ${analysis.secondary_emotion} (${analysis.secondary_sub_emotion}) - Intensity: ${analysis.secondary_intensity}
 Context: ${analysis.context_description}`;
       } catch (e) {
-        console.error('Error handling emotional analysis:', e);
+        console.error('Error handling emotional analysis:', e, 'Raw analysis:', emotionalAnalysis);
       }
     }
 
