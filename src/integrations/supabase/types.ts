@@ -50,6 +50,7 @@ export type Database = {
       }
       message_counts: {
         Row: {
+          chunk_message_count: number
           created_at: string
           daily_count: number
           id: string
@@ -59,6 +60,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chunk_message_count?: number
           created_at?: string
           daily_count?: number
           id?: string
@@ -68,6 +70,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chunk_message_count?: number
           created_at?: string
           daily_count?: number
           id?: string
