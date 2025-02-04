@@ -53,19 +53,24 @@ serve(async (req) => {
             );
             const superSummaryData = await response.json();
             console.log('Super summary counter response:', superSummaryData);
-
-            // Reset chunk counter after successful summary
-            await redis.set(key, 0);
-            console.log('Reset chunk counter after reaching 55 messages');
           } catch (error) {
             console.error('Error incrementing super summary counter:', error);
           }
         }
 
-        return new Response(
+        // First return the response with the current count
+        const response = new Response(
           JSON.stringify({ count, shouldTriggerSummary: count >= 55 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+
+        // After sending response, if we hit 55, reset the counter
+        if (count >= 55) {
+          await redis.set(key, 0);
+          console.log('Reset chunk counter after reaching 55 messages');
+        }
+
+        return response;
       }
 
       case 'get': {
