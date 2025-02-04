@@ -133,7 +133,7 @@ Context: ${analysis.context_description}`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",  
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",  
         messages: [
           { 
             role: 'system', 
