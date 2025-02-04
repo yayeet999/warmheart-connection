@@ -18,6 +18,66 @@ interface ChunkSummary {
   created_at: string;
 }
 
+const SYSTEM_PROMPT = `You are an advanced "Super Summarizer" AI. You will receive multiple chunk summaries spanning a weekly period. Each chunk summary has these fields:
+
+{
+  "summary_text": "...",
+  "relationship_stage": "...",
+  "key_events": [...],
+  "emotional_patterns": {...},
+  "personality_insights": {...}
+}
+
+### OBJECTIVE 1: MERGE & SYNTHESIZE
+1. Combine all the chunk summaries for this weekly period into a single cohesive account, capturing key themes, repeated patterns, and new developments that emerged across the week.
+2. Highlight Chronological Nuances: Present your weekly summary in a loose chronological flow, referencing each chunk's approximate day or created_at data column when relevant.
+3. Capture Major Data Points & Nuances: 
+   - Distill each chunk's critical insights, emotional shifts, user behaviors, or conversation style changes.
+   - Notice subtle differences or conflicts between chunks.
+   - Avoid merely stringing the chunks together—your goal is an integrated analysis.
+
+### OBJECTIVE 2: RELATIONSHIP STAGE WEIGHTING
+1. Gather the weekly chunk relationship_stages (each is exactly one from this 20-stage dictionary):
+   [
+     "initial_curiosity","casual_acquaintance","growing_interest","friendly_closeness","comfort_zone",
+     "honeymoon_excitement","deepening_trust","exclusive_focus","emotional_intimacy","conflict",
+     "conflict_resolution","renewed_bond","long_term_comfort","stagnation","drifting_apart",
+     "attempted_repair","chronic_conflict","pre_breakup_tension","separation","reconciliation"
+   ]
+2. Calculate frequency of stages and select ONE final stage.
+3. Acknowledge runner-up stages in summary_text with rationale.
+4. Final relationship_stage must be ONE from the dictionary.
+
+### RETURN FORMAT
+Return exactly one valid JSON object with these keys:
+{
+  "summary_text": "...",
+  "relationship_stage": "...",
+  "key_events": [...],
+  "emotional_patterns": {
+    "primary_emotions": [],
+    "triggers": {},
+    "response_patterns": {},
+    "growth_areas": [],
+    "coping_mechanisms": {}
+  },
+  "personality_insights": {
+    "communication_style": {
+      "pattern": "",
+      "examples": []
+    },
+    "values": [],
+    "interests": [],
+    "attachment_style": "",
+    "decision_making": {
+      "style": "",
+      "patterns": []
+    },
+    "social_preferences": {},
+    "growth_mindset": {}
+  }
+}`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -25,6 +85,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
@@ -45,10 +106,9 @@ serve(async (req) => {
     // Process each user's chunks
     for (const { user_id } of userIds || []) {
       try {
-        await processUserChunks(supabase, user_id);
+        await processUserChunks(supabase, user_id, openAIApiKey);
       } catch (error) {
         console.error(`Error processing chunks for user ${user_id}:`, error);
-        // Continue with next user even if one fails
       }
     }
 
@@ -69,11 +129,11 @@ serve(async (req) => {
   }
 });
 
-async function processUserChunks(supabase: any, userId: string, retryCount = 0): Promise<void> {
+async function processUserChunks(supabase: any, userId: string, openAIApiKey: string, retryCount = 0): Promise<void> {
   const MAX_RETRIES = 3;
   
   try {
-    // Start a transaction
+    // Get chunks to process
     const { data: chunks, error: chunksError } = await supabase
       .from('longtermmemory')
       .select('*')
@@ -90,8 +150,36 @@ async function processUserChunks(supabase: any, userId: string, retryCount = 0):
 
     console.log(`Processing ${chunks.length} chunks for user ${userId}`);
 
-    // Process chunks through the super summarizer
-    const superSummary = generateSuperSummary(chunks);
+    // Call OpenAI API to generate super summary
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: SYSTEM_PROMPT 
+          },
+          { 
+            role: 'user', 
+            content: `Here are the chunks to analyze: ${JSON.stringify(chunks)}` 
+          }
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
+
+    const gptResponse = await response.json();
+    const superSummary = JSON.parse(gptResponse.choices[0].message.content);
 
     // Insert the super summary
     const { error: insertError } = await supabase
@@ -123,198 +211,12 @@ async function processUserChunks(supabase: any, userId: string, retryCount = 0):
   } catch (error) {
     console.error(`Error processing chunks for user ${userId}:`, error);
     
-    // Implement retry logic
     if (retryCount < MAX_RETRIES) {
       console.log(`Retrying for user ${userId}, attempt ${retryCount + 1}`);
-      // Wait for an exponentially increasing time before retrying
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-      return processUserChunks(supabase, userId, retryCount + 1);
+      return processUserChunks(supabase, userId, openAIApiKey, retryCount + 1);
     }
     
-    throw error; // If max retries reached, throw the error
+    throw error;
   }
-}
-
-function generateSuperSummary(chunks: ChunkSummary[]) {
-  // Count relationship stages to determine the most common one
-  const stageCount: Record<string, number> = {};
-  chunks.forEach(chunk => {
-    stageCount[chunk.relationship_stage] = (stageCount[chunk.relationship_stage] || 0) + 1;
-  });
-
-  // Find the most common stage
-  let finalStage = Object.entries(stageCount)
-    .sort(([,a], [,b]) => b - a)[0][0];
-
-  // Prepare chronological narrative
-  const chronologicalEvents = chunks.map(chunk => ({
-    date: new Date(chunk.created_at),
-    stage: chunk.relationship_stage,
-    summary: chunk.summary_text,
-    events: chunk.key_events
-  })).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  // Merge emotional patterns and personality insights
-  const mergedEmotionalPatterns = mergeEmotionalPatterns(chunks);
-  const mergedPersonalityInsights = mergePersonalityInsights(chunks);
-
-  // Create chronological summary text
-  const summaryText = createChronologicalSummary(chronologicalEvents, stageCount, finalStage);
-
-  // Merge and deduplicate key events
-  const mergedKeyEvents = mergeKeyEvents(chunks);
-
-  return {
-    summary_text: summaryText,
-    relationship_stage: finalStage,
-    key_events: mergedKeyEvents,
-    emotional_patterns: mergedEmotionalPatterns,
-    personality_insights: mergedPersonalityInsights
-  };
-}
-
-function mergeEmotionalPatterns(chunks: ChunkSummary[]) {
-  // Implement merging logic for emotional patterns
-  const merged = {
-    primary_emotions: new Set<string>(),
-    triggers: {} as Record<string, any>,
-    response_patterns: {} as Record<string, any>,
-    growth_areas: new Set<string>(),
-    coping_mechanisms: {} as Record<string, any>
-  };
-
-  chunks.forEach(chunk => {
-    const patterns = chunk.emotional_patterns;
-    if (patterns.primary_emotions) {
-      patterns.primary_emotions.forEach((emotion: string) => merged.primary_emotions.add(emotion));
-    }
-    Object.assign(merged.triggers, patterns.triggers);
-    Object.assign(merged.response_patterns, patterns.response_patterns);
-    if (patterns.growth_areas) {
-      patterns.growth_areas.forEach((area: string) => merged.growth_areas.add(area));
-    }
-    Object.assign(merged.coping_mechanisms, patterns.coping_mechanisms);
-  });
-
-  return {
-    primary_emotions: Array.from(merged.primary_emotions),
-    triggers: merged.triggers,
-    response_patterns: merged.response_patterns,
-    growth_areas: Array.from(merged.growth_areas),
-    coping_mechanisms: merged.coping_mechanisms
-  };
-}
-
-function mergePersonalityInsights(chunks: ChunkSummary[]) {
-  // Implement merging logic for personality insights
-  const merged = {
-    communication_style: {
-      pattern: "",
-      examples: new Set<string>()
-    },
-    values: new Set<string>(),
-    interests: new Set<string>(),
-    attachment_style: "",
-    decision_making: {
-      style: "",
-      patterns: new Set<string>()
-    },
-    social_preferences: {} as Record<string, any>,
-    growth_mindset: {} as Record<string, any>
-  };
-
-  chunks.forEach(chunk => {
-    const insights = chunk.personality_insights;
-    if (insights.communication_style?.examples) {
-      insights.communication_style.examples.forEach((ex: string) => merged.communication_style.examples.add(ex));
-    }
-    if (insights.values) {
-      insights.values.forEach((value: string) => merged.values.add(value));
-    }
-    if (insights.interests) {
-      insights.interests.forEach((interest: string) => merged.interests.add(interest));
-    }
-    if (insights.decision_making?.patterns) {
-      insights.decision_making.patterns.forEach((pattern: string) => merged.decision_making.patterns.add(pattern));
-    }
-    
-    // Take the most recent non-empty values for singular fields
-    if (insights.communication_style?.pattern) {
-      merged.communication_style.pattern = insights.communication_style.pattern;
-    }
-    if (insights.attachment_style) {
-      merged.attachment_style = insights.attachment_style;
-    }
-    if (insights.decision_making?.style) {
-      merged.decision_making.style = insights.decision_making.style;
-    }
-    
-    Object.assign(merged.social_preferences, insights.social_preferences);
-    Object.assign(merged.growth_mindset, insights.growth_mindset);
-  });
-
-  return {
-    communication_style: {
-      pattern: merged.communication_style.pattern,
-      examples: Array.from(merged.communication_style.examples)
-    },
-    values: Array.from(merged.values),
-    interests: Array.from(merged.interests),
-    attachment_style: merged.attachment_style,
-    decision_making: {
-      style: merged.decision_making.style,
-      patterns: Array.from(merged.decision_making.patterns)
-    },
-    social_preferences: merged.social_preferences,
-    growth_mindset: merged.growth_mindset
-  };
-}
-
-function mergeKeyEvents(chunks: ChunkSummary[]) {
-  // Implement merging logic for key events
-  const uniqueEvents = new Map();
-  
-  chunks.forEach(chunk => {
-    chunk.key_events.forEach(event => {
-      const eventKey = JSON.stringify(event);
-      if (!uniqueEvents.has(eventKey)) {
-        uniqueEvents.set(eventKey, event);
-      }
-    });
-  });
-
-  return Array.from(uniqueEvents.values());
-}
-
-function createChronologicalSummary(
-  chronologicalEvents: Array<{date: Date; stage: string; summary: string; events: any[]}>,
-  stageCount: Record<string, number>,
-  finalStage: string
-) {
-  // Create a chronological narrative
-  const timeMarkers = chronologicalEvents.map((event, index) => {
-    const day = event.date.toLocaleDateString('en-US', { weekday: 'long' });
-    if (index === 0) return `Early in the week (${day})`;
-    if (index === chronologicalEvents.length - 1) return `Later in the week (${day})`;
-    return `Mid-week (${day})`;
-  });
-
-  // Sort stages by frequency for runner-up determination
-  const sortedStages = Object.entries(stageCount)
-    .sort(([,a], [,b]) => b - a)
-    .map(([stage]) => stage);
-
-  let summary = chronologicalEvents.map((event, i) => 
-    `${timeMarkers[i]}: ${event.summary}`
-  ).join(' ');
-
-  // Add relationship stage explanation
-  if (sortedStages.length > 1) {
-    const runnerUps = sortedStages.slice(1, 3);
-    summary += ` Throughout the week, while there were moments of ${runnerUps.join(' and ')}, the predominant relationship stage was "${finalStage}".`;
-  } else {
-    summary += ` The relationship consistently maintained a "${finalStage}" stage throughout the week.`;
-  }
-
-  return summary;
 }
