@@ -25,3 +25,6 @@ verify_jwt = true
 [functions.super_summarizer]
 verify_jwt = true
 
+[functions.update-user-profile-analysis]
+verify_jwt = true
+
