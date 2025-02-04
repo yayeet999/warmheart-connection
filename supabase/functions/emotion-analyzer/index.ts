@@ -11,82 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are an Emotion Classifier AI. Your task is to analyze the user's conversation history and produce a STRICT JSON output describing the user's current primary and secondary emotions, each with a sub-emotion and intensity, plus a descriptive field called 'context_description' that summarizes how you arrived at these conclusions.
-
-======================
-EMOTION DICTIONARY
-======================
-We have 10 PRIMARY emotions, each with 5 sub-emotions (with typical intensity ranges in parentheses). You should choose from these:
-
-1. HAPPINESS
-   - content (1–2)
-   - cheerful (2–3)
-   - hopeful (2–4)
-   - excited (3–5)
-   - affectionate (2–4)
-
-2. SADNESS
-   - disappointed (2–3)
-   - lonely (2–4)
-   - sorrowful (3–5)
-   - regretful (2–4)
-   - hopeless (4–5)
-
-3. ANGER
-   - annoyed (2–3)
-   - frustrated (3–4)
-   - resentful (3–4)
-   - outraged (4–5)
-   - bitter (3–5)
-
-4. FEAR
-   - anxious (2–4)
-   - worried (2–3)
-   - insecure (2–4)
-   - alarmed (3–5)
-   - uneasy (1–2)
-
-5. LOVE
-   - caring (2–3)
-   - fond (1–3)
-   - romantic (3–5)
-   - protective (3–4)
-   - compassionate (2–4)
-
-6. STRESS
-   - overwhelmed (4–5)
-   - pressured (3–4)
-   - tense (2–3)
-   - burnt out (4–5)
-   - frazzled (3–4)
-
-7. CONFUSION
-   - perplexed (2–3)
-   - unsure (1–2)
-   - bewildered (3–4)
-   - baffled (4–5)
-   - disoriented (2–4)
-
-8. BOREDOM
-   - listless (2–3)
-   - apathetic (2–4)
-   - idle (1–2)
-   - weary (2–4)
-   - jaded (3–4)
-
-9. CURIOSITY
-   - intrigued (2–3)
-   - inquisitive (3–4)
-   - fascinated (4–5)
-   - eager (3–4)
-   - exploratory (2–4)
-
-10. CONFIDENCE
-    - self-assured (3–4)
-    - determined (3–5)
-    - bold (4–5)
-    - empowered (3–4)
-    - proud (3–4)`;
+const SYSTEM_PROMPT = `// ... keep existing code`;
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -105,14 +30,35 @@ serve(async (req) => {
     // Get recent messages from Redis
     const chatKey = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(chatKey, 0, 19); // Get last 20 messages
-    console.log('Fetched recent messages:', recentMessages.length);
+    console.log('Fetched recent messages:', recentMessages?.length || 0);
+
+    if (!recentMessages || recentMessages.length === 0) {
+      console.log('No messages found for analysis');
+      return new Response(
+        JSON.stringify({ 
+          analysis: JSON.stringify({
+            primary_emotion: "neutral",
+            primary_sub_emotion: "calm",
+            primary_intensity: 1,
+            secondary_emotion: "neutral",
+            secondary_sub_emotion: "balanced",
+            secondary_intensity: 1,
+            context_description: "Not enough messages for analysis"
+          })
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      );
+    }
 
     // Parse messages and extract user messages only
     const userMessages = recentMessages
       .map(msg => {
         try {
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          return parsed.type === 'user' ? parsed.content : null;
+          return parsed?.type === 'user' ? parsed.content : null;
         } catch (e) {
           console.error('Error parsing message:', e);
           return null;
@@ -122,6 +68,27 @@ serve(async (req) => {
       .reverse(); // Put in chronological order
 
     console.log('Extracted user messages:', userMessages.length);
+
+    if (userMessages.length === 0) {
+      console.log('No valid user messages found for analysis');
+      return new Response(
+        JSON.stringify({ 
+          analysis: JSON.stringify({
+            primary_emotion: "neutral",
+            primary_sub_emotion: "calm",
+            primary_intensity: 1,
+            secondary_emotion: "neutral",
+            secondary_sub_emotion: "balanced",
+            secondary_intensity: 1,
+            context_description: "No valid messages for analysis"
+          })
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      );
+    }
 
     // Prepare the immediate and rolling context
     const immediateContext = userMessages.slice(-3).map((msg, i) => 
@@ -160,6 +127,11 @@ serve(async (req) => {
     });
 
     const data = await response.json();
+    
+    if (!data?.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response from OpenAI');
+    }
+
     const emotionalAnalysis = data.choices[0].message.content;
     console.log('Emotional analysis:', emotionalAnalysis);
 
@@ -180,7 +152,18 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in emotion-analyzer:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        analysis: JSON.stringify({
+          primary_emotion: "neutral",
+          primary_sub_emotion: "calm",
+          primary_intensity: 1,
+          secondary_emotion: "neutral",
+          secondary_sub_emotion: "balanced",
+          secondary_intensity: 1,
+          context_description: "Error during analysis"
+        })
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 
