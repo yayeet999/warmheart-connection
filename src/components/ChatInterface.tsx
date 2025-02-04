@@ -194,7 +194,7 @@ const ChatInterface = () => {
         console.error('Error analyzing emotions:', emotionError);
       }
 
-      // Then get AI response with userId
+      // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -229,6 +229,36 @@ const ChatInterface = () => {
         })
       ]);
 
+      // Increment chunk counter and check if summarization is needed
+      try {
+        const { data: counterData, error: counterError } = await supabase.functions.invoke('chunk-counter', {
+          body: { 
+            userId: session.user.id,
+            action: 'increment'
+          }
+        });
+
+        if (counterError) {
+          console.error('Error incrementing chunk counter:', counterError);
+          return;
+        }
+
+        if (counterData?.shouldTriggerSummary) {
+          console.log('Triggering chunk summarization');
+          const { error: summaryError } = await supabase.functions.invoke('chunk-summarizer', {
+            body: { 
+              userId: session.user.id
+            }
+          });
+
+          if (summaryError) {
+            console.error('Error during chunk summarization:', summaryError);
+          }
+        }
+      } catch (chunkError) {
+        console.error('Error in chunk tracking:', chunkError);
+      }
+
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, {
@@ -238,7 +268,6 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
       setIsTyping(false);
-      // No need to setMessage("") here since we already cleared it
       inputRef.current?.focus();
     }
   };
