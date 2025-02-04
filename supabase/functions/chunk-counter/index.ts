@@ -34,10 +34,30 @@ serve(async (req) => {
         const count = await redis.incr(key);
         console.log('Incremented count:', count);
 
-        // If we hit 55 messages, increment the super summary counter
+        // If we hit 55 messages
         if (count >= 55) {
+          // First trigger chunk summarization
+          console.log('Triggering chunk summarization');
           try {
-            const response = await fetch(
+            const summaryResponse = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/chunk-summarizer`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                },
+                body: JSON.stringify({ userId })
+              }
+            );
+            
+            if (!summaryResponse.ok) {
+              throw new Error('Failed to trigger chunk summarization');
+            }
+            console.log('Chunk summarization completed');
+
+            // Then increment super summary counter
+            const superSummaryResponse = await fetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/super_summary_counter`,
               {
                 method: 'POST',
@@ -51,26 +71,26 @@ serve(async (req) => {
                 })
               }
             );
-            const superSummaryData = await response.json();
+            
+            if (!superSummaryResponse.ok) {
+              throw new Error('Failed to increment super summary counter');
+            }
+            const superSummaryData = await superSummaryResponse.json();
             console.log('Super summary counter response:', superSummaryData);
+
+            // Finally reset the chunk counter
+            await redis.set(key, 0);
+            console.log('Reset chunk counter after reaching 55 messages');
           } catch (error) {
-            console.error('Error incrementing super summary counter:', error);
+            console.error('Error in 55-message processing:', error);
+            // Even if there's an error, we should still return the current count
           }
         }
 
-        // First return the response with the current count
-        const response = new Response(
+        return new Response(
           JSON.stringify({ count, shouldTriggerSummary: count >= 55 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-
-        // After sending response, if we hit 55, reset the counter
-        if (count >= 55) {
-          await redis.set(key, 0);
-          console.log('Reset chunk counter after reaching 55 messages');
-        }
-
-        return response;
       }
 
       case 'get': {
