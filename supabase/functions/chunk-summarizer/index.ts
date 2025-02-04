@@ -75,7 +75,7 @@ const SYSTEM_PROMPT = `You are an advanced Summarizer AI. You will be given exac
    }
 
 5) **Guidelines for Handling Unclear Data:**
-   - Prioritize recent messages over earlier ones when patterns conflict
+   - List patterns you discover in behavior, texting style, sudden changes in responsiveness and engagement based on context, and other patterns you deem notable
    - Mark insights as "tentative" if based on limited evidence
    - Focus on consistent patterns rather than one-off instances
    - Consider context when interpreting emotional responses
