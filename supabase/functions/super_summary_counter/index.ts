@@ -33,6 +33,39 @@ serve(async (req) => {
       case 'increment': {
         const count = await redis.incr(key);
         console.log('Incremented super chunk count:', count);
+
+        // If we hit 15 summaries
+        if (count >= 15) {
+          console.log('Triggering super summarization at count:', count);
+          try {
+            const response = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/super_summarizer`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                },
+                body: JSON.stringify({ userId })
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error('Failed to trigger super summarization');
+            }
+
+            const result = await response.json();
+            console.log('Super summarization completed:', result);
+
+            // Reset the counter after successful super summary
+            await redis.set(key, 0);
+            console.log('Reset super chunk counter after successful super summary');
+          } catch (error) {
+            console.error('Error in super summarization process:', error);
+            // Even if there's an error, we should still return the current count
+          }
+        }
+
         return new Response(
           JSON.stringify({ count, shouldTriggerSuperSummary: count >= 15 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
