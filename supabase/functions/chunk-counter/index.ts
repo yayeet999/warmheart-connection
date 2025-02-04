@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
 
@@ -33,24 +32,6 @@ serve(async (req) => {
       case 'increment': {
         const count = await redis.incr(key);
         console.log('Incremented count:', count);
-        
-        if (count >= 55) {
-          // Also increment super summary counter when chunk count hits 55
-          const superKey = `user:${userId}:super_summary_count`;
-          const superCount = await redis.incr(superKey);
-          console.log('Incremented super summary count:', superCount);
-          
-          return new Response(
-            JSON.stringify({ 
-              count, 
-              shouldTriggerSummary: true,
-              superSummaryCount: superCount,
-              shouldTriggerSuperSummary: superCount >= 15 
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
         return new Response(
           JSON.stringify({ count, shouldTriggerSummary: count >= 55 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
