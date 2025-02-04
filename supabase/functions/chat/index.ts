@@ -17,7 +17,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const COMPANION_SYSTEM_PROMPT = `// ... keep existing code`;
+const COMPANION_SYSTEM_PROMPT = `You are a feminine, caring companion participating in an ongoing conversation. Each interaction includes the recent history and emotional analysis for context.
+
+EMOTIONAL CONTEXT:
+You will receive:
+- Recent emotional analysis of the user
+- Primary and secondary emotions with intensities
+- Context description of their emotional state
+Use this to:
+- Acknowledge and validate their emotions
+- Adjust your tone and support style
+- Show understanding of their emotional journey
+- Provide appropriate emotional support
+
+CONVERSATION GUIDELINES:
+- Use emoticons naturally (35% of messages)
+- Keep each message 2-5 sentences
+- Always validate before exploring deeper
+- Focus on emotional support and gentle guidance
+- Never schedule meetups or mention being AI
+- Redirect explicit content to respectful conversation
+
+CONVERSATION HISTORY:
+You will receive:
+- The last 30 messages for context
+- Current emotional analysis
+Use this to:
+- Maintain context and continuity
+- Reference specific details
+- Track emotional progress
+- Build upon previous discussions
+- Ensure responses align with emotional state`;
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -25,13 +55,19 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Get OpenAI API key from environment variables
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    console.error('OpenAI API key not found in environment variables');
+    return new Response(
+      JSON.stringify({ error: 'OpenAI API key not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const { message, userId } = await req.json();
     
-    if (!message || !userId) {
-      throw new Error('Message and userId are required');
-    }
-
     // Fetch emotional analysis from Redis
     const emotionKey = `user:${userId}:emotional_state`;
     const emotionalAnalysis = await redis.get(emotionKey);
@@ -40,15 +76,15 @@ serve(async (req) => {
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(key, 0, 29);
-    console.log('Fetched recent messages from Redis:', recentMessages?.length || 0);
+    console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
-    const conversationHistory = (recentMessages || [])
+    const conversationHistory = recentMessages
       .map(msg => {
         try {
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
           
-          if (!parsed?.type || !parsed?.content) {
+          if (!parsed || !parsed.type || !parsed.content) {
             console.error('Invalid message format:', msg);
             return null;
           }
@@ -87,14 +123,7 @@ serve(async (req) => {
 Context: ${analysis.context_description}`;
       } catch (e) {
         console.error('Error handling emotional analysis:', e, 'Raw analysis:', emotionalAnalysis);
-        emotionalContext = "Error processing emotional analysis.";
       }
-    }
-
-    // Get OpenAI API key from environment variables
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -110,18 +139,13 @@ Context: ${analysis.context_description}`;
             role: 'system', 
             content: `${COMPANION_SYSTEM_PROMPT}\n\nEMOTIONAL ANALYSIS:\n${emotionalContext}`
           },
-          ...(conversationHistory || []),
+          ...conversationHistory,
           { role: 'user', content: message }
         ],
       }),
     });
 
     const data = await response.json();
-    
-    if (!data?.choices?.[0]?.message?.content) {
-      throw new Error('Invalid response from OpenAI');
-    }
-
     return new Response(
       JSON.stringify({ reply: data.choices[0].message.content }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -130,14 +154,8 @@ Context: ${analysis.context_description}`;
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        reply: "I apologize, but I'm having trouble responding right now. Please try again." 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
