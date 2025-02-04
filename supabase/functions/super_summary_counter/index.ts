@@ -38,7 +38,8 @@ serve(async (req) => {
         if (count >= 15) {
           console.log('Triggering super summarization at count:', count);
           try {
-            const response = await fetch(
+            // First trigger the super summarizer
+            const superSummarizerResponse = await fetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/super_summarizer`,
               {
                 method: 'POST',
@@ -50,24 +51,40 @@ serve(async (req) => {
               }
             );
 
-            if (!response.ok) {
+            if (!superSummarizerResponse.ok) {
+              const errorText = await superSummarizerResponse.text();
+              console.error('Super summarizer error:', errorText);
               throw new Error('Failed to trigger super summarization');
             }
 
-            const result = await response.json();
+            const result = await superSummarizerResponse.json();
             console.log('Super summarization completed:', result);
 
             // Reset the counter after successful super summary
             await redis.set(key, 0);
             console.log('Reset super chunk counter after successful super summary');
+            
+            return new Response(
+              JSON.stringify({ 
+                count: 0, 
+                shouldTriggerSuperSummary: false,
+                superSummaryCreated: true 
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           } catch (error) {
             console.error('Error in super summarization process:', error);
-            // Even if there's an error, we should still return the current count
+            // Don't reset the counter if there was an error
+            throw error;
           }
         }
 
         return new Response(
-          JSON.stringify({ count, shouldTriggerSuperSummary: count >= 15 }),
+          JSON.stringify({ 
+            count, 
+            shouldTriggerSuperSummary: count >= 15,
+            superSummaryCreated: false 
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
