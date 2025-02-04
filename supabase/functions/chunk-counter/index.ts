@@ -53,6 +53,10 @@ serve(async (req) => {
             );
             const superSummaryData = await response.json();
             console.log('Super summary counter response:', superSummaryData);
+
+            // Reset chunk counter after successful summary
+            await redis.set(key, 0);
+            console.log('Reset chunk counter after reaching 55 messages');
           } catch (error) {
             console.error('Error incrementing super summary counter:', error);
           }
