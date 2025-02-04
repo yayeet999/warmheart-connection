@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
 
@@ -32,6 +33,31 @@ serve(async (req) => {
       case 'increment': {
         const count = await redis.incr(key);
         console.log('Incremented count:', count);
+
+        // If we hit 55 messages, increment the super summary counter
+        if (count >= 55) {
+          try {
+            const response = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/super_summary_counter`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                },
+                body: JSON.stringify({
+                  userId,
+                  action: 'increment'
+                })
+              }
+            );
+            const superSummaryData = await response.json();
+            console.log('Super summary counter response:', superSummaryData);
+          } catch (error) {
+            console.error('Error incrementing super summary counter:', error);
+          }
+        }
+
         return new Response(
           JSON.stringify({ count, shouldTriggerSummary: count >= 55 }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
