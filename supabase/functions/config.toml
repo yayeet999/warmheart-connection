@@ -21,3 +21,7 @@ verify_jwt = true
 
 [functions.super_summary_counter]
 verify_jwt = true
+
+[functions.super_summarizer]
+verify_jwt = true
+
