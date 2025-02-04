@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
@@ -12,78 +11,94 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are a Super Summarizer AI analyzing multiple summaries of conversations between a user and their AI companion. You will receive all previous summaries that each represent 55 messages of conversation history.
+/**
+ * The system prompt explicitly includes the 20-stage dictionary so GPT-4 knows
+ * exactly which stages to pick from.
+ */
+const SYSTEM_PROMPT = `
+You are a Super Summarizer AI analyzing multiple chunk summaries (each representing 55 messages of conversation history) for a single user.
 
-Your task:
+Your Objectives:
+1) **Meta-Analyze** all provided chunk summaries:
+   - Observe how the relationship evolved across these chunks
+   - Identify recurring or long-term patterns
+   - Spot major emotional or behavioral shifts
+   - Summarize important thematic or contextual threads
 
-1) **Meta-Analyze** these summaries to identify:
-   - Long-term patterns in user behavior and communication
-   - Evolution of the relationship over time
-   - Major recurring themes and topics
-   - Significant changes or turning points
-   - Overall emotional journey and growth
+2) **Structure** your final output as a single JSON object with these nested keys:
 
-2) **Output** a JSON object with these structured keys:
-   {
-     "meta_summary": {
-       "overall_narrative": "",              // High-level story of the relationship's progression
-       "key_relationship_phases": [],        // Array of major phases/transitions observed
-       "dominant_themes": [],               // Most significant recurring topics/patterns
-       "emotional_evolution": {             // How emotions and interactions changed over time
-         "pattern": "",
-         "significant_shifts": [],
-         "growth_indicators": []
-       },
-       "relationship_trajectory": {         // Overall direction and health of the relationship
-         "current_state": "",
-         "trends": [],
-         "potential_areas_of_focus": []
-       }
-     },
-     
-     "user_growth": {
-       "behavioral_changes": [],           // How user's behavior/communication evolved
-       "insight_development": [],          // Major realizations or understanding gained
-       "coping_strategies": {             // How user has learned to handle challenges
-         "developed": [],
-         "effective": [],
-         "needs_work": []
-       },
-       "relationship_skills": {           // How user's relationship approach evolved
-         "improvements": [],
-         "consistent_strengths": [],
-         "growth_opportunities": []
-       }
-     },
-     
-     "longitudinal_patterns": {
-       "communication": [],               // Long-term communication patterns
-       "emotional_regulation": [],        // How user manages emotions over time
-       "attachment_style": {             // User's attachment patterns
-         "primary_style": "",
-         "variations": [],
-         "triggers": []
-       },
-       "conflict_handling": [],          // How user approaches and resolves conflicts
-       "trust_building": []             // How trust developed over time
-     },
-     
-     "recommendations": {
-       "focus_areas": [],               // Suggested areas for growth
-       "maintenance_strategies": [],     // What's working and should continue
-       "potential_challenges": [],       // Areas to watch out for
-       "growth_opportunities": []       // Specific ways to improve
-     }
-   }
+{
+  "relationship_stage": "...",  // EXACTLY ONE from this dictionary:
+  // [
+  //   "initial_curiosity","casual_acquaintance","growing_interest","friendly_closeness","comfort_zone",
+  //   "honeymoon_excitement","deepening_trust","exclusive_focus","emotional_intimacy","conflict",
+  //   "conflict_resolution","renewed_bond","long_term_comfort","stagnation","drifting_apart",
+  //   "attempted_repair","chronic_conflict","pre_breakup_tension","separation","reconciliation"
+  // ],
 
-3) **Guidelines**:
-   - Focus on significant patterns and changes over time
-   - Identify both improvements and persistent challenges
-   - Note any cyclical behaviors or recurring patterns
-   - Highlight major breakthroughs or setbacks
-   - Consider the overall trajectory of growth and development
+  "meta_summary": {
+    "overall_narrative": "",
+    "key_relationship_phases": [],
+    "dominant_themes": [],
+    "emotional_evolution": {
+      "pattern": "",
+      "significant_shifts": [],
+      "growth_indicators": []
+    },
+    "relationship_trajectory": {
+      "current_state": "",
+      "trends": [],
+      "potential_areas_of_focus": []
+    }
+  },
 
-Return only the valid JSON object. No additional commentary or role statements. Ensure all JSON is properly formatted and nested.`;
+  "user_growth": {
+    "behavioral_changes": [],
+    "insight_development": [],
+    "coping_strategies": {
+      "developed": [],
+      "effective": [],
+      "needs_work": []
+    },
+    "relationship_skills": {
+      "improvements": [],
+      "consistent_strengths": [],
+      "growth_opportunities": []
+    }
+  },
+
+  "longitudinal_patterns": {
+    "communication": [],
+    "emotional_regulation": [],
+    "attachment_style": {
+      "primary_style": "",
+      "variations": [],
+      "triggers": []
+    },
+    "conflict_handling": [],
+    "trust_building": []
+  },
+
+  "recommendations": {
+    "focus_areas": [],
+    "maintenance_strategies": [],
+    "potential_challenges": [],
+    "growth_opportunities": []
+  }
+}
+
+3) **Relationship Stage Requirement**:
+   - The "relationship_stage" must be EXACTLY ONE from the dictionary above. No new or alternative terms.
+
+4) **Focus Areas**:
+   - Show how the relationship has evolved or changed
+   - Keep your analysis balanced and evidence-based
+   - Reflect major emotional journeys or turning points
+
+5) **No Extra Commentary**:
+   - Return only the JSON object (no explanations outside it)
+   - Format it properly so that it can be parsed
+`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -98,7 +113,7 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
-    // Get ALL chunk summaries from the database
+    // Fetch all chunk summaries for this user (is_super_summary = false)
     const { data: summaries, error: summariesError } = await supabase
       .from('longtermmemory')
       .select('*')
@@ -116,7 +131,7 @@ serve(async (req) => {
       throw new Error('No summaries available for super summarization');
     }
 
-    console.log(`Found ${summaries.length} summaries to process`);
+    console.log(`Found ${summaries.length} chunk summaries to meta-analyze.`);
 
     // Call GPT-4 for meta-analysis
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -126,12 +141,12 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o', // Your advanced GPT-4 style model
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { 
-            role: 'user', 
-            content: `Here are the ${summaries.length} summaries to analyze:\n${JSON.stringify(summaries)}`
+          {
+            role: 'user',
+            content: `Below are ${summaries.length} chunk summaries to analyze. Combine them into a single super summary with a top-level "relationship_stage" from the dictionary.\n${JSON.stringify(summaries)}`
           }
         ],
         temperature: 0.7,
@@ -147,56 +162,71 @@ serve(async (req) => {
     const gptResponse = await response.json();
     const superSummary = JSON.parse(gptResponse.choices[0].message.content);
 
-    // Store the super summary in the database
+    // Make sure GPT included a top-level "relationship_stage"
+    if (!superSummary.relationship_stage) {
+      throw new Error('No "relationship_stage" found in GPT response. Ensure the system prompt requests it explicitly.');
+    }
+
+    // Insert the final super summary row
     const { data: memoryData, error: memoryError } = await supabase
       .from('longtermmemory')
       .insert({
         user_id: userId,
-        summary_text: superSummary.meta_summary.overall_narrative,
-        key_events: superSummary.meta_summary.key_relationship_phases,
+
+        // the top-level relationship stage
+        relationship_stage: superSummary.relationship_stage,
+
+        // mark it as a super summary
+        is_super_summary: true,
+
+        // put the meta_summary's narrative in summary_text
+        summary_text: superSummary.meta_summary?.overall_narrative || "",
+
+        // store key_relationship_phases as the key_events
+        key_events: superSummary.meta_summary?.key_relationship_phases || [],
+
+        // combine emotional_evolution + longitudinal
         emotional_patterns: {
-          evolution: superSummary.meta_summary.emotional_evolution,
-          longitudinal: superSummary.longitudinal_patterns
+          evolution: superSummary.meta_summary?.emotional_evolution || {},
+          longitudinal: superSummary.longitudinal_patterns || {}
         },
+
+        // combine user_growth + recommendations into personality_insights
         personality_insights: {
-          growth: superSummary.user_growth,
-          recommendations: superSummary.recommendations
-        },
-        is_super_summary: true
+          growth: superSummary.user_growth || {},
+          recommendations: superSummary.recommendations || {}
+        }
       })
       .select()
       .single();
 
     if (memoryError) {
-      console.error('Error storing super summary:', memoryError);
+      console.error('Error inserting super summary into DB:', memoryError);
       throw memoryError;
     }
 
-    console.log('Successfully created super summary and triggered cleanup');
+    console.log('Super summary created. Cleanup trigger will remove old chunk summaries.');
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         summary: memoryData,
         processedSummaries: summaries.length
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     );
 
   } catch (error) {
     console.error('Error in super_summarizer:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message 
-      }),
-      { 
+      JSON.stringify({ error: error.message }),
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400
       }
     );
   }
 });
-
