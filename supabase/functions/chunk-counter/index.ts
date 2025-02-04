@@ -78,6 +78,27 @@ serve(async (req) => {
             const superSummaryData = await superSummaryResponse.json();
             console.log('Super summary counter response:', superSummaryData);
 
+            // If super summary counter hits 15, trigger super summarization
+            if (superSummaryData.shouldTriggerSuperSummary) {
+              console.log('Triggering super summarization');
+              const superSummarizerResponse = await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/super_summarizer`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                  },
+                  body: JSON.stringify({ userId })
+                }
+              );
+
+              if (!superSummarizerResponse.ok) {
+                throw new Error('Failed to trigger super summarization');
+              }
+              console.log('Super summarization completed');
+            }
+
             // Finally reset the chunk counter
             await redis.set(key, 0);
             console.log('Reset chunk counter after reaching 55 messages');
