@@ -55,6 +55,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Get OpenAI API key from environment variables
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    console.error('OpenAI API key not found in environment variables');
+    return new Response(
+      JSON.stringify({ error: 'OpenAI API key not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const { message, userId } = await req.json();
     
@@ -119,7 +129,7 @@ Context: ${analysis.context_description}`;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -136,42 +146,6 @@ Context: ${analysis.context_description}`;
     });
 
     const data = await response.json();
-
-    // After storing messages in Redis, increment the chunk counter
-    const { data: counterData, error: counterError } = await supabase.functions.invoke('chunk-counter', {
-      body: { 
-        userId,
-        action: 'increment'
-      }
-    });
-
-    if (counterError) {
-      console.error('Error incrementing chunk counter:', counterError);
-    } else if (counterData.shouldTriggerSummary) {
-      console.log('Triggering chunk summarization for user:', userId);
-      
-      // Trigger summarization
-      const { error: summaryError } = await supabase.functions.invoke('chunk-summarizer', {
-        body: { userId }
-      });
-
-      if (summaryError) {
-        console.error('Error triggering summarization:', summaryError);
-      } else {
-        // Reset the counter after successful summarization
-        const { error: resetError } = await supabase.functions.invoke('chunk-counter', {
-          body: { 
-            userId,
-            action: 'reset'
-          }
-        });
-
-        if (resetError) {
-          console.error('Error resetting chunk counter:', resetError);
-        }
-      }
-    }
-
     return new Response(
       JSON.stringify({ reply: data.choices[0].message.content }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
