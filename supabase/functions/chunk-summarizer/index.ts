@@ -84,7 +84,6 @@ const SYSTEM_PROMPT = `You are an advanced Summarizer AI. You will be given exac
 Return only the valid JSON object. No additional commentary or role statements. Ensure all JSON is properly formatted and nested.`;
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -165,18 +164,10 @@ serve(async (req) => {
       throw memoryError;
     }
 
-    // Update message count in the database
-    const { error: countError } = await supabase
-      .from('message_counts')
-      .update({ 
-        chunk_message_count: 0  // Reset chunk counter after summarization
-      })
-      .eq('user_id', userId);
-
-    if (countError) {
-      console.error('Error updating message count:', countError);
-      // Don't throw here, as the main operation succeeded
-    }
+    // Reset the Redis chunk counter
+    const counterKey = `user:${userId}:chunk_count`;
+    await redis.set(counterKey, 0);
+    console.log('Reset chunk counter to 0');
 
     return new Response(
       JSON.stringify({ 
