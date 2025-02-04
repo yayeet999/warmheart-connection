@@ -50,12 +50,10 @@ Use this to:
 - Ensure responses align with emotional state`;
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Get OpenAI API key from environment variables
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
     console.error('OpenAI API key not found in environment variables');
@@ -83,18 +81,12 @@ serve(async (req) => {
       .map(msg => {
         try {
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          
-          if (!parsed || !parsed.type || !parsed.content) {
-            console.error('Invalid message format:', msg);
-            return null;
-          }
-
           return {
             role: parsed.type === "ai" ? "assistant" : "user",
             content: parsed.content
           };
         } catch (e) {
-          console.error('Error parsing message:', e, 'Raw message:', msg);
+          console.error('Error parsing message:', e);
           return null;
         }
       })
@@ -105,14 +97,11 @@ serve(async (req) => {
     let emotionalContext = "No emotional analysis available.";
     if (emotionalAnalysis) {
       try {
-        // Clean up the markdown formatting if present
         let cleanedAnalysis = emotionalAnalysis;
         if (typeof emotionalAnalysis === 'string') {
-          // Remove markdown code block formatting if present
           cleanedAnalysis = emotionalAnalysis.replace(/```json\n|\n```/g, '');
         }
         
-        // Parse the cleaned JSON
         const analysis = typeof cleanedAnalysis === 'string' 
           ? JSON.parse(cleanedAnalysis) 
           : cleanedAnalysis;
@@ -122,7 +111,7 @@ serve(async (req) => {
 - Secondary: ${analysis.secondary_emotion} (${analysis.secondary_sub_emotion}) - Intensity: ${analysis.secondary_intensity}
 Context: ${analysis.context_description}`;
       } catch (e) {
-        console.error('Error handling emotional analysis:', e, 'Raw analysis:', emotionalAnalysis);
+        console.error('Error handling emotional analysis:', e);
       }
     }
 
@@ -146,8 +135,16 @@ Context: ${analysis.context_description}`;
     });
 
     const data = await response.json();
+    
+    // Parse the response into multiple messages if needed
+    const content = data.choices[0].message.content;
+    const messages = content.split('\n\n').filter(Boolean).map((msg, index) => ({
+      content: msg,
+      delay: index * 1500 // Add 1.5 second delay between messages
+    }));
+
     return new Response(
-      JSON.stringify({ reply: data.choices[0].message.content }),
+      JSON.stringify({ messages }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

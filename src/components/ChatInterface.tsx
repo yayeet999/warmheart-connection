@@ -204,30 +204,46 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      const aiMessage = {
-        type: "ai",
-        content: data.reply || "I apologize, but I'm having trouble responding right now."
+      // Process multiple messages sequentially
+      const processMessages = async () => {
+        for (const [index, msg] of data.messages.entries()) {
+          // Add delay between messages
+          if (index > 0) {
+            await new Promise(resolve => setTimeout(resolve, msg.delay));
+          }
+
+          const aiMessage = {
+            type: "ai",
+            content: msg.content
+          };
+
+          setMessages(prev => [...prev, aiMessage]);
+
+          // Store message in Redis
+          await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: aiMessage,
+              action: 'add'
+            }
+          });
+
+          // Show typing indicator for next message if there is one
+          setIsTyping(index < data.messages.length - 1);
+        }
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      // Store user message in Redis
+      await supabase.functions.invoke('chat-history', {
+        body: {
+          userId: session.user.id,
+          message: userMessage,
+          action: 'add'
+        }
+      });
 
-      // Store both messages in Redis
-      await Promise.all([
-        supabase.functions.invoke('chat-history', {
-          body: {
-            userId: session.user.id,
-            message: userMessage,
-            action: 'add'
-          }
-        }),
-        supabase.functions.invoke('chat-history', {
-          body: {
-            userId: session.user.id,
-            message: aiMessage,
-            action: 'add'
-          }
-        })
-      ]);
+      // Process AI messages
+      await processMessages();
 
       // Increment chunk counter and check if summarization is needed
       try {
