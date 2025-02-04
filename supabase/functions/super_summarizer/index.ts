@@ -12,11 +12,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are a Super Summarizer AI analyzing multiple summaries of conversations between a user and their AI companion. You will receive 15 previous summaries that each represent 55 messages of conversation history.
+const SYSTEM_PROMPT = `You are a Super Summarizer AI analyzing multiple summaries of conversations between a user and their AI companion. You will receive all previous summaries that each represent 55 messages of conversation history.
 
 Your task:
 
-1) **Meta-Analyze** these 15 summaries to identify:
+1) **Meta-Analyze** these summaries to identify:
    - Long-term patterns in user behavior and communication
    - Evolution of the relationship over time
    - Major recurring themes and topics
@@ -98,24 +98,25 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
-    // Get the last 15 chunk summaries from the database
+    // Get ALL chunk summaries from the database
     const { data: summaries, error: summariesError } = await supabase
       .from('longtermmemory')
       .select('*')
       .eq('user_id', userId)
       .eq('is_super_summary', false)
-      .order('created_at', { ascending: false })
-      .limit(15);
+      .order('created_at', { ascending: true });
 
     if (summariesError) {
       console.error('Error fetching summaries:', summariesError);
       throw summariesError;
     }
 
-    if (!summaries || summaries.length < 15) {
-      console.log('Not enough summaries for super summarization:', summaries?.length || 0);
-      throw new Error('Need at least 15 summaries for super summarization');
+    if (!summaries || summaries.length === 0) {
+      console.log('No summaries found for super summarization');
+      throw new Error('No summaries available for super summarization');
     }
+
+    console.log(`Found ${summaries.length} summaries to process`);
 
     // Call GPT-4 for meta-analysis
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -130,7 +131,7 @@ serve(async (req) => {
           { role: 'system', content: SYSTEM_PROMPT },
           { 
             role: 'user', 
-            content: `Here are the 15 summaries to analyze:\n${JSON.stringify(summaries.reverse())}`
+            content: `Here are the ${summaries.length} summaries to analyze:\n${JSON.stringify(summaries)}`
           }
         ],
         temperature: 0.7,
@@ -171,22 +172,13 @@ serve(async (req) => {
       throw memoryError;
     }
 
-    // Reset the super summary counter
-    const { error: counterError } = await supabase.functions.invoke('super_summary_counter', {
-      body: { 
-        userId,
-        action: 'reset'
-      }
-    });
-
-    if (counterError) {
-      console.error('Error resetting super summary counter:', counterError);
-    }
+    console.log('Successfully created super summary and triggered cleanup');
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        summary: memoryData 
+        summary: memoryData,
+        processedSummaries: summaries.length
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -207,3 +199,4 @@ serve(async (req) => {
     );
   }
 });
+
