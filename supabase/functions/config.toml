@@ -1,3 +1,4 @@
+
 project_id = "medzxzfdadwzpuqimeih"
 
 [functions.chat]
@@ -13,4 +14,10 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.chunk-summarizer]
+verify_jwt = true
+
+[functions.chunk-counter]
+verify_jwt = true
+
+[functions.super_summary_counter]
 verify_jwt = true
