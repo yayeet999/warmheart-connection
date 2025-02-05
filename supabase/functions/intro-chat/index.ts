@@ -103,7 +103,6 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         messages: [
-          { content: introMessage, type: "user" },
           { content: aiContent, type: "ai" }
         ]
       }),
