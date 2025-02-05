@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
-type Step = "name" | "age";
-
 interface OnboardingData {
   name: string;
   pronouns: string;
@@ -16,7 +14,6 @@ interface OnboardingData {
 }
 
 const Onboarding = () => {
-  const [step, setStep] = useState<Step>("name");
   const [formData, setFormData] = useState<OnboardingData>({
     name: "",
     pronouns: "",
@@ -30,24 +27,20 @@ const Onboarding = () => {
     setFormData((prev) => ({ ...prev, pronouns }));
   };
 
-  const handleAgeSelect = async (age_range: string) => {
+  const handleAgeSelect = (age_range: string) => {
     setFormData((prev) => ({ ...prev, age_range }));
-    await handleSubmit();
-  };
-
-  const handleNext = () => {
-    if (!formData.name || !formData.pronouns) {
-      toast({
-        variant: "destructive",
-        title: "Required Fields",
-        description: "Please fill in your name and select your pronouns.",
-      });
-      return;
-    }
-    setStep("age");
   };
 
   const handleSubmit = async () => {
+    if (!formData.name || !formData.pronouns || !formData.age_range) {
+      toast({
+        variant: "destructive",
+        title: "Required Fields",
+        description: "Please fill in all fields to continue.",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -86,6 +79,7 @@ const Onboarding = () => {
       variant={formData.pronouns === value ? "default" : "outline"}
       onClick={() => handlePronounSelect(value)}
       className="w-full sm:w-auto"
+      disabled={loading}
     >
       {label}
     </Button>
@@ -93,7 +87,7 @@ const Onboarding = () => {
 
   const AgeButton = ({ value, label }: { value: string; label: string }) => (
     <Button
-      variant="outline"
+      variant={formData.age_range === value ? "default" : "outline"}
       onClick={() => handleAgeSelect(value)}
       className="w-full sm:w-auto"
       disabled={loading}
@@ -107,60 +101,55 @@ const Onboarding = () => {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">
-            {step === "name" ? "Welcome!" : "One Last Step!"}
+            Welcome!
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {step === "name" ? (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <label className="text-lg font-medium text-center block">
-                  What's your name?
-                </label>
-                <Input
-                  placeholder="Enter your name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="text-center text-lg"
-                />
-              </div>
-              <div className="space-y-4">
-                <label className="text-lg font-medium text-center block">
-                  What are your pronouns?
-                </label>
-                <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                  <PronounButton value="he/him" label="He/Him" />
-                  <PronounButton value="she/her" label="She/Her" />
-                  <PronounButton value="they/them" label="They/Them" />
-                </div>
-              </div>
-              <Button
-                className="w-full bg-gradient-primary hover:opacity-90"
-                onClick={handleNext}
-                disabled={!formData.name || !formData.pronouns}
-              >
-                Next
-              </Button>
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <label className="text-lg font-medium text-center block">
+                What's your name?
+              </label>
+              <Input
+                placeholder="Enter your name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
+                className="text-center text-lg"
+              />
             </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <label className="text-lg font-medium text-center block">
-                  What's your age range?
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <AgeButton value="18-24" label="18-24" />
-                  <AgeButton value="25-34" label="25-34" />
-                  <AgeButton value="35-44" label="35-44" />
-                  <AgeButton value="45-54" label="45-54" />
-                  <AgeButton value="55-64" label="55-64" />
-                  <AgeButton value="65+" label="65+" />
-                </div>
+            <div className="space-y-4">
+              <label className="text-lg font-medium text-center block">
+                What are your pronouns?
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <PronounButton value="he/him" label="He/Him" />
+                <PronounButton value="she/her" label="She/Her" />
+                <PronounButton value="they/them" label="They/Them" />
               </div>
             </div>
-          )}
+            <div className="space-y-4">
+              <label className="text-lg font-medium text-center block">
+                What's your age range?
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <AgeButton value="18-24" label="18-24" />
+                <AgeButton value="25-34" label="25-34" />
+                <AgeButton value="35-44" label="35-44" />
+                <AgeButton value="45-54" label="45-54" />
+                <AgeButton value="55-64" label="55-64" />
+                <AgeButton value="65+" label="65+" />
+              </div>
+            </div>
+            <Button
+              className="w-full bg-gradient-primary hover:opacity-90"
+              onClick={handleSubmit}
+              disabled={loading || !formData.name || !formData.pronouns || !formData.age_range}
+            >
+              Continue
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
