@@ -34,8 +34,8 @@ serve(async (req) => {
         const count = await redis.incr(key);
         console.log('Incremented super chunk count:', count);
 
-        // If we hit 15 summaries
-        if (count >= 15) {
+        // If we hit 10 summaries
+        if (count >= 10) {
           console.log('Triggering super summarization at count:', count);
           try {
             // First trigger the super summarizer
@@ -82,7 +82,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             count, 
-            shouldTriggerSuperSummary: count >= 15,
+            shouldTriggerSuperSummary: count >= 10,
             superSummaryCreated: false 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
