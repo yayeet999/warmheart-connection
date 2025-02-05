@@ -1,3 +1,4 @@
+```typescript
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import TypingIndicator from "./TypingIndicator";
+import OnboardingForm from "./OnboardingForm";
 
 const MESSAGE_LIMITS = {
   free: 50,
@@ -29,6 +31,52 @@ const ChatInterface = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // Check authentication and profile completion
+  const { data: userData, isError: userDataError } = useQuery({
+    queryKey: ["user-data"],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        throw new Error("No authenticated user");
+      }
+
+      const [{ data: subscription }, { data: profile }] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("tier")
+          .eq("user_id", session.user.id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("nickname, age_range")
+          .eq("id", session.user.id)
+          .single()
+      ]);
+
+      return {
+        subscription: subscription || { tier: 'free' },
+        userId: session.user.id,
+        profile
+      };
+    },
+    retry: false,
+    meta: {
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to load user data. Please try logging in again.",
+          variant: "destructive"
+        });
+        navigate("/auth");
+      }
+    }
+  });
+
+  // If profile is incomplete, show onboarding form
+  if (userData?.profile && (!userData.profile.nickname || !userData.profile.age_range)) {
+    return <OnboardingForm />;
+  }
 
   // Clear messages when component unmounts or user logs out
   useEffect(() => {
@@ -61,40 +109,6 @@ const ChatInterface = () => {
 
     checkAuth();
   }, [navigate]);
-
-  const { data: userData, isError: userDataError } = useQuery({
-    queryKey: ["user-data"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        throw new Error("No authenticated user");
-      }
-
-      const [{ data: subscription }] = await Promise.all([
-        supabase
-          .from("subscriptions")
-          .select("tier")
-          .eq("user_id", session.user.id)
-          .maybeSingle(),
-      ]);
-
-      return {
-        subscription: subscription || { tier: 'free' },
-        userId: session.user.id
-      };
-    },
-    retry: false,
-    meta: {
-      onError: () => {
-        toast({
-          title: "Error",
-          description: "Failed to load user data. Please try logging in again.",
-          variant: "destructive"
-        });
-        navigate("/auth");
-      }
-    }
-  });
 
   // Fetch chat history when component mounts and userId changes
   useEffect(() => {
@@ -367,3 +381,4 @@ const ChatInterface = () => {
 };
 
 export default ChatInterface;
+```

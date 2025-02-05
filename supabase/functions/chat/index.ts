@@ -49,12 +49,7 @@ Use this to:
 - Build upon previous discussions
 - Ensure responses align with emotional state`;
 
-/**
- * The companion should also consider the user's profile analysis as if it
- * were truly conversing with a real human. This might subtly adjust its tone
- * or approach if the user has, e.g., low trust, or high conflict, or certain
- * personality traits in their user profile analysis.
- */
+const INITIAL_INTERACTION_PROMPT = `You are meeting this user for the first time. They have just shared their nickname. Respond warmly and enthusiastically, making them feel welcome. Ask them how they're doing and what brings them here today. Keep the response natural and friendly, showing genuine interest in getting to know them.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -71,7 +66,12 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId } = await req.json();
+    const { message, userId, isInitialMessage } = await req.json();
+
+    // If this is the initial message, modify the system prompt
+    const systemPrompt = isInitialMessage 
+      ? `${COMPANION_SYSTEM_PROMPT}\n\n${INITIAL_INTERACTION_PROMPT}`
+      : COMPANION_SYSTEM_PROMPT;
 
     // 1) Fetch user profile analysis (or fall back to default)
     let userProfile = {
@@ -101,26 +101,6 @@ serve(async (req) => {
       console.error("Error fetching user profile analysis:", profileFetchError);
       // We'll proceed with default userProfile if fetch fails
     }
-
-    // 2) Build a short user profile analysis block
-    const profileAnalysisBlock = `
-PROFILE ANALYSIS:
-(Use this to subtly adapt your tone and approach, reflecting the user's trust/conflict levels, emotional health, and known traits.)
-
-- Relationship Stage Score (0=not close, 100=extremely close): ${userProfile.relationship_stage_score}
-- Trust Score (0=none, 100=very high trust): ${userProfile.trust_score}
-- Conflict Score (0=none, 100=serious conflict): ${userProfile.conflict_score}
-- Overall Emotional Health (0=very poor, 100=excellent): ${userProfile.overall_emotional_health}
-
-- Communication Style: ${userProfile.communication_style}
-- Coping Style: ${userProfile.coping_style}
-- Decision Making Style: ${userProfile.decision_making_style}
-- Attachment Style: ${userProfile.attachment_style}
-
-Repeated Relationship Stages: ${JSON.stringify(userProfile.repeated_relationship_stages)}
-Repeated Themes: ${JSON.stringify(userProfile.repeated_themes)}
-Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
-`.trim();
 
     // 3) Fetch emotional analysis from Redis
     const emotionKey = `user:${userId}:emotional_state`;
@@ -173,12 +153,27 @@ Context: ${analysis.context_description}`;
 
     // 6) Combine the system prompt, emotional context, and profile analysis
     const finalSystemPrompt = `
-${COMPANION_SYSTEM_PROMPT}
+${systemPrompt}
 
 EMOTIONAL ANALYSIS:
 ${emotionalContext}
 
-${profileAnalysisBlock}
+PROFILE ANALYSIS:
+(Use this to subtly adapt your tone and approach, reflecting the user's trust/conflict levels, emotional health, and known traits.)
+
+- Relationship Stage Score (0=not close, 100=extremely close): ${userProfile.relationship_stage_score}
+- Trust Score (0=none, 100=very high trust): ${userProfile.trust_score}
+- Conflict Score (0=none, 100=serious conflict): ${userProfile.conflict_score}
+- Overall Emotional Health (0=very poor, 100=excellent): ${userProfile.overall_emotional_health}
+
+- Communication Style: ${userProfile.communication_style}
+- Coping Style: ${userProfile.coping_style}
+- Decision Making Style: ${userProfile.decision_making_style}
+- Attachment Style: ${userProfile.attachment_style}
+
+Repeated Relationship Stages: ${JSON.stringify(userProfile.repeated_relationship_stages)}
+Repeated Themes: ${JSON.stringify(userProfile.repeated_themes)}
+Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
 `.trim();
 
     // 7) Call OpenAI with finalSystemPrompt + conversation history + user message
