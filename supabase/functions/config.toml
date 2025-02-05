@@ -28,3 +28,6 @@ verify_jwt = true
 [functions.update-user-profile-analysis]
 verify_jwt = true
 
+[functions.intro-chat]
+verify_jwt = true
+
