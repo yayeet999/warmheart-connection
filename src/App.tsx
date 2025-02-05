@@ -12,6 +12,7 @@ import Memories from "./components/Memories";
 import Settings from "./components/Settings";
 import Support from "./components/Support";
 import Auth from "./pages/Auth";
+import Onboarding from "./components/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route
                 path="/dashboard"
                 element={

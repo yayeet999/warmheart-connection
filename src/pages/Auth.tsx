@@ -25,11 +25,19 @@ const Auth = () => {
 
       if (error) throw error;
       
-      navigate("/chat");
-      toast({
-        title: type === "LOGIN" ? "Welcome back!" : "Welcome to Amorine!",
-        description: type === "LOGIN" ? "Successfully logged in" : "Your account has been created",
-      });
+      if (type === "LOGIN") {
+        navigate("/chat");
+        toast({
+          title: "Welcome back!",
+          description: "Successfully logged in",
+        });
+      } else {
+        navigate("/onboarding");
+        toast({
+          title: "Welcome to Amorine!",
+          description: "Let's set up your profile",
+        });
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
