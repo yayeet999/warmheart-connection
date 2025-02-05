@@ -14,8 +14,7 @@ const corsHeaders = {
 };
 
 /**
- * Predefined enumerations / sets for textual columns
- * used in user_profile_analysis. Adjust as needed.
+ * Hard-coded enumerations for textual columns in user_profile_analysis
  */
 const communicationStyleOptions = [
   "direct",
@@ -50,43 +49,51 @@ const attachmentStyleOptions = [
 ];
 
 /**
- * System prompt for GPT. It includes instructions:
- * - Use "weighting" for more recent rows
- * - Hard-coded enumerations for each textual column
- * - Score ranges for numeric columns (0-100)
+ * Updated system prompt with clearer explanation:
  */
 const SYSTEM_PROMPT = `
-You are a specialized "Profile Updater" AI. You will receive multiple "super summary" rows for a single user. Each row includes:
+You are a specialized "Profile Updater" AI. You have access to multiple "super summary" rows for a single user, each summarizing 55 messages in the user's conversation history with an AI companion. 
 
-  - created_at: timestamp
-  - summary_text (string)
-  - relationship_stage (string)
-  - key_events (array)
-  - emotional_patterns (object)
-  - personality_insights (object)
-  - etc.
+## Your Role
 
-Your task:
-1) Weigh more recent super summaries more heavily than older ones.
-2) Based on all super summaries, determine the best current values for this user's "profile analysis" schema:
+- **Goal**: Generate updated values for the user's "profile analysis" in the user_profile_analysis table.
+- **Context**: This table aims to store succinct, stable metrics or textual attributes describing the user's overall relationship status, trust levels, conflicts, and personal traits gleaned from the conversation.
+- **Weighing**: More recent super summaries (near the end) should carry more weight in your final assessment than older ones.
 
-   - Numeric columns (all in [0..100]):
-     * relationship_stage_score
-     * trust_score
-     * conflict_score
-     * overall_emotional_health
+## Numeric Columns (All must be 0–100):
 
-   - Enumerations from these sets:
-     * communication_style: ${communicationStyleOptions.join(", ")}
-     * coping_style: ${copingStyleOptions.join(", ")}
-     * decision_making_style: ${decisionMakingStyleOptions.join(", ")}
-     * attachment_style: ${attachmentStyleOptions.join(", ")}
+1. **relationship_stage_score** 
+   - Interpreted as the user's overall relationship progression or closeness with the AI. 
+   - 0 means no closeness or entirely negative/degraded relationship stage. 
+   - 100 means extremely advanced, fulfilling, or stable stage.
 
-   - repeated_relationship_stages: JSON array of the distinct or repeated relationship_stage(s) you have observed
-   - repeated_themes: JSON object capturing recurring big topics or emotional patterns
-   - extended_personality: JSON object for additional nuanced traits
+2. **trust_score** 
+   - 0 means no trust at all, 100 means extremely high trust or security.
 
-Output EXACTLY the following JSON structure (top-level only, no extra commentary):
+3. **conflict_score** 
+   - 0 means no ongoing conflict or tension, 100 means extremely intense, active conflict.
+
+4. **overall_emotional_health**
+   - 0 means the user is in a very poor emotional state, 
+   - 100 means the user is extremely positive, balanced, and stable.
+
+## Textual Columns (Choose from enumerations below or "unknown"):
+
+- **communication_style**: ${communicationStyleOptions.join(", ")}
+- **coping_style**: ${copingStyleOptions.join(", ")}
+- **decision_making_style**: ${decisionMakingStyleOptions.join(", ")}
+- **attachment_style**: ${attachmentStyleOptions.join(", ")}
+
+## JSON Fields:
+
+- **repeated_relationship_stages**: an array capturing which relationship stages keep appearing in these super summaries (either to track the user's journey or repeated patterns).
+- **repeated_themes**: a JSON object with any recurring big topics or emotional patterns that appear consistently over time.
+- **extended_personality**: a JSON object for any additional or more granular personality traits that have emerged. 
+  (You can fill in summarized traits gleaned from super summaries, e.g. "self-critical", "creative", etc.)
+
+## Final Output Format
+
+Return EXACTLY one top-level JSON object with the following fields:
 
 {
   "relationship_stage_score": 0,
@@ -102,14 +109,19 @@ Output EXACTLY the following JSON structure (top-level only, no extra commentary
   "extended_personality": {}
 }
 
-- All numeric values must be integers between 0 and 100.
-- For textual columns, pick exactly from the enumerations above or "unknown".
-- Use your best reasoning from the super summaries to decide final values.
-- For repeated_relationship_stages or repeated_themes or extended_personality, compile your final aggregated insight.
+- For numeric columns, choose an integer in [0..100].
+- For textual columns, pick one from the enumerations or "unknown".
+- For repeated_relationship_stages, return an array.
+- For repeated_themes, extended_personality, return objects.
+
+## Additional Guidance
+
+- The user might show changing traits over time. The more recent super summary data should override or overshadow older data in case of conflict.
+- Keep the final data consistent, well-structured, and accurate to the conversation patterns.
+- Do not include any extra commentary outside the JSON.
 `;
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -121,8 +133,7 @@ serve(async (req) => {
       throw new Error("User ID is required");
     }
 
-    // 1) Fetch up to the last 20 super summaries for this user, oldest first.
-    //    This ensures we respect chronological order & only weigh the most recent 20.
+    // 1) Fetch up to the last 20 super summaries
     const { data: superSummaries, error: fetchError } = await supabase
       .from("longtermmemory")
       .select("*")
@@ -149,14 +160,14 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o", // or your advanced GPT-4 class model
+        model: "gpt-4o",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            content: `User has ${superSummaries.length} super summary rows. Weight the most recent row(s) more. Summaries:\n${JSON.stringify(
+            content: `User has ${superSummaries.length} super summary rows (most recent is last). Summaries:\n${JSON.stringify(
               superSummaries
-            )}`,
+            )}\nProvide the final single JSON object as instructed.`,
           },
         ],
         temperature: 0.7,
@@ -232,20 +243,21 @@ serve(async (req) => {
     );
     attachment_style = coerceEnum(attachment_style, attachmentStyleOptions);
 
-    // Basic sanity fallback if arrays/objects not correct type
+    // Fallback for arrays/objects
     if (!Array.isArray(repeated_relationship_stages)) {
       repeated_relationship_stages = [];
     }
     if (typeof repeated_themes !== "object" || repeated_themes === null) {
       repeated_themes = {};
     }
-    if (typeof extended_personality !== "object" || extended_personality === null) {
+    if (
+      typeof extended_personality !== "object" ||
+      extended_personality === null
+    ) {
       extended_personality = {};
     }
 
     // 4) Upsert into user_profile_analysis
-    //    - If row exists for userId, update it
-    //    - else insert new row
     const { data: existingRow, error: getRowError } = await supabase
       .from("user_profile_analysis")
       .select("*")
@@ -253,10 +265,10 @@ serve(async (req) => {
       .single();
 
     if (getRowError && getRowError.details?.includes("0 rows")) {
-      // It's okay if no row found
-      console.log("No existing row found for user, will create new profile analysis row.");
+      // no row found, create new
+      console.log("No existing profile row for user, inserting new...");
     } else if (getRowError) {
-      console.error("Error checking existing row:", getRowError);
+      console.error("Error retrieving user_profile_analysis:", getRowError);
       throw getRowError;
     }
 
@@ -278,20 +290,18 @@ serve(async (req) => {
     let upsertResult;
     if (!existingRow) {
       // Insert
-      console.log("Inserting new user_profile_analysis row...");
-      const { data: newRow, error: insertError } = await supabase
+      const { data: insertedRow, error: insertError } = await supabase
         .from("user_profile_analysis")
         .insert(upsertPayload)
         .select()
         .single();
       if (insertError) {
-        console.error("Error inserting user_profile_analysis:", insertError);
+        console.error("Error inserting new user_profile_analysis:", insertError);
         throw insertError;
       }
-      upsertResult = newRow;
+      upsertResult = insertedRow;
     } else {
       // Update
-      console.log("Updating existing user_profile_analysis row...");
       const { data: updatedRow, error: updateError } = await supabase
         .from("user_profile_analysis")
         .update(upsertPayload)
@@ -318,7 +328,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Error in update-user-profile-analysis:", error);
+    console.error("Error in update-user-profile-analysis function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
