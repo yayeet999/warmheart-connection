@@ -47,7 +47,8 @@ const Onboarding = () => {
       
       if (!user) throw new Error("No user found");
 
-      const { error } = await supabase
+      // Update profile in Supabase
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({
           name: formData.name,
@@ -56,7 +57,19 @@ const Onboarding = () => {
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Send introduction message to Amorine
+      const introMessage = `Hi! My name is ${formData.name}! I'm around ${formData.age_range} years old and my pronouns are ${formData.pronouns}. What's your name!`;
+      
+      const { error: chatError } = await supabase.functions.invoke('chat', {
+        body: { 
+          message: introMessage,
+          userId: user.id
+        }
+      });
+
+      if (chatError) throw chatError;
 
       navigate("/chat");
       toast({
