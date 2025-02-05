@@ -59,17 +59,14 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      // Send introduction message to Amorine
-      const introMessage = `Hi! My name is ${formData.name}! I'm around ${formData.age_range} years old and my pronouns are ${formData.pronouns}. What's your name!`;
-      
-      const { error: chatError } = await supabase.functions.invoke('chat', {
+      // Call the intro-chat function instead of the regular chat function
+      const { data: introData, error: introError } = await supabase.functions.invoke('intro-chat', {
         body: { 
-          message: introMessage,
           userId: user.id
         }
       });
 
-      if (chatError) throw chatError;
+      if (introError) throw introError;
 
       navigate("/chat");
       toast({
@@ -170,3 +167,4 @@ const Onboarding = () => {
 };
 
 export default Onboarding;
+
