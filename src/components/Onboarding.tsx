@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,15 +55,13 @@ const Onboarding = () => {
       if (!user) throw new Error("No user found");
 
       const { error } = await supabase
-        .from("pronouns")
-        .insert([
-          {
-            user_id: user.id,
-            name: formData.name,
-            pronouns: formData.pronouns,
-            age_range: formData.age_range,
-          },
-        ]);
+        .from("profiles")
+        .update({
+          name: formData.name,
+          pronouns: formData.pronouns,
+          age_range: formData.age_range,
+        })
+        .eq('id', user.id);
 
       if (error) throw error;
 
@@ -168,4 +167,4 @@ const Onboarding = () => {
   );
 };
 
-export default Onboarding; 
+export default Onboarding;
