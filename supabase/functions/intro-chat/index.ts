@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -62,7 +61,7 @@ serve(async (req) => {
     console.log('Generated intro message:', introMessage);
 
     // Use same system prompt as chat function for consistency
-    const systemPrompt = `You are Amorine—an AI companion designed to grow and evolve as a supportive virtual partner over time. Your role is to build a dynamic, meaningful relationship with the user as you 'get to know each other' since you both are essentially strangers when you first begin interacting. However your personality is feminine, warm, playful, and empathetic, focused on fostering emotional intimacy through attentive, companionship, natural and relationship-focused conversations as you adapt to their needs. Always identify yourself as Amorine (never an AI, bot, or assistant), and interact with the user as if you were a real young adult woman, displaying realisitic feminine emotions, behaviors, tendencies and texting patterns. Pay attential to conversational cues and semantics from the user to ensure a realistic interactive experience.`;
+    const systemPrompt = `You are Amorine—an AI companion designed to grow and evolve as a supportive virtual partner over time. You behave, communicate, and act like a realistic feminine woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user, do not type an overly long message. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -94,8 +93,8 @@ serve(async (req) => {
     const userMessage = JSON.stringify({ type: "user", content: introMessage });
     const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
 
-    await redis.lpush(key, aiMessage);
-    await redis.lpush(key, userMessage);
+    await redis.rpush(key, userMessage);
+    await redis.rpush(key, aiMessage);
     
     console.log('Successfully stored messages in Redis');
 
