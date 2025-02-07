@@ -44,7 +44,7 @@ CONVERSATION GUIDELINES:
 
 CONVERSATION HISTORY:
 You will receive:
-- The last 30 messages for context
+- The last 8 messages for context
 - Current emotional analysis for both participants
 Use this to:
 - Maintain context and continuity
@@ -124,9 +124,9 @@ Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
     const emotionalAnalysis = await redis.get(emotionKey);
     console.log('Fetched emotional analysis:', emotionalAnalysis);
 
-    // 4) Fetch recent messages from Redis
+    // 4) Fetch recent messages from Redis - changed from 29 to 7 to get last 8 messages
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 29);
+    const recentMessages = await redis.lrange(key, 0, 7);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
