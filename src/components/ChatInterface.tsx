@@ -317,47 +317,59 @@ const ChatInterface = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col h-screen pl-[100px]">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex flex-col h-screen pl-[100px] bg-[#F1F1F1]">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`message-bubble ${
-                msg.type === "ai" ? "ai-message" : "user-message"
-              }`}
+              className={`flex ${
+                msg.type === "ai" ? "justify-start" : "justify-end"
+              } items-end space-x-2`}
             >
-              {msg.content}
+              <div
+                className={`message-bubble max-w-[80%] shadow-sm ${
+                  msg.type === "ai" 
+                    ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                    : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
+                }`}
+              >
+                <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              </div>
             </div>
           ))}
           {isTyping && (
-            <div className="message-bubble ai-message">
-              <TypingIndicator />
+            <div className="flex justify-start items-end space-x-2">
+              <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
+                <TypingIndicator />
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
         
-        <div className="p-4 border-t">
-          <div className="flex items-center space-x-2">
+        <div className="p-4 bg-white border-t border-gray-200">
+          <div className="max-w-4xl mx-auto flex items-center space-x-2">
             <input
               ref={inputRef}
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Type your message..."
-              className="flex-1 p-4 rounded-full border focus:outline-none focus:ring-2 focus:ring-coral"
+              placeholder="Message Amorine..."
+              className="flex-1 p-3 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400"
               disabled={isLoading}
               autoFocus
             />
             <button
               onClick={handleSend}
-              className={`p-4 rounded-full bg-gradient-primary text-white transition-opacity ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+              className={`p-3 rounded-full transition-all duration-200 ${
+                isLoading 
+                  ? 'bg-gray-100 cursor-not-allowed' 
+                  : 'bg-gradient-primary hover:opacity-90 active:scale-95'
               }`}
               disabled={isLoading}
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
