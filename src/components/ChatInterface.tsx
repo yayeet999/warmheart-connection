@@ -1,11 +1,10 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils"; // Add this import
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -288,7 +287,7 @@ const ChatInterface = () => {
 
       <div className={cn(
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
-        "sm:pl-[100px]" // Only add padding on desktop
+        "sm:pl-[100px]"
       )}>
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           {messages.map((msg, i) => (
@@ -331,6 +330,10 @@ const ChatInterface = () => {
               className="flex-1 p-3 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400"
               disabled={isLoading}
               autoFocus
+              style={{ touchAction: 'manipulation' }}
+              onFocus={(e) => {
+                e.currentTarget.style.fontSize = '16px';
+              }}
             />
             <button
               onClick={handleSend}
