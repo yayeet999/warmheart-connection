@@ -135,60 +135,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_profile_analysis: {
-        Row: {
-          attachment_style: string
-          communication_style: string
-          conflict_score: number
-          coping_style: string
-          created_at: string
-          decision_making_style: string
-          extended_personality: Json
-          id: string
-          last_updated: string
-          overall_emotional_health: number
-          relationship_stage_score: number
-          repeated_relationship_stages: Json
-          repeated_themes: Json
-          trust_score: number
-          user_id: string
-        }
-        Insert: {
-          attachment_style?: string
-          communication_style?: string
-          conflict_score?: number
-          coping_style?: string
-          created_at?: string
-          decision_making_style?: string
-          extended_personality?: Json
-          id?: string
-          last_updated?: string
-          overall_emotional_health?: number
-          relationship_stage_score?: number
-          repeated_relationship_stages?: Json
-          repeated_themes?: Json
-          trust_score?: number
-          user_id: string
-        }
-        Update: {
-          attachment_style?: string
-          communication_style?: string
-          conflict_score?: number
-          coping_style?: string
-          created_at?: string
-          decision_making_style?: string
-          extended_personality?: Json
-          id?: string
-          last_updated?: string
-          overall_emotional_health?: number
-          relationship_stage_score?: number
-          repeated_relationship_stages?: Json
-          repeated_themes?: Json
-          trust_score?: number
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
