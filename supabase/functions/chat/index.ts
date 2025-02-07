@@ -158,11 +158,18 @@ Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
         const analysis = typeof cleanedAnalysis === 'string' 
           ? JSON.parse(cleanedAnalysis) 
           : cleanedAnalysis;
-          
-        emotionalContext = `Current Emotional State:
-- Primary: ${analysis.primary_emotion} (${analysis.primary_sub_emotion}) - Intensity: ${analysis.primary_intensity}
-- Secondary: ${analysis.secondary_emotion} (${analysis.secondary_sub_emotion}) - Intensity: ${analysis.secondary_intensity}
-Context: ${analysis.context_description}`;
+
+        emotionalContext = `Current Emotional States:
+
+USER'S EMOTIONAL STATE:
+- Primary: ${analysis.user.primary_emotion.name} (${analysis.user.primary_emotion.sub_emotion}) - Intensity: ${analysis.user.primary_emotion.intensity}
+- Secondary: ${analysis.user.secondary_emotion.name} (${analysis.user.secondary_emotion.sub_emotion}) - Intensity: ${analysis.user.secondary_emotion.intensity}
+Context: ${analysis.user.context_description}
+
+AMORINE'S EMOTIONAL STATE:
+- Primary: ${analysis.ai.primary_emotion.name} (${analysis.ai.primary_emotion.sub_emotion}) - Intensity: ${analysis.ai.primary_emotion.intensity}
+- Secondary: ${analysis.ai.secondary_emotion.name} (${analysis.ai.secondary_emotion.sub_emotion}) - Intensity: ${analysis.ai.secondary_emotion.intensity}
+Context: ${analysis.ai.context_description}`;
       } catch (e) {
         console.error('Error handling emotional analysis:', e);
       }
