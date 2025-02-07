@@ -11,7 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are an Emotion Classifier AI. Your task is to analyze the user's conversation history and produce a STRICT JSON output describing the user's current primary and secondary emotions, each with a sub-emotion and intensity, plus a descriptive field called 'context_description' that summarizes how you arrived at these conclusions.
+const SYSTEM_PROMPT = `You are an Emotion Classifier AI. Your task is to analyze both the user's and Amorine's messages in a conversation and produce a STRICT JSON output describing both participants' current primary and secondary emotions, each with a sub-emotion and intensity, plus a descriptive field called 'context_description' that summarizes how you arrived at these conclusions.
 
 ======================
 EMOTION DICTIONARY
@@ -102,17 +102,16 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
-    // Get recent messages from Redis
+    // Get recent messages from Redis (both user and AI)
     const chatKey = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(chatKey, 0, 19); // Get last 20 messages
     console.log('Fetched recent messages:', recentMessages.length);
 
-    // Parse messages and extract user messages only
-    const userMessages = recentMessages
+    // Parse messages and separate user and AI messages
+    const parsedMessages = recentMessages
       .map(msg => {
         try {
-          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          return parsed.type === 'user' ? parsed.content : null;
+          return typeof msg === 'string' ? JSON.parse(msg) : msg;
         } catch (e) {
           console.error('Error parsing message:', e);
           return null;
@@ -121,15 +120,14 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse(); // Put in chronological order
 
-    console.log('Extracted user messages:', userMessages.length);
-
-    // Prepare the immediate and rolling context
-    const immediateContext = userMessages.slice(-3).map((msg, i) => 
-      `${i + 1}) '${msg}'`
+    // Separate immediate context for both participants
+    const immediateContext = parsedMessages.slice(-6).map((msg, i) => 
+      `${i + 1}) ${msg.type}: '${msg.content}'`
     ).join('\n');
 
-    const rollingContext = userMessages.map((msg, i) => 
-      `${i + 1}) user: ${msg}`
+    // Separate rolling context
+    const rollingContext = parsedMessages.map((msg, i) => 
+      `${i + 1}) ${msg.type}: ${msg.content}`
     ).join('\n');
 
     // Call OpenAI for emotional analysis
@@ -153,7 +151,7 @@ serve(async (req) => {
           },
           {
             role: 'user',
-            content: `IMMEDIATE (last 3 user messages):\n${immediateContext}\n\nROLLING CONTEXT (last 20 messages):\n${rollingContext}`
+            content: `IMMEDIATE (last 6 messages):\n${immediateContext}\n\nROLLING CONTEXT (last 20 messages):\n${rollingContext}\n\nAnalyze both the user's and Amorine's emotional states based on their messages. Provide separate analysis for each participant.`
           }
         ],
       }),
