@@ -65,14 +65,14 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-softgray">
-      <header className="w-full bg-charcoal py-4 px-6 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-plum/5 to-coral/5 grid-background">
+      <header className="w-full bg-white/80 backdrop-blur-md py-4 px-6 flex justify-between items-center fixed top-0 z-50 border-b border-gray-100">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate("/")}
-            className="text-cream hover:text-coral"
+            className="text-plum hover:text-coral transition-colors"
           >
             <ArrowLeft className="h-6 w-6" />
           </Button>
@@ -82,19 +82,25 @@ const Auth = () => {
         </div>
       </header>
 
-      <div className="container mx-auto flex justify-center items-center min-h-[calc(100vh-72px)] p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Welcome to Amorine</CardTitle>
-            <CardDescription className="text-center">
+      <div className="container mx-auto flex justify-center items-center min-h-screen p-4">
+        <Card className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl border-0">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl font-bold text-center bg-gradient-primary text-transparent bg-clip-text">
+              Welcome to Amorine
+            </CardTitle>
+            <CardDescription className="text-center text-gray-600">
               Your always-available companion
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-8">
+                <TabsTrigger value="login" className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white">
+                  Login
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white">
+                  Sign Up
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="login">
                 <div className="space-y-4">
@@ -103,15 +109,17 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="bg-white/50 border-gray-200 focus:border-plum"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="bg-white/50 border-gray-200 focus:border-plum"
                   />
                   <Button
-                    className="w-full bg-gradient-primary hover:opacity-90"
+                    className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
                     onClick={() => handleAuth("LOGIN")}
                     disabled={loading}
                   >
@@ -126,15 +134,17 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="bg-white/50 border-gray-200 focus:border-plum"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="bg-white/50 border-gray-200 focus:border-plum"
                   />
                   <Button
-                    className="w-full bg-gradient-primary hover:opacity-90"
+                    className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
                     onClick={() => handleAuth("SIGNUP")}
                     disabled={loading}
                   >
@@ -147,17 +157,17 @@ const Auth = () => {
           <CardFooter className="flex flex-col gap-4">
             <div className="relative w-full">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+                <span className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
+                <span className="bg-white/80 px-2 text-gray-500">
                   Or continue with
                 </span>
               </div>
             </div>
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full bg-white hover:bg-gray-50 border border-gray-200"
               onClick={handleGoogleLogin}
               disabled={loading}
             >
