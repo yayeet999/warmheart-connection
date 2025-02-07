@@ -284,7 +284,10 @@ const ChatInterface = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col h-screen pl-[100px] bg-[#F1F1F1]">
+      <div className={cn(
+        "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
+        "sm:pl-[100px]" // Only add padding on desktop
+      )}>
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
@@ -294,7 +297,7 @@ const ChatInterface = () => {
               } items-end space-x-2`}
             >
               <div
-                className={`message-bubble max-w-[80%] shadow-sm ${
+                className={`message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm ${
                   msg.type === "ai" 
                     ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
                     : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
@@ -315,7 +318,7 @@ const ChatInterface = () => {
         </div>
         
         <div className="p-4 bg-white border-t border-gray-200">
-          <div className="max-w-4xl mx-auto flex items-center space-x-2">
+          <div className="max-w-4xl mx-auto flex items-center space-x-2 px-2">
             <input
               ref={inputRef}
               type="text"
