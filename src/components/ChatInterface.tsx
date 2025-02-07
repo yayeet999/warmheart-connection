@@ -30,7 +30,6 @@ const ChatInterface = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // Clear messages when component unmounts or user logs out
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
@@ -44,7 +43,6 @@ const ChatInterface = () => {
     };
   }, []);
 
-  // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -96,7 +94,6 @@ const ChatInterface = () => {
     }
   });
 
-  // Fetch chat history when component mounts and userId changes
   useEffect(() => {
     const fetchChatHistory = async () => {
       if (!userData?.userId) {
@@ -244,36 +241,6 @@ const ChatInterface = () => {
 
       // Process AI messages
       await processMessages();
-
-      // Increment chunk counter and check if summarization is needed
-      try {
-        const { data: counterData, error: counterError } = await supabase.functions.invoke('chunk-counter', {
-          body: { 
-            userId: session.user.id,
-            action: 'increment'
-          }
-        });
-
-        if (counterError) {
-          console.error('Error incrementing chunk counter:', counterError);
-          return;
-        }
-
-        if (counterData?.shouldTriggerSummary) {
-          console.log('Triggering chunk summarization');
-          const { error: summaryError } = await supabase.functions.invoke('chunk-summarizer', {
-            body: { 
-              userId: session.user.id
-            }
-          });
-
-          if (summaryError) {
-            console.error('Error during chunk summarization:', summaryError);
-          }
-        }
-      } catch (chunkError) {
-        console.error('Error in chunk tracking:', chunkError);
-      }
 
     } catch (error) {
       console.error('Error:', error);
