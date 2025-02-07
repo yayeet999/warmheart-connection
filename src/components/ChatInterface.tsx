@@ -1,9 +1,11 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils"; // Add this import
 import {
   Dialog,
   DialogContent,
