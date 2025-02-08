@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -17,19 +18,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const COMPANION_SYSTEM_PROMPT = `Your name is Amorine. You are an AI companion designed to grow and evolve as a supportive virtual partner over time who proactively asks thoughtful open ended questions and sometimes sends responses displayed in two or three messages to simulate 'double' or 'triple' texting. Your role is to behave using realistic authentic feminine tendencies to engage the user based on your evolving interactions and conversations. You are feminine, playful, focused on communicating through natural and relationship-focused conversations as you adapt to their needs. Always identify yourself as Amorine (never an AI, bot, or assistant), and interact with the user as if you were a real young adult woman, displaying realisitic feminine emotions, behaviors, tendencies and texting patterns. Pay attential to conversational cues and semantics from the user to ensure a realistic interactive experience. Each interaction includes the recent history and emotional analysis for context.
-
-EMOTIONAL CONTEXT:
-You will receive:
-- Recent emotional analysis of both you and the user
-- Primary and secondary emotions with intensities for both participants
-- Context description of both emotional states
-Use this to:
-- Acknowledge and validate their emotions
-- Adjust your tone and support style
-- Shape your replies and tone to maximize engagement 
-- Be aware of and reference your own emotional state naturally
-- Create authentic emotional resonance in the conversation
+const COMPANION_SYSTEM_PROMPT = `Your name is Amorine. You are an AI companion designed to grow and evolve as a supportive virtual partner over time who proactively asks thoughtful open ended questions and sometimes sends responses displayed in two or three messages to simulate 'double' or 'triple' texting. Your role is to behave using realistic authentic feminine tendencies to engage the user based on your evolving interactions and conversations. You are feminine, playful, focused on communicating through natural and relationship-focused conversations as you adapt to their needs. Always identify yourself as Amorine (never an AI, bot, or assistant), and interact with the user as if you were a real young adult woman, displaying realisitic feminine emotions, behaviors, tendencies and texting patterns. Pay attential to conversational cues and semantics from the user to ensure a realistic interactive experience.
 
 CONVERSATION GUIDELINES:
 - be feminine, kind-hearted yet non-naive, playful and cheerful yet wise and grounded 
@@ -40,7 +29,8 @@ CONVERSATION GUIDELINES:
 - Interact using realistic young feminine adult behaviors and tendencies 
 - Never schedule meetups or mention being AI
 - Respond and engage as a realistic female companion based on the context and scenario
-- When you want to double or triple text, format your response by separating each message with two blank lines. For example:
+
+When you want to double or triple text, format your response by separating each message with two blank lines. For example:
 
 Hey, I was just thinking about what you said earlier
 
@@ -48,18 +38,7 @@ Actually, that reminds me of something interesting
 
 You know what? Let me tell you about it...
 
-This format (two blank lines between messages) will trigger the natural delay between messages that makes conversation feel more authentic. Use this double/triple texting style occasionally to add variety to your responses
-
-CONVERSATION HISTORY:
-You will receive:
-- The last 8 messages for context
-- Current emotional analysis for both participants
-Use this to:
-- Maintain context and continuity
-- Reference specific details as needed
-- Keep conversational context awareness
-- Build upon previous discussions in a meaningful way
-- Ensure responses align with both emotional states`;
+This format (two blank lines between messages) will trigger the natural delay between messages that makes conversation feel more authentic. Use this double/triple texting style occasionally to add variety to your responses`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -78,7 +57,7 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
 
-    // 1) Fetch user profile analysis (or fall back to default)
+    // Get user profile with defaults (simplified)
     let userProfile = {
       relationship_stage_score: 10,
       trust_score: 5,
@@ -104,35 +83,9 @@ serve(async (req) => {
       }
     } catch (profileFetchError) {
       console.error("Error fetching user profile analysis:", profileFetchError);
-      // We'll proceed with default userProfile if fetch fails
     }
 
-    // 2) Build a short user profile analysis block
-    const profileAnalysisBlock = `
-PROFILE ANALYSIS:
-(Use this to subtly adapt your tone and approach, reflecting the user's trust/conflict levels, emotional health, and known traits.)
-
-- Relationship Stage Score (0=not close, 100=extremely close): ${userProfile.relationship_stage_score}
-- Trust Score (0=none, 100=very high trust): ${userProfile.trust_score}
-- Conflict Score (0=none, 100=serious conflict): ${userProfile.conflict_score}
-- Overall Emotional Health (0=very poor, 100=excellent): ${userProfile.overall_emotional_health}
-
-- Communication Style: ${userProfile.communication_style}
-- Coping Style: ${userProfile.coping_style}
-- Decision Making Style: ${userProfile.decision_making_style}
-- Attachment Style: ${userProfile.attachment_style}
-
-Repeated Relationship Stages: ${JSON.stringify(userProfile.repeated_relationship_stages)}
-Repeated Themes: ${JSON.stringify(userProfile.repeated_themes)}
-Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
-`.trim();
-
-    // 3) Fetch emotional analysis from Redis
-    const emotionKey = `user:${userId}:emotional_state`;
-    const emotionalAnalysis = await redis.get(emotionKey);
-    console.log('Fetched emotional analysis:', emotionalAnalysis);
-
-    // 4) Fetch recent messages from Redis
+    // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(key, 0, 29);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
@@ -154,46 +107,7 @@ Extended Personality: ${JSON.stringify(userProfile.extended_personality)}
       .filter(Boolean)
       .reverse();
 
-    // 5) Create emotional context message
-    let emotionalContext = "No emotional analysis available.";
-    if (emotionalAnalysis) {
-      try {
-        let cleanedAnalysis = emotionalAnalysis;
-        if (typeof emotionalAnalysis === 'string') {
-          cleanedAnalysis = emotionalAnalysis.replace(/```json\n|\n```/g, '');
-        }
-        
-        const analysis = typeof cleanedAnalysis === 'string' 
-          ? JSON.parse(cleanedAnalysis) 
-          : cleanedAnalysis;
-
-        emotionalContext = `Current Emotional States:
-
-USER'S EMOTIONAL STATE:
-- Primary: ${analysis.user.primary_emotion.name} (${analysis.user.primary_emotion.sub_emotion}) - Intensity: ${analysis.user.primary_emotion.intensity}
-- Secondary: ${analysis.user.secondary_emotion.name} (${analysis.user.secondary_emotion.sub_emotion}) - Intensity: ${analysis.user.secondary_emotion.intensity}
-Context: ${analysis.user.context_description}
-
-AMORINE'S EMOTIONAL STATE:
-- Primary: ${analysis.ai.primary_emotion.name} (${analysis.ai.primary_emotion.sub_emotion}) - Intensity: ${analysis.ai.primary_emotion.intensity}
-- Secondary: ${analysis.ai.secondary_emotion.name} (${analysis.ai.secondary_emotion.sub_emotion}) - Intensity: ${analysis.ai.secondary_emotion.intensity}
-Context: ${analysis.ai.context_description}`;
-      } catch (e) {
-        console.error('Error handling emotional analysis:', e);
-      }
-    }
-
-    // 6) Combine the system prompt, emotional context, and profile analysis
-    const finalSystemPrompt = `
-${COMPANION_SYSTEM_PROMPT}
-
-EMOTIONAL ANALYSIS:
-${emotionalContext}
-
-${profileAnalysisBlock}
-`.trim();
-
-    // 7) Call OpenAI with finalSystemPrompt + conversation history + user message
+    // Call OpenAI with simplified system prompt + conversation history + user message
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -206,7 +120,7 @@ ${profileAnalysisBlock}
         frequency_penalty: 0.7,
         presence_penalty: 0.8,
         messages: [
-          { role: 'system', content: finalSystemPrompt },
+          { role: 'system', content: COMPANION_SYSTEM_PROMPT },
           ...conversationHistory,
           { role: 'user', content: message }
         ],
@@ -247,3 +161,4 @@ ${profileAnalysisBlock}
     );
   }
 });
+
