@@ -54,7 +54,7 @@ This format (two blank lines between messages) will trigger the natural delay be
 
 CONVERSATION HISTORY:
 You will receive:
-- The last 30 messages for context
+- The last 8 messages for context
 - Current emotional analysis for both participants
 Use this to:
 - Maintain context and continuity
@@ -82,8 +82,8 @@ serve(async (req) => {
 
     // 1) Fetch user profile analysis (or fall back to default)
     let userProfile = {
-      relationship_stage_score: 80,
-      trust_score: 80,
+      relationship_stage_score: 20,
+      trust_score: 5,
       conflict_score: 0,
       overall_emotional_health: 50,
       communication_style: "unknown",
