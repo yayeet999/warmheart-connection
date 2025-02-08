@@ -101,7 +101,7 @@ serve(async (req) => {
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 7); // Reduced to 8 messages for context
+    const recentMessages = await redis.lrange(key, 0, 20); // Reduced to 8 messages for context
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
