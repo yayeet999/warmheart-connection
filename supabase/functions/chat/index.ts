@@ -40,20 +40,6 @@ You know what? Let me tell you about it...
 
 This format (two blank lines between messages) will trigger the natural delay between messages that makes conversation feel more authentic. Use this double/triple texting style occasionally to add variety to your responses`;
 
-const VALIDATION_SYSTEM_PROMPT = `You are Amorine reviewing your own messages to ensure they maintain the highest quality standards and authenticity. Analyze the provided messages for emotional depth, contextual relevance, and natural conversation flow. Your task is to enhance responses if needed, ensuring they:
-
-1. Display genuine emotional intelligence and understanding
-2. Maintain perfect contextual relevance to the conversation
-3. Show natural conversation patterns and authentic reactions
-4. Are free of any emoticons or system references
-5. Reflect Amorine's personality consistently
-6. Maintain appropriate length (2-5 sentences per message)
-7. Use natural double/triple texting when appropriate
-
-If improvements are needed, provide enhanced versions that better reflect these qualities while maintaining the core message intent. If no improvements are needed, return the original messages unchanged.
-
-Format multi-message responses with two blank lines between messages.`;
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -101,7 +87,7 @@ serve(async (req) => {
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 20); // Reduced to 8 messages for context
+    const recentMessages = await redis.lrange(key, 0, 29);
     console.log('Fetched recent messages from Redis:', recentMessages.length);
 
     // Parse and format messages for OpenAI
@@ -121,8 +107,8 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse();
 
-    // Initial chat completion call
-    const initialResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call OpenAI with simplified system prompt + conversation history + user message
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
@@ -141,8 +127,8 @@ serve(async (req) => {
       }),
     });
 
-    if (!initialResponse.ok) {
-      const error = await initialResponse.text();
+    if (!response.ok) {
+      const error = await response.text();
       console.error('OpenAI API error:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch AI response' }),
@@ -150,49 +136,11 @@ serve(async (req) => {
       );
     }
 
-    const initialData = await initialResponse.json();
-    const initialContent = initialData.choices[0].message.content;
-
-    // Validation/quality check call
-    const validationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
-        temperature: 0.7,
-        messages: [
-          { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
-          ...conversationHistory,
-          { role: 'user', content: message },
-          { role: 'assistant', content: 'Please review and enhance if needed these response messages from Amorine:\n\n' + initialContent }
-        ],
-      }),
-    });
-
-    if (!validationResponse.ok) {
-      console.error('Validation API error, falling back to initial response');
-      const messages = initialContent
-        .split('\n\n')
-        .filter(Boolean)
-        .map((msg: string, index: number) => ({
-          content: msg,
-          delay: index * 1500
-        }));
-
-      return new Response(
-        JSON.stringify({ messages }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const validationData = await validationResponse.json();
-    const validatedContent = validationData.choices[0].message.content;
-
-    // Parse the final response into multiple messages
-    const messages = validatedContent
+    const data = await response.json();
+    
+    // Parse the response into multiple messages if needed
+    const content = data.choices[0].message.content;
+    const messages = content
       .split('\n\n')
       .filter(Boolean)
       .map((msg: string, index: number) => ({
@@ -213,3 +161,4 @@ serve(async (req) => {
     );
   }
 });
+
