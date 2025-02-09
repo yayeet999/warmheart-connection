@@ -9,17 +9,25 @@ interface DateSeparatorProps {
 export const DateSeparator: React.FC<DateSeparatorProps> = ({ date }) => {
   try {
     const parsedDate = new Date(date);
-    if (isNaN(parsedDate.getTime())) return null;
+    if (isNaN(parsedDate.getTime())) {
+      console.log("Invalid date in separator:", date);
+      return null;
+    }
     
+    let displayText = "";
+    if (isToday(parsedDate)) {
+      displayText = "Today";
+    } else if (isYesterday(parsedDate)) {
+      displayText = "Yesterday";
+    } else {
+      displayText = format(parsedDate, "MMMM d, yyyy");
+    }
+
     return (
       <div className="flex items-center justify-center my-4">
-        <div className="bg-gray-200 px-3 py-1 rounded-full">
-          <span className="text-sm text-gray-600">
-            {isToday(parsedDate)
-              ? "Today"
-              : isYesterday(parsedDate)
-              ? "Yesterday"
-              : format(parsedDate, "MMMM d, yyyy")}
+        <div className="bg-gray-100 px-3 py-1 rounded-full">
+          <span className="text-sm font-medium text-gray-600">
+            {displayText}
           </span>
         </div>
       </div>
