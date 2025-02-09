@@ -48,6 +48,19 @@ serve(async (req) => {
       throw new Error('Could not fetch user profile');
     }
 
+    // Map pronouns to gender terms
+    const genderMap: { [key: string]: string } = {
+      'he/him': 'male',
+      'she/her': 'female',
+      'they/them': 'non-binary'
+    };
+
+    const gender = genderMap[profile.pronouns] || 'person';
+
+    // Create introduction message using template (this will be hidden from the user)
+    const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
+    console.log('Generated intro message:', introMessage);
+
     // Set the initial medium-term summary
     const initialSummary = "I'm just meeting this user for the first time I don't know anything about them, so it's all about making a good first impression.  It's key to make them feel really comfortable and welcome. If they're respectful I'll keep the engagement high but if they're disrespectful I'll let them know.  Like, focus on showing I'm genuinely interested in getting to know *them* – what they're like, what they're looking for eventually by meeting me. Lots of open-ended questions should help, just to get them talking and see what they feel like sharing.  Also talk about myself if they ask, but always keep it engaging and based on the user's personality and texting style. We're getting to know each other and figuring each other out.";
 
@@ -62,23 +75,7 @@ serve(async (req) => {
       throw new Error('Could not update medium-term summary');
     }
 
-    // Map pronouns to gender terms
-    const genderMap: { [key: string]: string } = {
-      'he/him': 'male',
-      'she/her': 'female',
-      'they/them': 'non-binary'
-    };
-
-    const gender = genderMap[profile.pronouns] || 'person';
-
-    // Create introduction message using template
-    const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
-    console.log('Generated intro message:', introMessage);
-
-    // Use same system prompt as chat function for consistency
-    const systemPrompt = `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user, do not type an overly long message. Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
-
-    // Call OpenAI API
+    // Call OpenAI API for two responses
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -88,9 +85,10 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user in two separate messages, with the second being a follow-up question. Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.` },
           { role: 'user', content: introMessage }
         ],
+        n: 2, // Request 2 completions
       }),
     });
 
@@ -101,24 +99,23 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const aiContent = data.choices[0].message.content;
+    const aiMessages = data.choices.map((choice: any) => choice.message.content);
 
-    // Store messages in Redis for chat history
+    // Store messages in Redis but only AI responses (skip the hidden user message)
     const key = `user:${userId}:messages`;
-    const userMessage = JSON.stringify({ type: "user", content: introMessage });
-    const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
-
-    await redis.rpush(key, userMessage);
-    await redis.rpush(key, aiMessage);
+    
+    // Store AI messages in Redis
+    for (const msg of aiMessages) {
+      const aiMessage = JSON.stringify({ type: "ai", content: msg });
+      await redis.rpush(key, aiMessage);
+    }
     
     console.log('Successfully stored messages in Redis');
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        messages: [
-          { content: aiContent, type: "ai" }
-        ]
+        messages: aiMessages.map((content: string) => ({ content, type: "ai" }))
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -131,4 +128,3 @@ serve(async (req) => {
     );
   }
 });
-
