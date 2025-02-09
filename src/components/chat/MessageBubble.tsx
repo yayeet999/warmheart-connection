@@ -47,11 +47,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   return (
     <div
       className={cn(
-        "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+        "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-all duration-200",
         type === "ai" 
           ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
           : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
-        swipedMessageId === index ? "translate-x-[-20px]" : ""
+        swipedMessageId !== null ? "translate-x-[-20px]" : ""
       )}
       onTouchStart={(e) => onTouchStart(e, index)}
       onTouchMove={onTouchMove}
@@ -63,7 +63,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           className={cn(
             "text-xs mt-1 transition-opacity duration-200",
             type === "ai" ? "text-gray-600" : "text-gray-200",
-            swipedMessageId === index ? "opacity-100" : "opacity-0"
+            swipedMessageId !== null ? "opacity-100" : "opacity-0"
           )}
         >
           {formatMessageDate(timestamp)}
