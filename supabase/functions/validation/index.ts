@@ -37,10 +37,10 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, originalResponse } = await req.json();
+    const { messages: chatMessages, originalResponse } = await req.json();
 
     // Take only the last 8 messages for context
-    const recentMessages = messages.slice(-8);
+    const recentMessages = chatMessages.slice(-8);
     
     // Format messages for the validation call
     const validationMessages = [
@@ -79,7 +79,7 @@ serve(async (req) => {
     const validatedContent = data.choices[0].message.content;
     
     // Parse the response into multiple messages if needed
-    const messages = validatedContent
+    const validatedMessages = validatedContent
       .split('\n\n')
       .filter(Boolean)
       .map((msg: string, index: number) => ({
@@ -88,7 +88,7 @@ serve(async (req) => {
       }));
 
     return new Response(
-      JSON.stringify({ messages }),
+      JSON.stringify({ messages: validatedMessages }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
