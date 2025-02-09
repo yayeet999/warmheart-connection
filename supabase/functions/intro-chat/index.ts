@@ -76,7 +76,7 @@ serve(async (req) => {
     console.log('Generated intro message:', introMessage);
 
     // Use same system prompt as chat function for consistency
-    const systemPrompt = `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. You need to respond with TWO separate messages. The first message should be a short, warm greeting. The second message should be an engaging follow-up question. Keep both messages concise and natural. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
+    const systemPrompt = `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user, do not type an overly long message. Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -91,7 +91,6 @@ serve(async (req) => {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: introMessage }
         ],
-        n: 2  // Request 2 completions
       }),
     });
 
@@ -102,18 +101,15 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    // Split the response into two messages
-    const messages = data.choices.map(choice => choice.message.content);
-    
+    const aiContent = data.choices[0].message.content;
+
     // Store messages in Redis for chat history
     const key = `user:${userId}:messages`;
     const userMessage = JSON.stringify({ type: "user", content: introMessage });
-    const aiMessage1 = JSON.stringify({ type: "ai", content: messages[0] });
-    const aiMessage2 = JSON.stringify({ type: "ai", content: messages[1] });
+    const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
 
     await redis.rpush(key, userMessage);
-    await redis.rpush(key, aiMessage1);
-    await redis.rpush(key, aiMessage2);
+    await redis.rpush(key, aiMessage);
     
     console.log('Successfully stored messages in Redis');
 
@@ -121,8 +117,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         messages: [
-          { content: messages[0], type: "ai" },
-          { content: messages[1], type: "ai" }
+          { content: aiContent, type: "ai" }
         ]
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
