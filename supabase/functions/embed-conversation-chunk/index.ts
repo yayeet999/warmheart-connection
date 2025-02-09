@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.3.0/mod.ts";
 import { serve } from "https://deno.land/std@0.204.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.28.0/mod.ts';
@@ -21,15 +22,14 @@ async function generateEmbeddings(text: string): Promise<number[]> {
   }
 
   try {
-    const response = await fetch(`${upstashVectorRestUrl}/embeddings`, {
+    const response = await fetch(`${upstashVectorRestUrl}/embeddings/all-minilm-l6-v2`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${upstashVectorRestToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sentence-transformers/all-MiniLM-L6-v2',
-        texts: [text]
+        input: text
       }),
     });
 
@@ -39,7 +39,7 @@ async function generateEmbeddings(text: string): Promise<number[]> {
     }
 
     const { embeddings } = await response.json();
-    if (!embeddings?.[0]?.length) {
+    if (!embeddings?.[0]) {
       throw new Error('Invalid embeddings response structure');
     }
 
