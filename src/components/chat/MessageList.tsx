@@ -1,9 +1,9 @@
-
 import React from "react";
 import { MessageBubble } from "./MessageBubble";
 import { DateSeparator } from "./DateSeparator";
 import TypingIndicator from "../TypingIndicator";
 import { format, isToday, isYesterday } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface Message {
   type: "ai" | "user";
