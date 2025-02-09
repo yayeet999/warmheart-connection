@@ -1,5 +1,6 @@
+
 import { useState, useRef, useEffect } from "react";
-import { Send, Info } from "lucide-react";
+import { Send, Info, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -27,8 +28,12 @@ const ChatInterface = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
+  const [page, setPage] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesStartRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,7 +53,7 @@ const ChatInterface = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setMessages([]); // Clear messages if no session
+        setMessages([]);
         toast({
           title: "Authentication Required",
           description: "Please log in to access the chat.",
@@ -95,50 +100,75 @@ const ChatInterface = () => {
     }
   });
 
-  useEffect(() => {
-    const fetchChatHistory = async () => {
-      if (!userData?.userId) {
-        console.log("No user ID available yet");
-        return;
+  const fetchMessages = async (pageNum = 0) => {
+    if (!userData?.userId) {
+      console.log("No user ID available yet");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-history', {
+        body: { 
+          userId: userData.userId,
+          action: 'get',
+          page: pageNum
+        }
+      });
+
+      if (error) {
+        console.error('Error fetching chat history:', error);
+        throw error;
       }
 
-      try {
-        console.log("Fetching chat history for user:", userData.userId);
-        const { data, error } = await supabase.functions.invoke('chat-history', {
-          body: { 
-            userId: userData.userId,
-            action: 'get'
-          }
-        });
+      return data;
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load chat history",
+        variant: "destructive"
+      });
+      return null;
+    }
+  };
 
-        if (error) {
-          console.error('Error fetching chat history:', error);
-          throw error;
-        }
-
-        if (data.messages) {
-          setMessages(data.messages);
-        }
-      } catch (error) {
-        console.error('Error fetching chat history:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load chat history",
-          variant: "destructive"
-        });
+  useEffect(() => {
+    const loadInitialMessages = async () => {
+      const data = await fetchMessages(0);
+      if (data?.messages) {
+        setMessages(data.messages);
+        setHasMore(data.hasMore);
       }
     };
 
-    fetchChatHistory();
+    loadInitialMessages();
   }, [userData?.userId]);
+
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    const data = await fetchMessages(nextPage);
+    
+    if (data?.messages) {
+      setMessages(prev => [...data.messages, ...prev]);
+      setHasMore(data.hasMore);
+      setPage(nextPage);
+    }
+    
+    setIsLoadingMore(false);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!isLoadingMore) {
+      scrollToBottom();
+    }
+  }, [messages, isLoadingMore]);
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
@@ -171,7 +201,6 @@ const ChatInterface = () => {
       return;
     }
     
-    // Clear the input immediately and maintain focus
     setMessage("");
     inputRef.current?.focus();
     
@@ -200,9 +229,7 @@ const ChatInterface = () => {
         }
       });
 
-      // Process messages sequentially with delays
       for (const [index, msg] of data.messages.entries()) {
-        // Add delay between messages
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
         }
@@ -214,7 +241,6 @@ const ChatInterface = () => {
 
         setMessages(prev => [...prev, aiMessage]);
 
-        // Store AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -223,7 +249,6 @@ const ChatInterface = () => {
           }
         });
 
-        // Show typing indicator for next message if there is one
         setIsTyping(index < data.messages.length - 1);
       }
 
@@ -273,7 +298,36 @@ const ChatInterface = () => {
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
         "sm:pl-[100px]"
       )}>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        <div 
+          className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            if (target.scrollTop === 0 && hasMore && !isLoadingMore) {
+              loadMoreMessages();
+            }
+          }}
+        >
+          {hasMore && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreMessages}
+                disabled={isLoadingMore}
+                className="flex items-center gap-2"
+              >
+                {isLoadingMore ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    Load More
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          <div ref={messagesStartRef} />
           {messages.map((msg, i) => (
             <div
               key={i}
@@ -302,7 +356,9 @@ const ChatInterface = () => {
           <div ref={messagesEndRef} />
         </div>
         
-        <div className="p-4 bg-white border-t border-gray-200">
+        <div className="p-4 bg
+
+-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-center space-x-2 px-2">
             <input
               ref={inputRef}
