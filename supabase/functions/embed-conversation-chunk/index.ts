@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.3.0/mod.ts";
 import { serve } from "https://deno.land/std@0.204.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -24,14 +23,15 @@ async function generateEmbeddings(text: string): Promise<number[]> {
   }
 
   try {
-    const response = await fetch(`${upstashVectorRestUrl}/embeddings/all-minilm-l6-v2`, {
+    const response = await fetch(`${upstashVectorRestUrl}/embeddings`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${upstashVectorRestToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        input: text
+        model: "ALL_MINILM_L6_V2",  // Specify model in the request body
+        texts: [text]  // Changed input to texts array as expected by the API
       }),
     });
 
