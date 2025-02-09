@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.3.0/mod.ts";
 import { serve } from "https://deno.land/std@0.204.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -30,8 +31,8 @@ async function generateEmbeddings(text: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "ALL_MINILM_L6_V2",  // Specify model in the request body
-        texts: [text]  // Changed input to texts array as expected by the API
+        model: "all-MiniLM-L6-v2",  // Updated model name to match exactly
+        texts: [text]
       }),
     });
 
@@ -77,10 +78,8 @@ serve(async (req) => {
     const recentMessagesRaw = await redis.lrange(key, 0, 7);
     console.log('Raw messages from Redis:', recentMessagesRaw);
     
-    // Improved parsing logic that handles both string and object formats
     const parsedMessages = recentMessagesRaw.map(msg => {
       try {
-        // If it's already an object, just validate it
         if (typeof msg === 'object' && msg !== null) {
           if ('type' in msg && 'content' in msg) {
             return msg;
@@ -89,7 +88,6 @@ serve(async (req) => {
           return null;
         }
         
-        // If it's a string, try to parse it
         if (typeof msg === 'string') {
           const parsed = JSON.parse(msg);
           if (parsed && typeof parsed === 'object' && 'type' in parsed && 'content' in parsed) {
@@ -142,6 +140,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            indexName: 'amorine-vector',  // Added index name
             id: vectorId,
             vector: embeddingVector,
             metadata: {

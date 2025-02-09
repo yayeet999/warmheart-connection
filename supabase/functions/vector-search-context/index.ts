@@ -28,7 +28,7 @@ async function generateEmbeddings(text: string): Promise<number[]> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'ALL_MINILM_L6_V2',
+      model: 'all-MiniLM-L6-v2',  // Updated model name to match exactly
       texts: [text],
     }),
   });
@@ -133,9 +133,10 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        indexName: 'amorine-vector',
+        indexName: 'amorine-vector',  // Added index name
         vector: queryVector,
         topK: 2,
+        includeMetadata: true,
       }),
     });
 
@@ -145,7 +146,7 @@ serve(async (req) => {
 
     const searchData = await searchResponse.json();
     const memoryChunks = (searchData.result || [])
-      .map((r: any) => r.payload?.memory_chunk)
+      .map((r: any) => r.metadata?.memory_chunk)
       .filter((c: any) => typeof c === 'string' && c.length > 0);
 
     const joinedMemoryChunks = memoryChunks.join('\n\n-----\n\n');
