@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -193,7 +192,7 @@ const ChatInterface = () => {
         console.error('Error analyzing emotions:', emotionError);
       }
 
-      // Get initial AI response
+      // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -202,16 +201,6 @@ const ChatInterface = () => {
       });
 
       if (error) throw error;
-
-      // Validate the response
-      const { data: validatedData, error: validationError } = await supabase.functions.invoke('validation', {
-        body: {
-          userId: session.user.id,
-          originalResponse: data.messages.map(m => m.content).join('\n\n')
-        }
-      });
-
-      if (validationError) throw validationError;
 
       // Store user message in Redis
       await supabase.functions.invoke('chat-history', {
@@ -222,37 +211,32 @@ const ChatInterface = () => {
         }
       });
 
-      // Process validated messages sequentially
-      const processMessages = async () => {
-        for (const [index, msg] of validatedData.messages.entries()) {
-          // Add delay between messages
-          if (index > 0) {
-            await new Promise(resolve => setTimeout(resolve, msg.delay));
-          }
-
-          const aiMessage = {
-            type: "ai",
-            content: msg.content
-          };
-
-          setMessages(prev => [...prev, aiMessage]);
-
-          // Store message in Redis
-          await supabase.functions.invoke('chat-history', {
-            body: {
-              userId: session.user.id,
-              message: aiMessage,
-              action: 'add'
-            }
-          });
-
-          // Show typing indicator for next message if there is one
-          setIsTyping(index < validatedData.messages.length - 1);
+      // Process messages sequentially with delays
+      for (const [index, msg] of data.messages.entries()) {
+        // Add delay between messages
+        if (index > 0) {
+          await new Promise(resolve => setTimeout(resolve, msg.delay));
         }
-      };
 
-      // Process AI messages
-      await processMessages();
+        const aiMessage = {
+          type: "ai",
+          content: msg.content
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+
+        // Store AI message in Redis
+        await supabase.functions.invoke('chat-history', {
+          body: {
+            userId: session.user.id,
+            message: aiMessage,
+            action: 'add'
+          }
+        });
+
+        // Show typing indicator for next message if there is one
+        setIsTyping(index < data.messages.length - 1);
+      }
 
     } catch (error) {
       console.error('Error:', error);
