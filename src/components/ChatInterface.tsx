@@ -206,7 +206,7 @@ const ChatInterface = () => {
       // Validate the response
       const { data: validatedData, error: validationError } = await supabase.functions.invoke('validation', {
         body: {
-          messages: [...messages, userMessage],
+          userId: session.user.id,
           originalResponse: data.messages.map(m => m.content).join('\n\n')
         }
       });
