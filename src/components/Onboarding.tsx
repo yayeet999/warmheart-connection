@@ -147,7 +147,9 @@ const Onboarding = () => {
                 <AgeButton value="18-24" label="18-24" />
                 <AgeButton value="25-34" label="25-34" />
                 <AgeButton value="35-44" label="35-44" />
-                <AgeButton value="45+" label="45+" />
+                <AgeButton value="45-54" label="45-54" />
+                <AgeButton value="55-64" label="55-64" />
+                <AgeButton value="65+" label="65+" />
               </div>
             </div>
             <Button

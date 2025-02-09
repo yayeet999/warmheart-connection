@@ -1,16 +1,69 @@
 import { useState, useRef, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, Info, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { MessageList } from "./chat/MessageList";
-import { WelcomeDialog } from "./chat/WelcomeDialog";
+import { format, isToday, isYesterday } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import TypingIndicator from "./TypingIndicator";
 
 const MESSAGE_LIMITS = {
   free: 50,
   pro: 500
+};
+
+const formatMessageDate = (timestamp?: string) => {
+  if (!timestamp) return "";
+  
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "";
+    
+    if (isToday(date)) {
+      return format(date, "h:mm a");
+    } else if (isYesterday(date)) {
+      return `Yesterday ${format(date, "h:mm a")}`;
+    } else {
+      return format(date, "MMM d, h:mm a");
+    }
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "";
+  }
+};
+
+const DateSeparator = ({ date }: { date: string }) => {
+  try {
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) return null;
+    
+    return (
+      <div className="flex items-center justify-center my-4">
+        <div className="bg-gray-200 px-3 py-1 rounded-full">
+          <span className="text-sm text-gray-600">
+            {isToday(parsedDate)
+              ? "Today"
+              : isYesterday(parsedDate)
+              ? "Yesterday"
+              : format(parsedDate, "MMMM d, yyyy")}
+          </span>
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error("Error in DateSeparator:", error);
+    return null;
+  }
 };
 
 const ChatInterface = () => {
@@ -201,6 +254,7 @@ const ChatInterface = () => {
       return;
     }
 
+    // Check daily limits
     const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
       body: { 
         userId: session.user.id,
@@ -222,14 +276,11 @@ const ChatInterface = () => {
     
     setIsLoading(true);
     setIsTyping(true);
-    const userMessage = { 
-      type: "user", 
-      content: message.trim(),
-      timestamp: new Date().toISOString()
-    };
+    const userMessage = { type: "user", content: message.trim() };
     setMessages(prev => [...prev, userMessage]);
     
     try {
+      // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -239,6 +290,15 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
+      // Store user message in Redis
+      await supabase.functions.invoke('chat-history', {
+        body: {
+          userId: session.user.id,
+          message: userMessage,
+          action: 'add'
+        }
+      });
+
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
@@ -246,11 +306,19 @@ const ChatInterface = () => {
 
         const aiMessage = {
           type: "ai",
-          content: msg.content,
-          timestamp: new Date().toISOString()
+          content: msg.content
         };
 
         setMessages(prev => [...prev, aiMessage]);
+
+        await supabase.functions.invoke('chat-history', {
+          body: {
+            userId: session.user.id,
+            message: aiMessage,
+            action: 'add'
+          }
+        });
+
         setIsTyping(index < data.messages.length - 1);
       }
 
@@ -258,8 +326,7 @@ const ChatInterface = () => {
       console.error('Error:', error);
       setMessages(prev => [...prev, {
         type: "ai",
-        content: "I apologize, but I'm having trouble connecting right now. Please try again later.",
-        timestamp: new Date().toISOString()
+        content: "I apologize, but I'm having trouble connecting right now. Please try again later."
       }]);
     } finally {
       setIsLoading(false);
@@ -269,13 +336,88 @@ const ChatInterface = () => {
   };
 
   const isFreeUser = userData?.subscription?.tier === 'free';
+  const limit = MESSAGE_LIMITS[userData?.subscription?.tier || 'free'];
+
+  const renderMessages = () => {
+    let currentDate = "";
+    
+    return messages.map((msg, i) => {
+      let showDateSeparator = false;
+      
+      try {
+        if (msg.timestamp) {
+          const messageDate = new Date(msg.timestamp).toDateString();
+          if (messageDate !== currentDate) {
+            showDateSeparator = true;
+            currentDate = messageDate;
+          }
+        }
+      } catch (error) {
+        console.error("Error processing message date:", error);
+      }
+
+      return (
+        <div key={i}>
+          {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
+          <div
+            className={`flex ${
+              msg.type === "ai" ? "justify-start" : "justify-end"
+            } items-end space-x-2`}
+          >
+            <div
+              className={cn(
+                "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                msg.type === "ai" 
+                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                  : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                swipedMessageId === i ? "translate-x-[-20px]" : ""
+              )}
+              onTouchStart={(e) => handleTouchStart(e, i)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={() => handleTouchEnd(i)}
+            >
+              <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              <div 
+                className={cn(
+                  "text-xs mt-1 opacity-0 transition-opacity duration-200",
+                  msg.type === "ai" ? "text-gray-600" : "text-gray-200",
+                  swipedMessageId === i ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  };
 
   return (
     <>
-      <WelcomeDialog 
-        open={showWelcomeDialog && isFreeUser} 
-        onOpenChange={setShowWelcomeDialog}
-      />
+      <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-coral" />
+              Welcome to Amorine!
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              We're excited to have you! You're welcome to chat and interact with Amorine. 
+              Just remember there's a limit of 50 daily messages on the free tier. 
+              You can upgrade to our pro plan for unlimited and voice calling/video features!
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              onClick={() => setShowWelcomeDialog(false)}
+              className="w-full sm:w-auto"
+            >
+              Got it!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className={cn(
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
@@ -290,18 +432,35 @@ const ChatInterface = () => {
             }
           }}
         >
+          {hasMore && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreMessages}
+                disabled={isLoadingMore}
+                className="flex items-center gap-2"
+              >
+                {isLoadingMore ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    Load More
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
           <div ref={messagesStartRef} />
-          <MessageList
-            messages={messages}
-            isTyping={isTyping}
-            swipedMessageId={swipedMessageId}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            onLoadMore={loadMoreMessages}
-          />
+          {renderMessages()}
+          {isTyping && (
+            <div className="flex justify-start items-end space-x-2">
+              <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
+                <TypingIndicator />
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         
