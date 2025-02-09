@@ -1,17 +1,11 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
   token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
 });
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,16 +98,25 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
 
-    // Fetch user profile data
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('name, age_range, pronouns')
-      .eq('id', userId)
-      .single();
+    // Fetch user profile data from Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (profileError) {
-      console.error('Error fetching user profile:', profileError);
+    const profileResponse = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summaries`,
+      {
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+      }
+    );
+
+    if (!profileResponse.ok) {
+      throw new Error('Failed to fetch user profile');
     }
+
+    const [profile] = await profileResponse.json();
 
     // Create user context message
     const userContextMessage = {
@@ -126,6 +129,19 @@ serve(async (req) => {
         ].filter(Boolean).join(', ')
       }. Acknowledge this information naturally in responses without explicitly mentioning it.`
     };
+
+    // Create medium-term context message
+    let mediumTermMessage;
+    if (profile?.medium_term_summaries) {
+      const summaries = JSON.parse(profile.medium_term_summaries);
+      if (summaries.length > 0) {
+        const latestSummary = summaries[0];
+        mediumTermMessage = {
+          role: "system" as const,
+          content: `Previous conversation context: ${latestSummary.summary}. Use this context to maintain conversation continuity without explicitly referencing it.`
+        };
+      }
+    }
 
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
@@ -149,7 +165,16 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse();
 
-    // Call OpenAI with system prompt + user context + conversation history + user message
+    // Build the complete messages array with all context
+    const messages = [
+      { role: 'system', content: COMPANION_SYSTEM_PROMPT },
+      userContextMessage,
+      ...(mediumTermMessage ? [mediumTermMessage] : []),
+      ...conversationHistory,
+      { role: 'user', content: message }
+    ];
+
+    // Call OpenAI with the complete context
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -159,37 +184,26 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 0.3,        
-        messages: [
-          { role: 'system', content: COMPANION_SYSTEM_PROMPT },
-          userContextMessage,
-          ...conversationHistory,
-          { role: 'user', content: message }
-        ],
+        messages: messages,
       }),
     });
 
     if (!response.ok) {
       const error = await response.text();
       console.error('OpenAI API error:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch AI response' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('Failed to fetch AI response');
     }
 
     const data = await response.json();
-    
-    // Parse the response into multiple messages and add delays
-    const messages = data.choices[0].message.content
-      .split('\n\n')
-      .filter(Boolean)
-      .map((msg: string, index: number) => ({
-        content: msg,
-        delay: index * 1500 // Add 1.5 second delay between messages
-      }));
+    const aiMessages = [
+      {
+        content: data.choices[0].message.content,
+        delay: 0,
+      }
+    ];
 
     return new Response(
-      JSON.stringify({ messages }),
+      JSON.stringify({ messages: aiMessages }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -197,8 +211,10 @@ serve(async (req) => {
     console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
-
