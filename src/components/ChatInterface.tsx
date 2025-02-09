@@ -22,30 +22,51 @@ const MESSAGE_LIMITS = {
   pro: 500
 };
 
-const formatMessageDate = (timestamp: string) => {
-  const date = new Date(timestamp);
-  if (isToday(date)) {
-    return format(date, "h:mm a");
-  } else if (isYesterday(date)) {
-    return `Yesterday ${format(date, "h:mm a")}`;
-  } else {
-    return format(date, "MMM d, h:mm a");
+const formatMessageDate = (timestamp?: string) => {
+  if (!timestamp) return "";
+  
+  try {
+    const date = new Date(timestamp);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "";
+    
+    if (isToday(date)) {
+      return format(date, "h:mm a");
+    } else if (isYesterday(date)) {
+      return `Yesterday ${format(date, "h:mm a")}`;
+    } else {
+      return format(date, "MMM d, h:mm a");
+    }
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "";
   }
 };
 
-const DateSeparator = ({ date }: { date: string }) => (
-  <div className="flex items-center justify-center my-4">
-    <div className="bg-gray-200 px-3 py-1 rounded-full">
-      <span className="text-sm text-gray-600">
-        {isToday(new Date(date))
-          ? "Today"
-          : isYesterday(new Date(date))
-          ? "Yesterday"
-          : format(new Date(date), "MMMM d, yyyy")}
-      </span>
-    </div>
-  </div>
-);
+const DateSeparator = ({ date }: { date: string }) => {
+  try {
+    const parsedDate = new Date(date);
+    // Check if date is valid
+    if (isNaN(parsedDate.getTime())) return null;
+    
+    return (
+      <div className="flex items-center justify-center my-4">
+        <div className="bg-gray-200 px-3 py-1 rounded-full">
+          <span className="text-sm text-gray-600">
+            {isToday(parsedDate)
+              ? "Today"
+              : isYesterday(parsedDate)
+              ? "Yesterday"
+              : format(parsedDate, "MMMM d, yyyy")}
+          </span>
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error("Error in DateSeparator:", error);
+    return null;
+  }
+};
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
@@ -297,16 +318,23 @@ const ChatInterface = () => {
     let currentDate = "";
     
     return messages.map((msg, i) => {
-      const messageDate = new Date(msg.timestamp).toDateString();
-      const showDateSeparator = messageDate !== currentDate;
+      let showDateSeparator = false;
       
-      if (showDateSeparator) {
-        currentDate = messageDate;
+      try {
+        if (msg.timestamp) {
+          const messageDate = new Date(msg.timestamp).toDateString();
+          showDateSeparator = messageDate !== currentDate;
+          if (showDateSeparator) {
+            currentDate = messageDate;
+          }
+        }
+      } catch (error) {
+        console.error("Error processing message date:", error);
       }
 
       return (
         <div key={i}>
-          {showDateSeparator && <DateSeparator date={msg.timestamp} />}
+          {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
           <div
             className={`flex ${
               msg.type === "ai" ? "justify-start" : "justify-end"
@@ -320,14 +348,16 @@ const ChatInterface = () => {
               }`}
             >
               <p className="text-[15px] leading-relaxed">{msg.content}</p>
-              <div 
-                className={cn(
-                  "text-xs mt-1 opacity-70",
-                  msg.type === "ai" ? "text-gray-600" : "text-gray-200"
-                )}
-              >
-                {formatMessageDate(msg.timestamp)}
-              </div>
+              {msg.timestamp && (
+                <div 
+                  className={cn(
+                    "text-xs mt-1 opacity-70",
+                    msg.type === "ai" ? "text-gray-600" : "text-gray-200"
+                  )}
+                >
+                  {formatMessageDate(msg.timestamp)}
+                </div>
+              )}
             </div>
           </div>
         </div>
