@@ -3,6 +3,7 @@ import React from "react";
 import { MessageBubble } from "./MessageBubble";
 import { DateSeparator } from "./DateSeparator";
 import TypingIndicator from "../TypingIndicator";
+import { format, isToday, isYesterday } from "date-fns";
 
 interface Message {
   type: "ai" | "user";
@@ -21,6 +22,26 @@ interface MessageListProps {
   isLoadingMore: boolean;
   onLoadMore: () => void;
 }
+
+const formatMessageDate = (timestamp?: string) => {
+  if (!timestamp) return "";
+  
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "";
+    
+    if (isToday(date)) {
+      return format(date, "h:mm a");
+    } else if (isYesterday(date)) {
+      return `Yesterday ${format(date, "h:mm a")}`;
+    } else {
+      return format(date, "MMM d, h:mm a");
+    }
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "";
+  }
+};
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
@@ -67,21 +88,34 @@ export const MessageList: React.FC<MessageListProps> = ({
         return (
           <div key={i}>
             {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
-            <div
-              className={`flex ${
-                msg.type === "ai" ? "justify-start" : "justify-end"
-              } items-end space-x-2`}
-            >
-              <MessageBubble
-                content={msg.content}
-                type={msg.type}
-                timestamp={msg.timestamp}
-                index={i}
-                swipedMessageId={swipedMessageId}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              />
+            <div className="space-y-1">
+              <div
+                className={`flex ${
+                  msg.type === "ai" ? "justify-start" : "justify-end"
+                } items-end space-x-2`}
+              >
+                <MessageBubble
+                  content={msg.content}
+                  type={msg.type}
+                  timestamp={msg.timestamp}
+                  index={i}
+                  swipedMessageId={swipedMessageId}
+                  onTouchStart={onTouchStart}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
+                />
+              </div>
+              {msg.timestamp && (
+                <div 
+                  className={cn(
+                    "text-xs transition-opacity duration-200 px-2",
+                    msg.type === "ai" ? "text-left text-gray-600" : "text-right text-gray-500",
+                    swipedMessageId === i ? "opacity-100" : "opacity-0"
+                  )}
+                >
+                  {formatMessageDate(msg.timestamp)}
+                </div>
+              )}
             </div>
           </div>
         );

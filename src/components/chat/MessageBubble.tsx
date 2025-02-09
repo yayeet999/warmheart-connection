@@ -1,6 +1,5 @@
 
 import { cn } from "@/lib/utils";
-import { format, isToday, isYesterday } from "date-fns";
 import React from "react";
 
 interface MessageBubbleProps {
@@ -14,30 +13,9 @@ interface MessageBubbleProps {
   onTouchEnd: (messageId: number) => void;
 }
 
-const formatMessageDate = (timestamp?: string) => {
-  if (!timestamp) return "";
-  
-  try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return "";
-    
-    if (isToday(date)) {
-      return format(date, "h:mm a");
-    } else if (isYesterday(date)) {
-      return `Yesterday ${format(date, "h:mm a")}`;
-    } else {
-      return format(date, "MMM d, h:mm a");
-    }
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return "";
-  }
-};
-
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   content,
   type,
-  timestamp,
   index,
   swipedMessageId,
   onTouchStart,
@@ -47,7 +25,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   return (
     <div
       className={cn(
-        "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-all duration-200",
+        "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-all duration-200 px-4 py-2.5",
         type === "ai" 
           ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
           : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
@@ -58,17 +36,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onTouchEnd={() => onTouchEnd(index)}
     >
       <p className="text-[15px] leading-relaxed">{content}</p>
-      {timestamp && (
-        <div 
-          className={cn(
-            "text-xs mt-1 transition-opacity duration-200",
-            type === "ai" ? "text-gray-600" : "text-gray-200",
-            swipedMessageId !== null ? "opacity-100" : "opacity-0"
-          )}
-        >
-          {formatMessageDate(timestamp)}
-        </div>
-      )}
     </div>
   );
 };
