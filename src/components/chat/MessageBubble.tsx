@@ -58,15 +58,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       onTouchEnd={() => onTouchEnd(index)}
     >
       <p className="text-[15px] leading-relaxed">{content}</p>
-      <div 
-        className={cn(
-          "text-xs mt-1 opacity-0 transition-opacity duration-200",
-          type === "ai" ? "text-gray-600" : "text-gray-200",
-          swipedMessageId === index ? "opacity-100" : "opacity-0"
-        )}
-      >
-        {formatMessageDate(timestamp)}
-      </div>
+      {timestamp && (
+        <div 
+          className={cn(
+            "text-xs mt-1 transition-opacity duration-200",
+            type === "ai" ? "text-gray-600" : "text-gray-200",
+            swipedMessageId === index ? "opacity-100" : "opacity-0"
+          )}
+        >
+          {formatMessageDate(timestamp)}
+        </div>
+      )}
     </div>
   );
 };

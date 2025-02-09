@@ -222,7 +222,11 @@ const ChatInterface = () => {
     
     setIsLoading(true);
     setIsTyping(true);
-    const userMessage = { type: "user", content: message.trim() };
+    const userMessage = { 
+      type: "user", 
+      content: message.trim(),
+      timestamp: new Date().toISOString()
+    };
     setMessages(prev => [...prev, userMessage]);
     
     try {
@@ -242,11 +246,11 @@ const ChatInterface = () => {
 
         const aiMessage = {
           type: "ai",
-          content: msg.content
+          content: msg.content,
+          timestamp: new Date().toISOString()
         };
 
         setMessages(prev => [...prev, aiMessage]);
-
         setIsTyping(index < data.messages.length - 1);
       }
 
@@ -254,7 +258,8 @@ const ChatInterface = () => {
       console.error('Error:', error);
       setMessages(prev => [...prev, {
         type: "ai",
-        content: "I apologize, but I'm having trouble connecting right now. Please try again later."
+        content: "I apologize, but I'm having trouble connecting right now. Please try again later.",
+        timestamp: new Date().toISOString()
       }]);
     } finally {
       setIsLoading(false);
