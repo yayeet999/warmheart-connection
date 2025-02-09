@@ -52,6 +52,7 @@ export type Database = {
           name: string | null
           pronouns: string | null
           username: string | null
+          vector_long_term: string | null
         }
         Insert: {
           age_range?: string | null
@@ -62,6 +63,7 @@ export type Database = {
           name?: string | null
           pronouns?: string | null
           username?: string | null
+          vector_long_term?: string | null
         }
         Update: {
           age_range?: string | null
@@ -72,6 +74,7 @@ export type Database = {
           name?: string | null
           pronouns?: string | null
           username?: string | null
+          vector_long_term?: string | null
         }
         Relationships: []
       }
