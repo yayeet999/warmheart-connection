@@ -377,15 +377,6 @@ const ChatInterface = () => {
               onTouchEnd={() => handleTouchEnd(i)}
             >
               <p className="text-[15px] leading-relaxed">{msg.content}</p>
-              <div 
-                className={cn(
-                  "text-xs mt-1 opacity-0 transition-opacity duration-200",
-                  msg.type === "ai" ? "text-gray-600" : "text-gray-200",
-                  swipedMessageId === i ? "opacity-100" : "opacity-0"
-                )}
-              >
-                {formatMessageDate(msg.timestamp)}
-              </div>
             </div>
           </div>
         </div>
