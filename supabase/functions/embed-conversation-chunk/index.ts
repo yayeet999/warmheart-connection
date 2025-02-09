@@ -1,7 +1,7 @@
 
 import "https://deno.land/x/xhr@0.3.0/mod.ts";
 import { serve } from "https://deno.land/std@0.204.0/http/server.ts";
-import { Redis } from 'https://deno.land/x/upstash_redis@v1.28.0/mod.ts';
+import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
