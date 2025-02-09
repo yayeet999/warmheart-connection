@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { format, isToday, isYesterday } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,31 @@ const MESSAGE_LIMITS = {
   free: 50,
   pro: 500
 };
+
+const formatMessageDate = (timestamp: string) => {
+  const date = new Date(timestamp);
+  if (isToday(date)) {
+    return format(date, "h:mm a");
+  } else if (isYesterday(date)) {
+    return `Yesterday ${format(date, "h:mm a")}`;
+  } else {
+    return format(date, "MMM d, h:mm a");
+  }
+};
+
+const DateSeparator = ({ date }: { date: string }) => (
+  <div className="flex items-center justify-center my-4">
+    <div className="bg-gray-200 px-3 py-1 rounded-full">
+      <span className="text-sm text-gray-600">
+        {isToday(new Date(date))
+          ? "Today"
+          : isYesterday(new Date(date))
+          ? "Yesterday"
+          : format(new Date(date), "MMMM d, yyyy")}
+      </span>
+    </div>
+  </div>
+);
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
@@ -268,6 +293,48 @@ const ChatInterface = () => {
   const isFreeUser = userData?.subscription?.tier === 'free';
   const limit = MESSAGE_LIMITS[userData?.subscription?.tier || 'free'];
 
+  const renderMessages = () => {
+    let currentDate = "";
+    
+    return messages.map((msg, i) => {
+      const messageDate = new Date(msg.timestamp).toDateString();
+      const showDateSeparator = messageDate !== currentDate;
+      
+      if (showDateSeparator) {
+        currentDate = messageDate;
+      }
+
+      return (
+        <div key={i}>
+          {showDateSeparator && <DateSeparator date={msg.timestamp} />}
+          <div
+            className={`flex ${
+              msg.type === "ai" ? "justify-start" : "justify-end"
+            } items-end space-x-2`}
+          >
+            <div
+              className={`message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm ${
+                msg.type === "ai" 
+                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                  : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
+              }`}
+            >
+              <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              <div 
+                className={cn(
+                  "text-xs mt-1 opacity-70",
+                  msg.type === "ai" ? "text-gray-600" : "text-gray-200"
+                )}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  };
+
   return (
     <>
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
@@ -328,24 +395,7 @@ const ChatInterface = () => {
             </div>
           )}
           <div ref={messagesStartRef} />
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${
-                msg.type === "ai" ? "justify-start" : "justify-end"
-              } items-end space-x-2`}
-            >
-              <div
-                className={`message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm ${
-                  msg.type === "ai" 
-                    ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
-                    : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
-                }`}
-              >
-                <p className="text-[15px] leading-relaxed">{msg.content}</p>
-              </div>
-            </div>
-          ))}
+          {renderMessages()}
           {isTyping && (
             <div className="flex justify-start items-end space-x-2">
               <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
@@ -356,9 +406,7 @@ const ChatInterface = () => {
           <div ref={messagesEndRef} />
         </div>
         
-        <div className="p-4 bg
-
--white border-t border-gray-200">
+        <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-center space-x-2 px-2">
             <input
               ref={inputRef}
