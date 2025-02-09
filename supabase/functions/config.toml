@@ -10,9 +10,6 @@ verify_jwt = true
 [functions.check-message-limits]
 verify_jwt = true
 
-[functions.emotion-analyzer]
-verify_jwt = true
-
 [functions.chunk-summarizer]
 verify_jwt = true
 
