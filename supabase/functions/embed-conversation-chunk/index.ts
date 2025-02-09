@@ -17,6 +17,8 @@ async function generateEmbeddings(text: string): Promise<number[]> {
   const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL');
   const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN');
 
+  console.log('Generating embeddings for text:', text);
+
   if (!upstashVectorRestUrl || !upstashVectorRestToken) {
     throw new Error('Missing Upstash Vector credentials in environment variables');
   }
@@ -33,17 +35,20 @@ async function generateEmbeddings(text: string): Promise<number[]> {
       }),
     });
 
+    const responseText = await response.text();
+    console.log('Raw embedding response:', responseText);
+
     if (!response.ok) {
-      const errorBody = await response.json();
-      throw new Error(`Embedding API Error: ${errorBody.error || response.statusText}`);
+      throw new Error(`Embedding API Error: ${responseText}`);
     }
 
-    const { embeddings } = await response.json();
-    if (!embeddings?.[0]) {
+    const data = JSON.parse(responseText);
+    if (!data.embeddings?.[0]) {
       throw new Error('Invalid embeddings response structure');
     }
 
-    return embeddings[0];
+    console.log('Successfully generated embedding vector');
+    return data.embeddings[0];
   } catch (error) {
     console.error('Embedding generation failed:', error);
     throw new Error(`Embedding service unavailable: ${error.message}`);
@@ -56,7 +61,10 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Received request:', req.method);
     const { userId } = await req.json();
+    console.log('Processing request for userId:', userId);
+
     if (!userId || typeof userId !== 'string') {
       return Response.json(
         { error: 'Invalid or missing userId' },
@@ -65,20 +73,26 @@ serve(async (req) => {
     }
 
     const key = `user:${userId}:messages`;
+    console.log('Fetching messages from Redis key:', key);
     const recentMessagesRaw = await redis.lrange(key, 0, 7);
+    console.log('Retrieved messages from Redis:', recentMessagesRaw.length);
     
     const parsedMessages = recentMessagesRaw
       .filter(msg => typeof msg === 'string')
       .map(msg => {
         try {
           return JSON.parse(msg);
-        } catch {
+        } catch (e) {
+          console.error('Failed to parse message:', e);
           return null;
         }
       })
       .filter(msg => msg?.content && msg?.type);
 
+    console.log('Parsed messages count:', parsedMessages.length);
+
     if (parsedMessages.length < 8) {
+      console.log('Insufficient message history:', parsedMessages.length);
       return Response.json(
         { success: false, reason: 'Insufficient message history' },
         { headers: corsHeaders, status: 200 }
@@ -90,8 +104,14 @@ serve(async (req) => {
       .map(m => `${m.type.toUpperCase()}: ${m.content}`)
       .join('\n');
 
+    console.log('Generated conversation chunk:', conversationChunk);
+
     const embeddingVector = await generateEmbeddings(conversationChunk);
+    console.log('Generated embedding vector length:', embeddingVector.length);
     
+    const vectorId = `user_${userId}_${Date.now()}`;
+    console.log('Storing vector with ID:', vectorId);
+
     const storeResponse = await fetch(
       `${Deno.env.get('UPSTASH_VECTOR_REST_URL')}/upsert`,
       {
@@ -101,28 +121,29 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          vectors: [{
-            id: `user_${userId}_${Date.now()}`,
-            vector: embeddingVector,
-            metadata: {
-              user_id: userId,
-              memory_chunk: conversationChunk,
-              created_at: new Date().toISOString(),
-            }
-          }]
+          id: vectorId,
+          vector: embeddingVector,
+          metadata: {
+            user_id: userId,
+            memory_chunk: conversationChunk,
+            created_at: new Date().toISOString(),
+          }
         }),
       }
     );
 
+    const storeResponseText = await storeResponse.text();
+    console.log('Vector storage response:', storeResponseText);
+
     if (!storeResponse.ok) {
-      const error = await storeResponse.json();
-      throw new Error(`Vector storage failed: ${error.error}`);
+      throw new Error(`Vector storage failed: ${storeResponseText}`);
     }
 
+    console.log('Successfully stored vector');
     return Response.json(
       {
         success: true,
-        vector_id: `user_${userId}_${Date.now()}`,
+        vector_id: vectorId,
         message: 'Conversation chunk processed and stored successfully'
       },
       { headers: corsHeaders }
