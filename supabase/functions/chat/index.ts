@@ -157,7 +157,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 0.3,        
         messages: [
           { role: 'system', content: COMPANION_SYSTEM_PROMPT },
