@@ -75,7 +75,7 @@ serve(async (req) => {
       throw new Error('Could not update medium-term summary');
     }
 
-    // Call OpenAI API for two responses
+    // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,10 +85,9 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         messages: [
-          { role: 'system', content: `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user in two separate messages, with the second being a follow-up question. Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.` },
+          { role: 'system', content: `You are Amorine— a femine outgoing young adult woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user. Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.` },
           { role: 'user', content: introMessage }
-        ],
-        n: 2, // Request 2 completions
+        ]
       }),
     });
 
@@ -99,23 +98,19 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const aiMessages = data.choices.map((choice: any) => choice.message.content);
+    const aiContent = data.choices[0].message.content;
 
-    // Store messages in Redis but only AI responses (skip the hidden user message)
+    // Store messages in Redis but only AI response (skip the hidden user message)
     const key = `user:${userId}:messages`;
-    
-    // Store AI messages in Redis
-    for (const msg of aiMessages) {
-      const aiMessage = JSON.stringify({ type: "ai", content: msg });
-      await redis.rpush(key, aiMessage);
-    }
+    const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
+    await redis.rpush(key, aiMessage);
     
     console.log('Successfully stored messages in Redis');
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        messages: aiMessages.map((content: string) => ({ content, type: "ai" }))
+        messages: [{ content: aiContent, type: "ai" }]
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
