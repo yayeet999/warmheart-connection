@@ -100,13 +100,14 @@ serve(async (req) => {
     const { message, userId } = await req.json();
 
     // ---------------------------------------------------------------------
-    // 1) Fetch user profile data from Supabase (for name/pronouns/age_range/medium_term_summary)
+    // 1) Fetch user profile data from Supabase 
+    //    (including vector_long_term)
     // ---------------------------------------------------------------------
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary,vector_long_term`,
       {
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
@@ -142,6 +143,15 @@ serve(async (req) => {
       };
     }
 
+    // Create vector-based long-term context message, if any
+    let vectorLongTermMessage;
+    if (profile?.vector_long_term && typeof profile.vector_long_term === 'string' && profile.vector_long_term.trim().length > 0) {
+      vectorLongTermMessage = {
+        role: "system" as const,
+        content: `Additional relevant older context:\n\n${profile.vector_long_term}`
+      };
+    }
+
     // ---------------------------------------------------------------------
     // 2) Fetch recent messages (up to 30) from Redis
     // ---------------------------------------------------------------------
@@ -170,11 +180,12 @@ serve(async (req) => {
     // 3) Build the full set of messages for the API
     // ---------------------------------------------------------------------
     const messages = [
-      { role: 'system', content: COMPANION_SYSTEM_PROMPT },   // static system prompt
+      { role: 'system', content: COMPANION_SYSTEM_PROMPT },  // static system prompt
       userContextMessage,                                    // dynamic user context
-      ...(mediumTermMessage ? [mediumTermMessage] : []),      // optional medium-term summary
-      ...conversationHistory,                                 // last 30 messages
-      { role: 'user', content: message }                      // user's new input
+      ...(mediumTermMessage ? [mediumTermMessage] : []),     // optional medium-term summary
+      ...(vectorLongTermMessage ? [vectorLongTermMessage] : []), // optional vector-based long-term memory
+      ...conversationHistory,                                // last 30 messages
+      { role: 'user', content: message }                     // user's new input
     ];
 
     // ---------------------------------------------------------------------
@@ -205,7 +216,7 @@ serve(async (req) => {
     // 5) Return multi-bubble output:
     //    Split the assistant's text on '\n\n' to create multiple chat bubbles.
     // ---------------------------------------------------------------------
-    const rawResponseText = data.choices[0].message.content || '';
+    const rawResponseText = data.choices[0].message?.content || '';
     const splitted = rawResponseText.split('\n\n').filter(Boolean);
 
     // Example: 1.5s delay between bubbles
