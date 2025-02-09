@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -57,6 +58,35 @@ serve(async (req) => {
           Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
         },
       });
+
+      // Check if we need to trigger medium-term summarization
+      // Trigger at 60 messages and then every 30 messages after that
+      const shouldTriggerSummary = currentCount + 1 === 60 || (currentCount + 1 > 60 && ((currentCount + 1 - 60) % 30 === 0));
+      
+      if (shouldTriggerSummary) {
+        console.log('Triggering medium-term summarization for user:', userId, 'at count:', currentCount + 1);
+        
+        try {
+          const summarizerResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/medium-term-summarizer`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId,
+              messageCount: currentCount + 1
+            })
+          });
+
+          if (!summarizerResponse.ok) {
+            console.error('Failed to trigger summarizer:', await summarizerResponse.text());
+          }
+        } catch (error) {
+          console.error('Error triggering summarizer:', error);
+          // Don't throw the error as this is a background task
+        }
+      }
     }
 
     return new Response(
