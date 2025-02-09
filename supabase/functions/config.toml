@@ -19,3 +19,6 @@ verify_jwt = true
 [functions.embed-conversation-chunk]
 verify_jwt = true
 
+[functions.vector-search-context]
+verify_jwt = true
+
