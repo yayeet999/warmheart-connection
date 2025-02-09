@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -103,6 +104,29 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
 
+    // Fetch user profile data
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('name, age_range, pronouns')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+    }
+
+    // Create user context message
+    const userContextMessage = {
+      role: "system" as const,
+      content: `Current user context: ${
+        [
+          profile?.name && `Name: ${profile.name}`,
+          profile?.age_range && `Age range: ${profile.age_range}`,
+          profile?.pronouns && `Pronouns: ${profile.pronouns}`
+        ].filter(Boolean).join(', ')
+      }. Acknowledge this information naturally in responses without explicitly mentioning it.`
+    };
+
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(key, 0, 29);
@@ -125,7 +149,7 @@ serve(async (req) => {
       .filter(Boolean)
       .reverse();
 
-    // Call OpenAI with simplified system prompt + conversation history + user message
+    // Call OpenAI with system prompt + user context + conversation history + user message
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -137,6 +161,7 @@ serve(async (req) => {
         temperature: 0.3,        
         messages: [
           { role: 'system', content: COMPANION_SYSTEM_PROMPT },
+          userContextMessage,
           ...conversationHistory,
           { role: 'user', content: message }
         ],
@@ -176,3 +201,4 @@ serve(async (req) => {
     );
   }
 });
+
