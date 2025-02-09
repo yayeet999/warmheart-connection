@@ -103,7 +103,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summaries`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary`,
       {
         headers: {
           'Authorization': `Bearer ${supabaseKey}`,
@@ -130,17 +130,13 @@ serve(async (req) => {
       }. Acknowledge this information naturally in responses without explicitly mentioning it.`
     };
 
-    // Create medium-term context message
+    // Create medium-term context message if available
     let mediumTermMessage;
-    if (profile?.medium_term_summaries) {
-      const summaries = JSON.parse(profile.medium_term_summaries);
-      if (summaries.length > 0) {
-        const latestSummary = summaries[0];
-        mediumTermMessage = {
-          role: "system" as const,
-          content: `Previous conversation context: ${latestSummary.summary}. Use this context to maintain conversation continuity without explicitly referencing it.`
-        };
-      }
+    if (profile?.medium_term_summary) {
+      mediumTermMessage = {
+        role: "system" as const,
+        content: `Previous conversation context: ${profile.medium_term_summary}. Use this context to maintain conversation continuity without explicitly referencing it.`
+      };
     }
 
     // Fetch recent messages from Redis
