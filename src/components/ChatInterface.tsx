@@ -181,17 +181,6 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, userMessage]);
     
     try {
-      // First, analyze emotions with the new message included
-      const { error: emotionError } = await supabase.functions.invoke('emotion-analyzer', {
-        body: { 
-          userId: session.user.id
-        }
-      });
-
-      if (emotionError) {
-        console.error('Error analyzing emotions:', emotionError);
-      }
-
       // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
