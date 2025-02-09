@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper to generate embeddings from Upstash Vector
+// 1) Helper to generate embeddings
 async function generateEmbeddings(text: string): Promise<number[]> {
   const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL');
   const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN');
@@ -21,7 +21,8 @@ async function generateEmbeddings(text: string): Promise<number[]> {
     throw new Error('Upstash Vector URL/token missing from env variables.');
   }
 
-  const response = await fetch(`${upstashVectorRestUrl}/embeddings`, {
+  // ***** KEY FIX: add /v1 in the path *****
+  const response = await fetch(`${upstashVectorRestUrl}/v1/embeddings`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${upstashVectorRestToken}`,
@@ -53,17 +54,17 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json() as { userId?: string };
+    const { userId } = await req.json();
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Missing userId in request body.' }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Missing userId in request body.' }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     console.log(`Embedding chunk for user: ${userId}`);
 
-    // 1) Fetch last 8 messages from Redis (the queue was LIFO so index 0..7)
+    // 2) Fetch last 8 messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessagesRaw = await redis.lrange(key, 0, 7);
     const parsedMessages = recentMessagesRaw
@@ -80,28 +81,29 @@ serve(async (req) => {
       console.log(`Not enough messages for user ${userId}: found ${parsedMessages.length} < 8`);
       return new Response(
         JSON.stringify({ success: false, reason: 'Fewer than 8 messages found.' }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    // Reverse them so oldest is first in the joined text
+    // Reverse for chronological order if needed
     parsedMessages.reverse();
 
-    // 2) Build the chunk text
+    // 3) Combine into one conversation chunk
     const conversationChunkText = parsedMessages
       .map((m: any) => `${m.type.toUpperCase()}: ${m.content}`)
       .join('\n');
 
-    // 3) Generate embeddings
+    // 4) Generate embeddings
     const embeddingVector = await generateEmbeddings(conversationChunkText);
 
-    // 4) Store in Upstash Vector
+    // 5) Store the vector in Upstash
     const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL')!;
     const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!;
+    const indexName = 'amorine-vector'; // or your chosen index
     const chunkId = `${userId}-${Date.now()}`;
-    const indexName = 'amorine-vector'; // your chosen index name
 
-    const storeResponse = await fetch(`${upstashVectorRestUrl}/vectors`, {
+    // ***** KEY FIX: add /v1 in the path *****
+    const storeResponse = await fetch(`${upstashVectorRestUrl}/v1/vectors`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${upstashVectorRestToken}`,
@@ -128,7 +130,8 @@ serve(async (req) => {
       throw new Error(`Upstash Vector insertion error: ${storeResponse.status} - ${err}`);
     }
 
-    console.log(`Successfully stored vector for user ${userId}, chunk ID = ${chunkId}`);
+    console.log(`Successfully stored vector chunk for user ${userId}, chunk ID: ${chunkId}`);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -138,7 +141,6 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-
   } catch (error) {
     console.error('Error in embed-conversation-chunk function:', error);
     return new Response(
