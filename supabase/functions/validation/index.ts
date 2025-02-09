@@ -37,13 +37,18 @@ serve(async (req) => {
   }
 
   try {
-    const { messages: chatMessages, originalResponse } = await req.json();
+    console.log('Validation function received request');
+    const requestData = await req.json();
+    const { messages: conversationHistory, originalResponse } = requestData;
+
+    console.log('Processing validation for conversation history length:', conversationHistory.length);
+    console.log('Original response to validate:', originalResponse);
 
     // Take only the last 8 messages for context
-    const recentMessages = chatMessages.slice(-8);
+    const recentMessages = conversationHistory.slice(-8);
     
     // Format messages for the validation call
-    const validationMessages = [
+    const formattedMessages = [
       { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
       ...recentMessages.map(msg => ({
         role: msg.type === "ai" ? "assistant" : "user",
@@ -53,6 +58,7 @@ serve(async (req) => {
       { role: 'user', content: 'Please review this response in the context of our conversation. If needed, enhance it while maintaining Amorine\'s character and the core message. If it\'s good as is, return it unchanged.' }
     ];
 
+    console.log('Sending validation request to OpenAI');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -62,7 +68,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 0.7,
-        messages: validationMessages,
+        messages: formattedMessages,
       }),
     });
 
@@ -77,18 +83,20 @@ serve(async (req) => {
 
     const data = await response.json();
     const validatedContent = data.choices[0].message.content;
+    console.log('Received validated content:', validatedContent);
     
     // Parse the response into multiple messages if needed
-    const validatedMessages = validatedContent
+    const outputMessages = validatedContent
       .split('\n\n')
       .filter(Boolean)
-      .map((msg: string, index: number) => ({
+      .map((msg, index) => ({
         content: msg,
         delay: index * 1500 // Add 1.5 second delay between messages
       }));
 
+    console.log('Returning validated messages:', outputMessages.length);
     return new Response(
-      JSON.stringify({ messages: validatedMessages }),
+      JSON.stringify({ messages: outputMessages }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
