@@ -77,22 +77,37 @@ serve(async (req) => {
     const recentMessagesRaw = await redis.lrange(key, 0, 7);
     console.log('Raw messages from Redis:', recentMessagesRaw);
     
-    // Enhanced parsing logic with better error handling
-    const parsedMessages = [];
-    for (const msg of recentMessagesRaw) {
+    // Improved parsing logic that handles both string and object formats
+    const parsedMessages = recentMessagesRaw.map(msg => {
       try {
+        // If it's already an object, just validate it
+        if (typeof msg === 'object' && msg !== null) {
+          if ('type' in msg && 'content' in msg) {
+            return msg;
+          }
+          console.error('Invalid message object structure:', msg);
+          return null;
+        }
+        
+        // If it's a string, try to parse it
         if (typeof msg === 'string') {
           const parsed = JSON.parse(msg);
-          if (parsed && typeof parsed === 'object' && 'content' in parsed && 'type' in parsed) {
-            parsedMessages.push(parsed);
-          } else {
-            console.error('Invalid message structure:', parsed);
+          if (parsed && typeof parsed === 'object' && 'type' in parsed && 'content' in parsed) {
+            return parsed;
           }
+          console.error('Invalid parsed message structure:', parsed);
+          return null;
         }
+
+        console.error('Invalid message type:', typeof msg);
+        return null;
       } catch (e) {
         console.error('Failed to parse message:', msg, e);
+        return null;
       }
-    }
+    }).filter((msg): msg is { type: string; content: string } => 
+      msg !== null && typeof msg.type === 'string' && typeof msg.content === 'string'
+    );
 
     console.log('Successfully parsed messages:', parsedMessages);
 
@@ -117,7 +132,6 @@ serve(async (req) => {
     const vectorId = `user_${userId}_${Date.now()}`;
     console.log('Storing vector with ID:', vectorId);
 
-    // Updated vector storage with better error handling
     try {
       const storeResponse = await fetch(
         `${Deno.env.get('UPSTASH_VECTOR_REST_URL')}/upsert`,
@@ -168,4 +182,3 @@ serve(async (req) => {
     );
   }
 });
-
