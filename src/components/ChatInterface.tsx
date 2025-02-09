@@ -84,8 +84,11 @@ const ChatInterface = () => {
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = (e: React.TouchEvent, messageId: number) => {
     touchStartX.current = e.touches[0].clientX;
+    if (swipedMessageId !== messageId) {
+      setSwipedMessageId(null);
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -93,14 +96,12 @@ const ChatInterface = () => {
   };
 
   const handleTouchEnd = (messageId: number) => {
-    const swipeThreshold = 50; // minimum distance for swipe
+    const swipeThreshold = 50;
     const swipeDistance = touchStartX.current - touchEndX.current;
     
     if (swipeDistance > swipeThreshold) {
-      // Left swipe
       setSwipedMessageId(messageId);
-    } else if (swipeDistance < -swipeThreshold) {
-      // Right swipe (reset)
+    } else if (swipeDistance < -swipeThreshold || swipeDistance < swipeThreshold) {
       setSwipedMessageId(null);
     }
   };
@@ -371,14 +372,14 @@ const ChatInterface = () => {
                   : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
                 swipedMessageId === i ? "translate-x-[-20px]" : ""
               )}
-              onTouchStart={handleTouchStart}
+              onTouchStart={(e) => handleTouchStart(e, i)}
               onTouchMove={handleTouchMove}
               onTouchEnd={() => handleTouchEnd(i)}
             >
               <p className="text-[15px] leading-relaxed">{msg.content}</p>
               <div 
                 className={cn(
-                  "text-xs mt-1 transition-opacity duration-200",
+                  "text-xs mt-1 opacity-0 transition-opacity duration-200",
                   msg.type === "ai" ? "text-gray-600" : "text-gray-200",
                   swipedMessageId === i ? "opacity-100" : "opacity-0"
                 )}
