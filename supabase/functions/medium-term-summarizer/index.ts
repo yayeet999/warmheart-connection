@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -20,37 +19,37 @@ serve(async (req) => {
 
   try {
     const { userId, messageCount } = await req.json();
-    console.log('Processing medium-term summary for user:', userId, 'at message count:', messageCount);
+    if (!userId || typeof messageCount !== 'number') {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request parameters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Fetch messages from Redis (last 30-99 messages)
     const key = `user:${userId}:messages`;
-    const messages = await redis.lrange(key, 0, 99);
+    const rawMessages = await redis.lrange(key, 0, 99);
     
-    // Filter to get messages 30-99 (if available)
-    const relevantMessages = messages.slice(30).map(msg => {
+    const relevantMessages = rawMessages.slice(30).map(msg => {
       try {
         return typeof msg === 'string' ? JSON.parse(msg) : msg;
-      } catch (e) {
-        console.error('Error parsing message:', e);
+      } catch {
         return null;
       }
     }).filter(Boolean);
 
     if (relevantMessages.length === 0) {
-      console.log('No relevant messages found for summarization');
       return new Response(
-        JSON.stringify({ success: false, error: 'No messages to summarize' }),
+        JSON.stringify({ success: false, error: 'Insufficient messages for summary' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Prepare conversation for summarization
+    // Updated message processing
     const conversation = relevantMessages.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'assistant',
-      content: msg.content
+      role: msg.type === 'user' ? 'user' : 'amorine', // Changed to 'amorine'
+      content: msg.content.substring(0, 2000) // Truncate to 2k characters
     }));
 
-    // Generate summary using Groq
     const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -63,41 +62,26 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'Create a concise summary of the key points and themes from this conversation. Focus on the main topics discussed and any important conclusions reached.'
+            content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 150 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
           },
           ...conversation
         ],
         temperature: 0.5,
-        stop: null
+        max_tokens: 150 // Strict token limit
       }),
     });
 
     if (!groqResponse.ok) {
-      throw new Error('Failed to generate summary: ' + await groqResponse.text());
+      throw new Error(`Groq API error: ${groqResponse.status}`);
     }
 
-    const aiResult = await groqResponse.json();
-    const summary = aiResult.choices[0].message.content;
+    const { choices: [{ message }] } = await groqResponse.json();
+    const summary = message.content;
 
-    // Update Supabase with the new summary
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    const summaryObject = {
-      summary,
-      message_range: {
-        start: 30,
-        end: 99
-      },
-      created_at: new Date().toISOString(),
-      message_count: messageCount
-    };
-
-    const supabaseResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -106,15 +90,18 @@ serve(async (req) => {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        medium_term_summaries: JSON.stringify([summaryObject])
+        medium_term_summaries: JSON.stringify([{
+          summary,
+          message_range: { start: 30, end: 99 },
+          created_at: new Date().toISOString(),
+          message_count: messageCount
+        }])
       })
     });
 
-    if (!supabaseResponse.ok) {
-      throw new Error('Failed to update profile with summary');
+    if (!updateResponse.ok) {
+      throw new Error('Supabase update failed');
     }
-
-    console.log('Successfully generated and stored summary for user:', userId);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -122,12 +109,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in medium-term-summarizer:', error);
+    console.error('Summary error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Internal server error' }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }
