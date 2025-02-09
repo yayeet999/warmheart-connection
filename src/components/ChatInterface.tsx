@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -192,7 +193,7 @@ const ChatInterface = () => {
         console.error('Error analyzing emotions:', emotionError);
       }
 
-      // Get AI response
+      // Get initial AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -202,9 +203,28 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // Process multiple messages sequentially
+      // Validate the response
+      const { data: validatedData, error: validationError } = await supabase.functions.invoke('validation', {
+        body: {
+          messages: [...messages, userMessage],
+          originalResponse: data.messages.map(m => m.content).join('\n\n')
+        }
+      });
+
+      if (validationError) throw validationError;
+
+      // Store user message in Redis
+      await supabase.functions.invoke('chat-history', {
+        body: {
+          userId: session.user.id,
+          message: userMessage,
+          action: 'add'
+        }
+      });
+
+      // Process validated messages sequentially
       const processMessages = async () => {
-        for (const [index, msg] of data.messages.entries()) {
+        for (const [index, msg] of validatedData.messages.entries()) {
           // Add delay between messages
           if (index > 0) {
             await new Promise(resolve => setTimeout(resolve, msg.delay));
@@ -227,18 +247,9 @@ const ChatInterface = () => {
           });
 
           // Show typing indicator for next message if there is one
-          setIsTyping(index < data.messages.length - 1);
+          setIsTyping(index < validatedData.messages.length - 1);
         }
       };
-
-      // Store user message in Redis
-      await supabase.functions.invoke('chat-history', {
-        body: {
-          userId: session.user.id,
-          message: userMessage,
-          action: 'add'
-        }
-      });
 
       // Process AI messages
       await processMessages();
