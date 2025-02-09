@@ -154,6 +154,7 @@ const ChatInterface = () => {
       return;
     }
 
+    // Check daily limits
     const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
       body: { 
         userId: session.user.id,
@@ -170,6 +171,7 @@ const ChatInterface = () => {
       return;
     }
     
+    // Clear the input immediately and maintain focus
     setMessage("");
     inputRef.current?.focus();
     
@@ -179,6 +181,7 @@ const ChatInterface = () => {
     setMessages(prev => [...prev, userMessage]);
     
     try {
+      // First, analyze emotions with the new message included
       const { error: emotionError } = await supabase.functions.invoke('emotion-analyzer', {
         body: { 
           userId: session.user.id
@@ -189,6 +192,7 @@ const ChatInterface = () => {
         console.error('Error analyzing emotions:', emotionError);
       }
 
+      // Get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -198,6 +202,7 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
+      // Store user message in Redis
       await supabase.functions.invoke('chat-history', {
         body: {
           userId: session.user.id,
@@ -206,22 +211,21 @@ const ChatInterface = () => {
         }
       });
 
-      const { messageGroup } = data;
-      for (const [index, msg] of messageGroup.messages.entries()) {
+      // Process messages sequentially with delays
+      for (const [index, msg] of data.messages.entries()) {
+        // Add delay between messages
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
         }
 
         const aiMessage = {
           type: "ai",
-          content: msg.content,
-          groupId: messageGroup.id,
-          isFirst: msg.isFirst,
-          isLast: msg.isLast
+          content: msg.content
         };
 
         setMessages(prev => [...prev, aiMessage]);
 
+        // Store AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -230,7 +234,8 @@ const ChatInterface = () => {
           }
         });
 
-        setIsTyping(index < messageGroup.messages.length - 1);
+        // Show typing indicator for next message if there is one
+        setIsTyping(index < data.messages.length - 1);
       }
 
     } catch (error) {
@@ -280,38 +285,24 @@ const ChatInterface = () => {
         "sm:pl-[100px]"
       )}>
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          {messages.map((msg, i) => {
-            const prevMsg = i > 0 ? messages[i - 1] : null;
-            const isGroupedMessage = msg.type === "ai" && prevMsg?.type === "ai" && msg.groupId === prevMsg.groupId;
-            
-            return (
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              className={`flex ${
+                msg.type === "ai" ? "justify-start" : "justify-end"
+              } items-end space-x-2`}
+            >
               <div
-                key={i}
-                className={cn(
-                  "flex",
-                  msg.type === "ai" ? "justify-start" : "justify-end",
-                  "items-end space-x-2",
-                  isGroupedMessage && "mt-1"
-                )}
+                className={`message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm ${
+                  msg.type === "ai" 
+                    ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                    : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
+                }`}
               >
-                <div
-                  className={cn(
-                    "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm",
-                    msg.type === "ai" 
-                      ? cn(
-                          "bg-white text-gray-800",
-                          msg.isFirst ? "rounded-t-2xl" : "rounded-tr-2xl",
-                          msg.isLast ? "rounded-br-2xl rounded-bl-lg" : "rounded-br-2xl",
-                          !msg.isFirst && !msg.isLast && "rounded-r-2xl"
-                        )
-                      : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
-                  )}
-                >
-                  <p className="text-[15px] leading-relaxed">{msg.content}</p>
-                </div>
+                <p className="text-[15px] leading-relaxed">{msg.content}</p>
               </div>
-            );
-          })}
+            </div>
+          ))}
           {isTyping && (
             <div className="flex justify-start items-end space-x-2">
               <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
