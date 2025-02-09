@@ -75,6 +75,7 @@ const ChatInterface = () => {
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [messageCount, setMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
@@ -106,16 +107,35 @@ const ChatInterface = () => {
     }
   };
 
+  const triggerEmbedding = async (userId: string, recentMessages: any[]) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('embed-conversation-chunk', {
+        body: { 
+          userId,
+          messages: recentMessages.slice(-8) // Take last 8 messages
+        }
+      });
+
+      if (error) {
+        console.error('Error embedding conversation:', error);
+      }
+    } catch (error) {
+      console.error('Error calling embed function:', error);
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         setMessages([]);
+        setMessageCount(0);
       }
     });
 
     return () => {
       subscription.unsubscribe();
-      setMessages([]); // Clear messages when component unmounts
+      setMessages([]);
+      setMessageCount(0);
     };
   }, []);
 
@@ -208,6 +228,7 @@ const ChatInterface = () => {
       if (data?.messages) {
         setMessages(data.messages);
         setHasMore(data.hasMore);
+        setMessageCount(data.messages.length);
       }
     };
 
@@ -278,6 +299,7 @@ const ChatInterface = () => {
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
     setMessages(prev => [...prev, userMessage]);
+    setMessageCount(count => count + 1);
     
     try {
       // Get AI response
@@ -310,6 +332,7 @@ const ChatInterface = () => {
         };
 
         setMessages(prev => [...prev, aiMessage]);
+        setMessageCount(count => count + 1);
 
         await supabase.functions.invoke('chat-history', {
           body: {
@@ -320,6 +343,11 @@ const ChatInterface = () => {
         });
 
         setIsTyping(index < data.messages.length - 1);
+      }
+
+      // Check if we need to trigger embedding (every 8 messages)
+      if (messageCount > 0 && messageCount % 8 === 0) {
+        await triggerEmbedding(session.user.id, messages);
       }
 
     } catch (error) {
