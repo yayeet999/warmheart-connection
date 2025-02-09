@@ -1,6 +1,12 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+
+const redis = new Redis({
+  url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
+  token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,21 +45,42 @@ serve(async (req) => {
   try {
     console.log('Validation function received request');
     const requestData = await req.json();
-    const { messages: conversationHistory, originalResponse } = requestData;
+    const { userId, originalResponse } = requestData;
 
-    console.log('Processing validation for conversation history length:', conversationHistory.length);
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Fetch recent messages from Redis (last 8)
+    const key = `user:${userId}:messages`;
+    console.log('Fetching messages from Redis for user:', userId);
+    const recentMessages = await redis.lrange(key, 0, 7);
+    console.log('Fetched messages from Redis:', recentMessages.length);
+    
+    // Parse and format messages for OpenAI
+    const conversationHistory = recentMessages
+      .map(msg => {
+        try {
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          return {
+            role: parsed.type === "ai" ? "assistant" : "user",
+            content: parsed.content
+          };
+        } catch (e) {
+          console.error('Error parsing message:', e);
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .reverse(); // Reverse to get chronological order
+
+    console.log('Processing validation with conversation history length:', conversationHistory.length);
     console.log('Original response to validate:', originalResponse);
-
-    // Take only the last 8 messages for context
-    const recentMessages = conversationHistory.slice(-8);
     
     // Format messages for the validation call
     const formattedMessages = [
       { role: 'system', content: VALIDATION_SYSTEM_PROMPT },
-      ...recentMessages.map(msg => ({
-        role: msg.type === "ai" ? "assistant" : "user",
-        content: msg.content
-      })),
+      ...conversationHistory,
       { role: 'assistant', content: 'Here is my proposed response:\n\n' + originalResponse },
       { role: 'user', content: 'Please review this response in the context of our conversation. If needed, enhance it while maintaining Amorine\'s character and the core message. If it\'s good as is, return it unchanged.' }
     ];
@@ -108,3 +135,4 @@ serve(async (req) => {
     );
   }
 });
+
