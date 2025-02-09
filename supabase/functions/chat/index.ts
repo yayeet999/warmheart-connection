@@ -57,34 +57,6 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
 
-    // Get user profile with defaults (simplified)
-    let userProfile = {
-      relationship_stage_score: 10,
-      trust_score: 5,
-      conflict_score: 0,
-      overall_emotional_health: 50,
-      communication_style: "unknown",
-      coping_style: "unknown",
-      decision_making_style: "unknown",
-      attachment_style: "unknown",
-      repeated_relationship_stages: [],
-      repeated_themes: {},
-      extended_personality: {}
-    };
-    try {
-      const { data: profileRow, error: profileError } = await supabase
-        .from("user_profile_analysis")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (!profileError && profileRow) {
-        userProfile = profileRow;
-      }
-    } catch (profileFetchError) {
-      console.error("Error fetching user profile analysis:", profileFetchError);
-    }
-
     // Fetch recent messages from Redis
     const key = `user:${userId}:messages`;
     const recentMessages = await redis.lrange(key, 0, 29);
