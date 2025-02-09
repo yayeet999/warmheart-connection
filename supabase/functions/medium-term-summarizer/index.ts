@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -44,10 +45,9 @@ serve(async (req) => {
       );
     }
 
-    // Updated message processing
     const conversation = relevantMessages.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'amorine', // Changed to 'amorine'
-      content: msg.content.substring(0, 2000) // Truncate to 2k characters
+      role: msg.type === 'user' ? 'user' : 'amorine',
+      content: msg.content.substring(0, 2000)
     }));
 
     const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
@@ -67,7 +67,7 @@ serve(async (req) => {
           ...conversation
         ],
         temperature: 0.5,
-        max_tokens: 200 // Strict token limit
+        max_tokens: 200
       }),
     });
 
@@ -81,6 +81,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+    // Updated to use the new medium_term_summary column
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -90,12 +91,7 @@ serve(async (req) => {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        medium_term_summaries: JSON.stringify([{
-          summary,
-          message_range: { start: 30, end: 99 },
-          created_at: new Date().toISOString(),
-          message_count: messageCount
-        }])
+        medium_term_summary: summary
       })
     });
 
