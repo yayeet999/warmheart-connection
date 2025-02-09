@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Send, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,13 @@ const MESSAGE_LIMITS = {
   free: 50,
   pro: 500
 };
+
+interface MessageSummary {
+  summary: string;
+  message_range_start: number;
+  message_range_end: number;
+  created_at: string;
+}
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
@@ -69,17 +77,23 @@ const ChatInterface = () => {
         throw new Error("No authenticated user");
       }
 
-      const [{ data: subscription }] = await Promise.all([
+      const [{ data: subscription }, { data: profile }] = await Promise.all([
         supabase
           .from("subscriptions")
           .select("tier")
           .eq("user_id", session.user.id)
           .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("medium_term_summaries")
+          .eq("id", session.user.id)
+          .single()
       ]);
 
       return {
         subscription: subscription || { tier: 'free' },
-        userId: session.user.id
+        userId: session.user.id,
+        mediumTermSummaries: (profile?.medium_term_summaries || []) as MessageSummary[]
       };
     },
     retry: false,
@@ -118,6 +132,19 @@ const ChatInterface = () => {
 
         if (data.messages) {
           setMessages(data.messages);
+          
+          // Check if we need to generate a summary
+          const totalMessages = data.messages.length;
+          const shouldTriggerContext =
+            totalMessages >= 60 && // Trigger only if total messages are AT LEAST 60
+            (totalMessages - 60) % 30 === 0; // Trigger every 30 messages AFTER 60
+
+          if (shouldTriggerContext) {
+            const messagesToSummarize = data.messages.slice(30, 100);
+            if (messagesToSummarize.length > 0) {
+              await generateAndStoreSummary(messagesToSummarize);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching chat history:', error);
@@ -131,6 +158,47 @@ const ChatInterface = () => {
 
     fetchChatHistory();
   }, [userData?.userId]);
+
+  const generateAndStoreSummary = async (messagesToSummarize: any[]) => {
+    try {
+      // Get the message content as a string
+      const messageContent = messagesToSummarize
+        .map(msg => `${msg.type}: ${msg.content}`)
+        .join('\n');
+
+      // Generate summary using the chat function
+      const { data: summaryData, error: summaryError } = await supabase.functions.invoke('chat', {
+        body: { 
+          message: `Please provide a concise summary of this conversation:\n\n${messageContent}`,
+          userId: userData?.userId,
+          isSummary: true // Flag to indicate this is a summary request
+        }
+      });
+
+      if (summaryError) throw summaryError;
+
+      // Create the summary object
+      const newSummary: MessageSummary = {
+        summary: summaryData.messages[0].content,
+        message_range_start: 30,
+        message_range_end: 99,
+        created_at: new Date().toISOString()
+      };
+
+      // Add the new summary to the profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          medium_term_summaries: [...(userData?.mediumTermSummaries || []), newSummary]
+        })
+        .eq('id', userData?.userId);
+
+      if (updateError) throw updateError;
+
+    } catch (error) {
+      console.error('Error generating/storing summary:', error);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -338,3 +406,4 @@ const ChatInterface = () => {
 };
 
 export default ChatInterface;
+

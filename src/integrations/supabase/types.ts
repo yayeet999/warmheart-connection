@@ -48,6 +48,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
+          medium_term_summaries: Json | null
           name: string | null
           pronouns: string | null
           username: string | null
@@ -57,6 +58,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id: string
+          medium_term_summaries?: Json | null
           name?: string | null
           pronouns?: string | null
           username?: string | null
@@ -66,6 +68,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
+          medium_term_summaries?: Json | null
           name?: string | null
           pronouns?: string | null
           username?: string | null
