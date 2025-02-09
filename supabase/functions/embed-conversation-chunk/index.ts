@@ -14,45 +14,41 @@ const corsHeaders = {
 };
 
 async function generateEmbeddings(text: string): Promise<number[]> {
-  const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL');
-  const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN');
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
-  console.log('Generating embeddings for text:', text);
-
-  if (!upstashVectorRestUrl || !upstashVectorRestToken) {
-    throw new Error('Missing Upstash Vector credentials in environment variables');
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not found in environment variables');
   }
 
   try {
-    const response = await fetch(`${upstashVectorRestUrl}/embeddings`, {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${upstashVectorRestToken}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "all-MiniLM-L6-v2",  // Updated model name to match exactly
-        texts: [text]
+        model: "text-embedding-3-small",
+        input: text,
+        dimensions: 384
       }),
     });
 
-    const responseText = await response.text();
-    console.log('Raw embedding response:', responseText);
-
     if (!response.ok) {
-      throw new Error(`Embedding API Error: ${responseText}`);
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
     }
 
-    const data = JSON.parse(responseText);
-    if (!data.embeddings?.[0]) {
-      throw new Error('Invalid embeddings response structure');
+    const data = await response.json();
+    if (!data.data?.[0]?.embedding) {
+      throw new Error('Invalid embedding response structure');
     }
 
     console.log('Successfully generated embedding vector');
-    return data.embeddings[0];
+    return data.data[0].embedding;
   } catch (error) {
     console.error('Embedding generation failed:', error);
-    throw new Error(`Embedding service unavailable: ${error.message}`);
+    throw error;
   }
 }
 
@@ -140,7 +136,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            indexName: 'amorine-vector',  // Added index name
+            indexName: 'amorine-vector',
             id: vectorId,
             vector: embeddingVector,
             metadata: {
