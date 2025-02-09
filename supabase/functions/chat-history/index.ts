@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
 
@@ -18,6 +17,7 @@ serve(async (req) => {
   }
 
   try {
+    // Attempt Redis connection right away (for debugging)
     try {
       await redis.ping();
       console.log('Redis connection successful');
@@ -52,38 +52,71 @@ serve(async (req) => {
       const messageToStore = {
         type: message.type,
         content: message.content,
-        timestamp: new Date().toISOString() // Add timestamp for ordering
+        timestamp: new Date().toISOString() // store a timestamp
       };
       
+      // Push the new message to the front (index 0)
       const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
       console.log('Redis push result:', pushResult);
-      
-      const currentLength = await redis.llen(key);
-      console.log('Current list length after add:', currentLength);
-      
-      // Increased to 10,000 message limit
+
+      // Keep the list capped at, say, 10,000 
       await redis.ltrim(key, 0, 9999);
 
+      // Now check how many messages total
+      const currentLength = await redis.llen(key);
+      console.log('Current list length after adding message:', currentLength);
+
+      // -------------------------------------------------------------
+      // Trigger embedding if we just hit a multiple of 8 messages
+      // -------------------------------------------------------------
+      if (currentLength % 8 === 0) {
+        console.log(`Reached a multiple of 8 (count = ${currentLength}), triggering embedding...`);
+
+        try {
+          // Call your embed-conversation-chunk function
+          const embedUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/embed-conversation-chunk`;
+          const res = await fetch(embedUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': req.headers.get('Authorization') ?? '', 
+              // pass along any JWT if needed
+            },
+            body: JSON.stringify({ userId }),
+          });
+
+          if (!res.ok) {
+            console.error('Embed function error:', await res.text());
+          } else {
+            console.log('Embed function called successfully.');
+          }
+        } catch (e) {
+          console.error('Failed to call embed function:', e);
+          // We do NOT throw here to avoid breaking the main message storage
+        }
+      }
+
+      // Return success to client
       return new Response(
         JSON.stringify({ success: true }),
-        { 
+        {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200
         }
       );
     } 
     
-    if (action === 'get') {
+    else if (action === 'get') {
       console.log('Fetching messages for user:', userId, 'page:', page);
       
       const MESSAGES_PER_PAGE = 50;
       const MAX_MESSAGES = 300;
       
-      // Calculate start and end indices for pagination
+      // Calculate start/end indices
       const start = page * MESSAGES_PER_PAGE;
       const end = Math.min(start + MESSAGES_PER_PAGE - 1, MAX_MESSAGES - 1);
       
-      // Don't fetch if we've reached the maximum
+      // If we've exceeded the max we want to show
       if (start >= MAX_MESSAGES) {
         return new Response(
           JSON.stringify({ messages: [], hasMore: false }),
@@ -109,6 +142,8 @@ serve(async (req) => {
         }
       }).filter(Boolean);
 
+      // We reverse so oldest -> newest in the final array
+      // (But note: if you want chronological from top to bottom, you might skip reversing.)
       const hasMore = listLength > end + 1 && end < MAX_MESSAGES - 1;
       console.log('Has more messages:', hasMore);
 
@@ -124,16 +159,15 @@ serve(async (req) => {
       );
     }
 
+    // If we get here, invalid action
     console.error('Invalid action requested:', action);
     throw new Error('Invalid action');
 
   } catch (error) {
     console.error('Error in chat-history function:', error);
-    
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        details: error.stack
+        error: error.message || 'Unknown error',
       }),
       { 
         status: 400, 
