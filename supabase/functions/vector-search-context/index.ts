@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -13,9 +12,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// For embedding with OpenAI
 async function generateEmbeddings(text: string): Promise<number[]> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
   if (!openAIApiKey) {
     throw new Error('OpenAI API key not found in environment variables');
   }
@@ -28,9 +27,10 @@ async function generateEmbeddings(text: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        // Example model name and config
         model: "text-embedding-3-small",
         input: text,
-        dimensions: 384
+        dimensions: 384, 
       }),
     });
 
@@ -57,46 +57,34 @@ serve(async (req) => {
 
   try {
     const { userId, message } = await req.json();
-    
     if (!userId || typeof message !== 'string') {
-      throw new Error('Invalid request parameters');
+      throw new Error('Invalid request parameters: userId and message are required.');
     }
 
-    // Check message count threshold
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // ---------------------------------------------------------
+    // 1) Check total message count from Redis (like chat-history)
+    // ---------------------------------------------------------
+    const key = `user:${userId}:messages`;
+    const totalCount = await redis.llen(key);
 
-    const countResponse = await fetch(
-      `${supabaseUrl}/rest/v1/message_counts?user_id=eq.${userId}&select=message_count`,
-      {
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-        },
-      }
-    );
-
-    if (!countResponse.ok) {
-      throw new Error('Failed to fetch message count');
-    }
-
-    const [countData] = await countResponse.json();
-    
-    // Skip vector search if message count is below threshold
-    if (!countData || countData.message_count < 47) {
+    // Only run vector search if user has >= 47 messages
+    if (totalCount < 47) {
       return new Response(
         JSON.stringify({ 
           skip: true, 
-          reason: 'Message count below threshold'
+          reason: `Message count (${totalCount}) below threshold of 47.`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch recent messages from Redis
-    const key = `user:${userId}:messages`;
+    // ---------------------------------------------------------
+    // 2) Fetch recent messages from Redis (last 5 or so)
+    // ---------------------------------------------------------
+    // Grab the first 5 from the HEAD of the list
+    // (the list is stored newest at index 0)
     const recentMessagesRaw = await redis.lrange(key, 0, 4);
-    
+
     const parsedMessages = recentMessagesRaw
       .map(msg => {
         try {
@@ -106,31 +94,35 @@ serve(async (req) => {
         }
       })
       .filter(Boolean)
-      .reverse();
+      .reverse(); // optional reverse so oldest -> newest in array
 
     const recentContents = parsedMessages.map((m: any) => m.content);
+    // We'll embed these + the current user message
     const messagesToEmbed = [...recentContents, message];
 
-    // Generate and average embeddings
+    // ---------------------------------------------------------
+    // 3) Generate embeddings & average them
+    // ---------------------------------------------------------
     const embeddingsArray = await Promise.all(
       messagesToEmbed.map(txt => generateEmbeddings(txt))
     );
 
     const dim = embeddingsArray[0]?.length || 0;
     const sumVector = new Array(dim).fill(0);
-
     for (const emb of embeddingsArray) {
       for (let i = 0; i < dim; i++) {
         sumVector[i] += emb[i];
       }
     }
-    
     const queryVector = sumVector.map(val => val / embeddingsArray.length);
 
-    // Query Upstash Vector
+    // ---------------------------------------------------------
+    // 4) Query Upstash Vector
+    // ---------------------------------------------------------
     const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL')!;
     const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!;
 
+    // e.g. must include /v1/ if your endpoint is /v1/query
     const searchResponse = await fetch(`${upstashVectorRestUrl}/query`, {
       method: 'POST',
       headers: {
@@ -156,7 +148,12 @@ serve(async (req) => {
 
     const joinedMemoryChunks = memoryChunks.join('\n\n-----\n\n');
 
-    // Update profile with retrieved memory chunks
+    // ---------------------------------------------------------
+    // 5) Update user profile with the retrieved memory
+    // ---------------------------------------------------------
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
     const updateResponse = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
       {
