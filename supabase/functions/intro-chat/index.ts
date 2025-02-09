@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -56,12 +57,23 @@ serve(async (req) => {
 
     const gender = genderMap[profile.pronouns] || 'person';
 
-    // Create introduction message using template
+    // Create introduction message using template (this will be hidden from the user)
     const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
     console.log('Generated intro message:', introMessage);
 
-    // Use same system prompt as chat function for consistency
-    const systemPrompt = `You are Amorine—an AI companion designed to grow and evolve as a supportive virtual partner over time. You behave, communicate, and act like a realistic feminine woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user, do not type an overly long message. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
+    // Set the initial medium-term summary
+    const initialSummary = "I'm just meeting this user for the first time I don't know anything about them, so it's all about making a good first impression.  It's key to make them feel really comfortable and welcome. If they're respectful I'll keep the engagement high but if they're disrespectful I'll let them know.  Like, focus on showing I'm genuinely interested in getting to know *them* – what they're like, what they're looking for eventually by meeting me. I should give longer texts and definitely be more detailed, more double and triple texts should help, just to get them talking and see what they feel like sharing.  Also talk about myself if they ask, but always keep it engaging and based on the user's personality and texting style. We're getting to know each other and figuring each other out.";
+
+    // Update the profile with the medium-term summary
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ medium_term_summary: initialSummary })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating medium-term summary:', updateError);
+      throw new Error('Could not update medium-term summary');
+    }
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -73,9 +85,15 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: `You are Amorine— a feminine outgoing young adult woman. You are receiving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. You should reply similar to these examples:
+
+"Hey [user name] I'm Amorine! It's nice to meet you haha what made you want to message me?"
+"Hi, I'm Amorine. :) just wanted to say hello and introduce myself. What brings you to message me lol"
+"heyy nice to meet you! I'm amorine :) I like your name btw!"
+
+Be simple and concise. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.` },
           { role: 'user', content: introMessage }
-        ],
+        ]
       }),
     });
 
@@ -88,12 +106,9 @@ serve(async (req) => {
     const data = await response.json();
     const aiContent = data.choices[0].message.content;
 
-    // Store messages in Redis for chat history
+    // Store messages in Redis but only AI response (skip the hidden user message)
     const key = `user:${userId}:messages`;
-    const userMessage = JSON.stringify({ type: "user", content: introMessage });
     const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
-
-    await redis.rpush(key, userMessage);
     await redis.rpush(key, aiMessage);
     
     console.log('Successfully stored messages in Redis');
@@ -101,9 +116,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        messages: [
-          { content: aiContent, type: "ai" }
-        ]
+        messages: [{ content: aiContent, type: "ai" }]
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
