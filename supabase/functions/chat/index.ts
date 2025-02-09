@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -155,17 +154,27 @@ serve(async (req) => {
 
     const data = await response.json();
     
-    // Parse the response into multiple messages and add delays
-    const messages = data.choices[0].message.content
-      .split('\n\n')
-      .filter(Boolean)
-      .map((msg: string, index: number) => ({
-        content: msg,
-        delay: index * 1500 // Add 1.5 second delay between messages
-      }));
+    // Create a message group with a unique timestamp
+    const messageGroup = {
+      id: Date.now(),
+      messages: data.choices[0].message.content
+        .split('\n\n')
+        .filter(Boolean)
+        .map((msg: string, index: number) => ({
+          content: msg,
+          delay: index * 800, // Shorter delay between grouped messages
+          isFirst: index === 0,
+          isLast: false // Will be set correctly below
+        }))
+    };
+
+    // Set isLast for the final message in the group
+    if (messageGroup.messages.length > 0) {
+      messageGroup.messages[messageGroup.messages.length - 1].isLast = true;
+    }
 
     return new Response(
-      JSON.stringify({ messages }),
+      JSON.stringify({ messageGroup }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
