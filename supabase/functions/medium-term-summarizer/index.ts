@@ -50,15 +50,16 @@ serve(async (req) => {
       content: msg.content
     }));
 
-    // Generate summary using OpenAI
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Generate summary using Groq
+    const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
         'Content-Type': 'application/json',
+        'X-Groq-Safety-Check': 'disabled'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.2-1b-preview',
         messages: [
           {
             role: 'system',
@@ -66,14 +67,16 @@ serve(async (req) => {
           },
           ...conversation
         ],
+        temperature: 0.5,
+        stop: null
       }),
     });
 
-    if (!openAIResponse.ok) {
-      throw new Error('Failed to generate summary: ' + await openAIResponse.text());
+    if (!groqResponse.ok) {
+      throw new Error('Failed to generate summary: ' + await groqResponse.text());
     }
 
-    const aiResult = await openAIResponse.json();
+    const aiResult = await groqResponse.json();
     const summary = aiResult.choices[0].message.content;
 
     // Update Supabase with the new summary
