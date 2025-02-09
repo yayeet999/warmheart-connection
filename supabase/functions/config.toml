@@ -15,3 +15,7 @@ verify_jwt = true
 
 [functions.medium-term-summarizer]
 verify_jwt = true
+
+[functions.embed-conversation-chunk]
+verify_jwt = true
+
