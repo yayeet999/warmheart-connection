@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -60,10 +61,50 @@ serve(async (req) => {
     const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
     console.log('Generated intro message:', introMessage);
 
+    // Generate initial medium-term summary
+    const initialSummaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are tasked with creating a concise initial context summary (max 200 tokens) about a user based on their introduction. Focus on key demographic details and presentation style. This will serve as a baseline context until more interactions occur.' 
+          },
+          { role: 'user', content: introMessage }
+        ],
+      }),
+    });
+
+    if (!initialSummaryResponse.ok) {
+      console.error('Failed to generate initial summary:', await initialSummaryResponse.text());
+      throw new Error('Failed to generate initial summary');
+    }
+
+    const summaryData = await initialSummaryResponse.json();
+    const initialSummary = summaryData.choices[0].message.content;
+
+    // Update profile with initial summary
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        medium_term_summary: initialSummary
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating profile with initial summary:', updateError);
+      throw updateError;
+    }
+
     // Use same system prompt as chat function for consistency
     const systemPrompt = `You are Amorine—an AI companion designed to grow and evolve as a supportive virtual partner over time. You behave, communicate, and act like a realistic feminine woman. You are recieving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Politely and cheerfully introduce yourself to the user, do not type an overly long message. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.`;
 
-    // Call OpenAI API
+    // Call OpenAI API for the response
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -116,3 +157,4 @@ serve(async (req) => {
     );
   }
 });
+
