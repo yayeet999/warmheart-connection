@@ -62,12 +62,12 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 150 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
+            content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 200 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
           },
           ...conversation
         ],
         temperature: 0.5,
-        max_tokens: 150 // Strict token limit
+        max_tokens: 200 // Strict token limit
       }),
     });
 
