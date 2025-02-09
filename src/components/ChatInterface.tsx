@@ -27,7 +27,6 @@ const formatMessageDate = (timestamp?: string) => {
   
   try {
     const date = new Date(timestamp);
-    // Check if date is valid
     if (isNaN(date.getTime())) return "";
     
     if (isToday(date)) {
@@ -46,7 +45,6 @@ const formatMessageDate = (timestamp?: string) => {
 const DateSeparator = ({ date }: { date: string }) => {
   try {
     const parsedDate = new Date(date);
-    // Check if date is valid
     if (isNaN(parsedDate.getTime())) return null;
     
     return (
@@ -81,6 +79,31 @@ const ChatInterface = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (messageId: number) => {
+    const swipeThreshold = 50; // minimum distance for swipe
+    const swipeDistance = touchStartX.current - touchEndX.current;
+    
+    if (swipeDistance > swipeThreshold) {
+      // Left swipe
+      setSwipedMessageId(messageId);
+    } else if (swipeDistance < -swipeThreshold) {
+      // Right swipe (reset)
+      setSwipedMessageId(null);
+    }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -323,8 +346,8 @@ const ChatInterface = () => {
       try {
         if (msg.timestamp) {
           const messageDate = new Date(msg.timestamp).toDateString();
-          showDateSeparator = messageDate !== currentDate;
-          if (showDateSeparator) {
+          if (messageDate !== currentDate) {
+            showDateSeparator = true;
             currentDate = messageDate;
           }
         }
@@ -341,23 +364,27 @@ const ChatInterface = () => {
             } items-end space-x-2`}
           >
             <div
-              className={`message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm ${
+              className={cn(
+                "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
                 msg.type === "ai" 
                   ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
-                  : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
-              }`}
+                  : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                swipedMessageId === i ? "translate-x-[-20px]" : ""
+              )}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={() => handleTouchEnd(i)}
             >
               <p className="text-[15px] leading-relaxed">{msg.content}</p>
-              {msg.timestamp && (
-                <div 
-                  className={cn(
-                    "text-xs mt-1 opacity-70",
-                    msg.type === "ai" ? "text-gray-600" : "text-gray-200"
-                  )}
-                >
-                  {formatMessageDate(msg.timestamp)}
-                </div>
-              )}
+              <div 
+                className={cn(
+                  "text-xs mt-1 transition-opacity duration-200",
+                  msg.type === "ai" ? "text-gray-600" : "text-gray-200",
+                  swipedMessageId === i ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
             </div>
           </div>
         </div>
