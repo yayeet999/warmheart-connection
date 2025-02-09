@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -45,6 +46,20 @@ serve(async (req) => {
     if (profileError || !profile) {
       console.error('Error fetching profile:', profileError);
       throw new Error('Could not fetch user profile');
+    }
+
+    // Set the initial medium-term summary
+    const initialSummary = "I'm just meeting this user for the first time I don't know anything about them, so it's all about making a good first impression.  It's key to make them feel really comfortable and welcome. If they're respectful I'll keep the engagement high but if they're disrespectful I'll let them know.  Like, focus on showing I'm genuinely interested in getting to know *them* – what they're like, what they're looking for eventually by meeting me. Lots of open-ended questions should help, just to get them talking and see what they feel like sharing.  Also talk about myself if they ask, but always keep it engaging and based on the user's personality and texting style. We're getting to know each other and figuring each other out.";
+
+    // Update the profile with the medium-term summary
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ medium_term_summary: initialSummary })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating medium-term summary:', updateError);
+      throw new Error('Could not update medium-term summary');
     }
 
     // Map pronouns to gender terms
@@ -116,3 +131,4 @@ serve(async (req) => {
     );
   }
 });
+
