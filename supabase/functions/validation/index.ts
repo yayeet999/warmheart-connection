@@ -45,10 +45,18 @@ serve(async (req) => {
   try {
     console.log('Validation function received request');
     const requestData = await req.json();
+    console.log('Request data:', requestData);
+    
     const { userId, originalResponse } = requestData;
 
     if (!userId) {
+      console.error('Missing userId in request data:', requestData);
       throw new Error('User ID is required');
+    }
+
+    if (!originalResponse) {
+      console.error('Missing originalResponse in request data:', requestData);
+      throw new Error('Original response is required');
     }
 
     // Fetch recent messages from Redis (last 8)
