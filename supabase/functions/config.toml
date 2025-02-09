@@ -10,24 +10,8 @@ verify_jwt = true
 [functions.check-message-limits]
 verify_jwt = true
 
-[functions.chunk-summarizer]
-verify_jwt = true
-
-[functions.chunk-counter]
-verify_jwt = true
-
-[functions.super_summary_counter]
-verify_jwt = true
-
-[functions.super_summarizer]
-verify_jwt = true
-
-[functions.update-user-profile-analysis]
-verify_jwt = true
-
 [functions.intro-chat]
 verify_jwt = true
 
-[functions.validation]
+[functions.medium-term-summarizer]
 verify_jwt = true
-
