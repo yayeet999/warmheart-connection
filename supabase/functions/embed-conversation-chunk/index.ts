@@ -75,21 +75,26 @@ serve(async (req) => {
     const key = `user:${userId}:messages`;
     console.log('Fetching messages from Redis key:', key);
     const recentMessagesRaw = await redis.lrange(key, 0, 7);
-    console.log('Retrieved messages from Redis:', recentMessagesRaw.length);
+    console.log('Raw messages from Redis:', recentMessagesRaw);
     
-    const parsedMessages = recentMessagesRaw
-      .filter(msg => typeof msg === 'string')
-      .map(msg => {
-        try {
-          return JSON.parse(msg);
-        } catch (e) {
-          console.error('Failed to parse message:', e);
-          return null;
+    // Enhanced parsing logic with better error handling
+    const parsedMessages = [];
+    for (const msg of recentMessagesRaw) {
+      try {
+        if (typeof msg === 'string') {
+          const parsed = JSON.parse(msg);
+          if (parsed && typeof parsed === 'object' && 'content' in parsed && 'type' in parsed) {
+            parsedMessages.push(parsed);
+          } else {
+            console.error('Invalid message structure:', parsed);
+          }
         }
-      })
-      .filter(msg => msg?.content && msg?.type);
+      } catch (e) {
+        console.error('Failed to parse message:', msg, e);
+      }
+    }
 
-    console.log('Parsed messages count:', parsedMessages.length);
+    console.log('Successfully parsed messages:', parsedMessages);
 
     if (parsedMessages.length < 8) {
       console.log('Insufficient message history:', parsedMessages.length);
@@ -112,42 +117,48 @@ serve(async (req) => {
     const vectorId = `user_${userId}_${Date.now()}`;
     console.log('Storing vector with ID:', vectorId);
 
-    const storeResponse = await fetch(
-      `${Deno.env.get('UPSTASH_VECTOR_REST_URL')}/upsert`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: vectorId,
-          vector: embeddingVector,
-          metadata: {
-            user_id: userId,
-            memory_chunk: conversationChunk,
-            created_at: new Date().toISOString(),
-          }
-        }),
+    // Updated vector storage with better error handling
+    try {
+      const storeResponse = await fetch(
+        `${Deno.env.get('UPSTASH_VECTOR_REST_URL')}/upsert`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: vectorId,
+            vector: embeddingVector,
+            metadata: {
+              user_id: userId,
+              memory_chunk: conversationChunk,
+              created_at: new Date().toISOString(),
+            }
+          }),
+        }
+      );
+
+      const storeResponseText = await storeResponse.text();
+      console.log('Vector storage response:', storeResponseText);
+
+      if (!storeResponse.ok) {
+        throw new Error(`Vector storage failed: ${storeResponseText}`);
       }
-    );
 
-    const storeResponseText = await storeResponse.text();
-    console.log('Vector storage response:', storeResponseText);
-
-    if (!storeResponse.ok) {
-      throw new Error(`Vector storage failed: ${storeResponseText}`);
+      console.log('Successfully stored vector');
+      return Response.json(
+        {
+          success: true,
+          vector_id: vectorId,
+          message: 'Conversation chunk processed and stored successfully'
+        },
+        { headers: corsHeaders }
+      );
+    } catch (error) {
+      console.error('Vector storage error:', error);
+      throw error;
     }
-
-    console.log('Successfully stored vector');
-    return Response.json(
-      {
-        success: true,
-        vector_id: vectorId,
-        message: 'Conversation chunk processed and stored successfully'
-      },
-      { headers: corsHeaders }
-    );
 
   } catch (error) {
     console.error('API Error:', error);
@@ -157,3 +168,4 @@ serve(async (req) => {
     );
   }
 });
+
