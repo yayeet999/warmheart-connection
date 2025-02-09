@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -13,13 +12,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Generate embeddings from Upstash Vector embeddings endpoint
+// Helper to generate embeddings from Upstash Vector
 async function generateEmbeddings(text: string): Promise<number[]> {
   const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL');
   const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN');
 
   if (!upstashVectorRestUrl || !upstashVectorRestToken) {
-    throw new Error('Upstash Vector URL/token missing from environment variables.');
+    throw new Error('Upstash Vector URL/token missing from env variables.');
   }
 
   const response = await fetch(`${upstashVectorRestUrl}/embeddings`, {
@@ -36,11 +35,11 @@ async function generateEmbeddings(text: string): Promise<number[]> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Upstash Vector Embeddings Error: ${response.status} - ${errorText}`);
+    throw new Error(`Embeddings Error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
-  if (!data.embeddings?.[0] || !Array.isArray(data.embeddings[0])) {
+  if (!data.embeddings || !Array.isArray(data.embeddings[0])) {
     throw new Error('Invalid embeddings response format.');
   }
 
@@ -48,13 +47,13 @@ async function generateEmbeddings(text: string): Promise<number[]> {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { userId } = await req.json();
+    const { userId } = await req.json() as { userId?: string };
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Missing userId in request body.' }), {
         status: 400,
@@ -62,11 +61,11 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Processing embedding for user: ${userId}`);
+    console.log(`Embedding chunk for user: ${userId}`);
 
-    // 1) Fetch the last 8 messages from Redis
+    // 1) Fetch last 8 messages from Redis (the queue was LIFO so index 0..7)
     const key = `user:${userId}:messages`;
-    const recentMessagesRaw = await redis.lrange(key, 0, 7); 
+    const recentMessagesRaw = await redis.lrange(key, 0, 7);
     const parsedMessages = recentMessagesRaw
       .map((msg) => {
         try {
@@ -78,32 +77,29 @@ serve(async (req) => {
       .filter(Boolean);
 
     if (parsedMessages.length < 8) {
-      console.log(`Not enough messages for user ${userId}: ${parsedMessages.length} found`);
+      console.log(`Not enough messages for user ${userId}: found ${parsedMessages.length} < 8`);
       return new Response(
         JSON.stringify({ success: false, reason: 'Fewer than 8 messages found.' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
       );
     }
 
-    // Reverse so oldest is first
+    // Reverse them so oldest is first in the joined text
     parsedMessages.reverse();
 
-    // 2) Format conversation chunk
+    // 2) Build the chunk text
     const conversationChunkText = parsedMessages
-      .map((msg: any) => `${msg.type?.toUpperCase()}: ${msg.content}`)
+      .map((m: any) => `${m.type.toUpperCase()}: ${m.content}`)
       .join('\n');
-
-    console.log(`Generated conversation chunk for user ${userId}`);
 
     // 3) Generate embeddings
     const embeddingVector = await generateEmbeddings(conversationChunkText);
-    console.log(`Generated embeddings for user ${userId}`);
 
-    // 4) Store in Upstash Vector index
+    // 4) Store in Upstash Vector
     const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL')!;
     const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!;
     const chunkId = `${userId}-${Date.now()}`;
-    const indexName = 'amorine-vector';
+    const indexName = 'amorine-vector'; // your chosen index name
 
     const storeResponse = await fetch(`${upstashVectorRestUrl}/vectors`, {
       method: 'POST',
@@ -129,11 +125,10 @@ serve(async (req) => {
 
     if (!storeResponse.ok) {
       const err = await storeResponse.text();
-      throw new Error(`Upstash Vector Insertion Error: ${storeResponse.status} - ${err}`);
+      throw new Error(`Upstash Vector insertion error: ${storeResponse.status} - ${err}`);
     }
 
-    console.log(`Successfully stored vector for user ${userId} with chunk ID ${chunkId}`);
-
+    console.log(`Successfully stored vector for user ${userId}, chunk ID = ${chunkId}`);
     return new Response(
       JSON.stringify({
         success: true,
@@ -141,11 +136,11 @@ serve(async (req) => {
         indexName,
         message: 'Successfully embedded & stored the last 8-message chunk.',
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
 
   } catch (error) {
-    console.error('Error in embed-conversation-chunk:', error);
+    console.error('Error in embed-conversation-chunk function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
