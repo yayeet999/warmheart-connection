@@ -298,11 +298,65 @@ const ChatInterface = () => {
     setIsLoading(true);
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
-    setMessages(prev => [...prev, userMessage]);
-    setMessageCount(count => count + 1);
     
+    // Add the user message locally
+    setMessages(prev => [...prev, userMessage]);
+
+    // We'll track the new count in a local variable
+    const updatedCount = messageCount + 1;
+    setMessageCount(updatedCount);
+
     try {
-      // Get AI response
+      // ------------------------------------------------
+      // 1) Store the user message in Redis via chat-history
+      // ------------------------------------------------
+      const { error: storeError } = await supabase.functions.invoke('chat-history', {
+        body: {
+          userId: session.user.id,
+          message: userMessage,
+          action: 'add'
+        }
+      });
+
+      if (storeError) {
+        console.error('Error storing user message:', storeError);
+        toast({
+          title: "Error",
+          description: "Failed to store your message. Please try again.",
+          variant: "destructive"
+        });
+      }
+
+      // ------------------------------------------------
+      // 2) Trigger vector search if count >= 47
+      // ------------------------------------------------
+      // This calls the vector-search-context function with (userId, message).
+      // The function itself checks the total Redis length to confirm >= 47.
+      try {
+        if (updatedCount >= 47) {
+          const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
+            'vector-search-context',
+            {
+              body: {
+                userId: session.user.id,
+                message: userMessage.content
+              }
+            }
+          );
+          if (vectorError) {
+            console.error('Vector search error:', vectorError);
+          } else {
+            console.log('Vector search response:', vectorData);
+          }
+        }
+      } catch (vErr) {
+        console.error('Error calling vector-search-context:', vErr);
+        // Not user-blocking, so just log it
+      }
+
+      // ------------------------------------------------
+      // 3) Call your main chat function to get AI response
+      // ------------------------------------------------
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -312,28 +366,22 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // Store user message in Redis
-      await supabase.functions.invoke('chat-history', {
-        body: {
-          userId: session.user.id,
-          message: userMessage,
-          action: 'add'
-        }
-      });
-
+      // ------------------------------------------------
+      // 4) For each chunk of AI message, add to chat 
+      // ------------------------------------------------
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
         }
 
-        const aiMessage = {
-          type: "ai",
-          content: msg.content
-        };
-
+        const aiMessage = { type: "ai", content: msg.content };
         setMessages(prev => [...prev, aiMessage]);
-        setMessageCount(count => count + 1);
 
+        // Increment local message count
+        const newAiCount = (count) => count + 1;
+        setMessageCount(newAiCount);
+
+        // Also store the AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -342,20 +390,26 @@ const ChatInterface = () => {
           }
         });
 
+        // If we want to possibly trigger embed chunk after these AI messages,
+        // it will already happen automatically if the Redis list hits a multiple of 8
+        // (chat-history function does that logic).
+        
         setIsTyping(index < data.messages.length - 1);
       }
 
-      // Check if we need to trigger embedding (every 8 messages)
-      if (messageCount > 0 && messageCount % 8 === 0) {
-        await triggerEmbedding(session.user.id, messages);
-      }
+      // Optionally check if we should embed (again) after AI messages,
+      // but you already do that every 8 messages in chat-history,
+      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);
-      setMessages(prev => [...prev, {
-        type: "ai",
-        content: "I apologize, but I'm having trouble connecting right now. Please try again later."
-      }]);
+      setMessages(prev => [
+        ...prev,
+        {
+          type: "ai",
+          content: "I apologize, but I'm having trouble connecting right now. Please try again later."
+        }
+      ]);
     } finally {
       setIsLoading(false);
       setIsTyping(false);
@@ -364,7 +418,6 @@ const ChatInterface = () => {
   };
 
   const isFreeUser = userData?.subscription?.tier === 'free';
-  const limit = MESSAGE_LIMITS[userData?.subscription?.tier || 'free'];
 
   const renderMessages = () => {
     let currentDate = "";
