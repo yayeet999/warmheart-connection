@@ -9,45 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      longtermmemory: {
-        Row: {
-          created_at: string
-          embedding: string | null
-          emotional_patterns: Json
-          id: string
-          is_super_summary: boolean
-          key_events: Json
-          personality_insights: Json
-          relationship_stage: string
-          summary_text: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          embedding?: string | null
-          emotional_patterns?: Json
-          id?: string
-          is_super_summary?: boolean
-          key_events?: Json
-          personality_insights?: Json
-          relationship_stage: string
-          summary_text: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          embedding?: string | null
-          emotional_patterns?: Json
-          id?: string
-          is_super_summary?: boolean
-          key_events?: Json
-          personality_insights?: Json
-          relationship_stage?: string
-          summary_text?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       message_counts: {
         Row: {
           chunk_message_count: number
