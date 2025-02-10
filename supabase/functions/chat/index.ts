@@ -200,8 +200,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 0.3,
-        frequency_penalty=0.5,
-        presence_penalty=0.5,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.5,
         messages,
       }),
     });
