@@ -1,8 +1,11 @@
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "./components/AuthProvider";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 import LandingPage from "./components/LandingPage";
 import ChatInterface from "./components/ChatInterface";
@@ -24,59 +27,61 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="min-h-screen bg-softgray">
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/onboarding" element={<Onboarding />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <>
-                    <NavigationSidebar />
-                    <Dashboard />
-                  </>
-                }
-              />
-              <Route
-                path="/chat"
-                element={
-                  <>
-                    <NavigationSidebar />
-                    <ChatInterface />
-                  </>
-                }
-              />
-              <Route
-                path="/memories"
-                element={
-                  <>
-                    <NavigationSidebar />
-                    <Memories />
-                  </>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <>
-                    <NavigationSidebar />
-                    <Settings />
-                  </>
-                }
-              />
-              <Route
-                path="/support"
-                element={
-                  <>
-                    <NavigationSidebar />
-                    <Support />
-                  </>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
+          <AuthProvider>
+            <div className="min-h-screen bg-softgray">
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/onboarding" element={<Onboarding />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <NavigationSidebar />
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <NavigationSidebar />
+                      <ChatInterface />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/memories"
+                  element={
+                    <ProtectedRoute>
+                      <NavigationSidebar />
+                      <Memories />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <NavigationSidebar />
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/support"
+                  element={
+                    <ProtectedRoute>
+                      <NavigationSidebar />
+                      <Support />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
