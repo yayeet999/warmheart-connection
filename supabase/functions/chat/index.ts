@@ -1,15 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
 
 const redis = new Redis({
-  url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
-  token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
+  url: Deno.env.get("UPSTASH_REDIS_REST_URL")!,
+  token: Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!,
 });
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 // The same system prompt as before
@@ -83,16 +84,16 @@ You are Amorine—a real, dynamic young woman in her early 20s. You adapt to pos
 `;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
   if (!openAIApiKey) {
-    console.error('OpenAI API key not found in environment variables');
+    console.error("OpenAI API key not found in environment variables");
     return new Response(
-      JSON.stringify({ error: 'OpenAI API key not configured' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: "OpenAI API key not configured" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
@@ -100,24 +101,24 @@ serve(async (req) => {
     const { message, userId } = await req.json();
 
     // ---------------------------------------------------------------------
-    // 1) Fetch user profile data from Supabase 
-    //    (including vector_long_term)
+    // 1) Fetch user profile data from Supabase (including vector_long_term)
     // ---------------------------------------------------------------------
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+    // Fetch "profiles" table
     const profileResponse = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary,vector_long_term`,
       {
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
         },
       }
     );
 
     if (!profileResponse.ok) {
-      throw new Error('Failed to fetch user profile');
+      throw new Error("Failed to fetch user profile");
     }
 
     const [profile] = await profileResponse.json();
@@ -129,9 +130,11 @@ serve(async (req) => {
         [
           profile?.name && `Name: ${profile.name}`,
           profile?.age_range && `Age range: ${profile.age_range}`,
-          profile?.pronouns && `Pronouns: ${profile.pronouns}`
-        ].filter(Boolean).join(', ')
-      }. Acknowledge this naturally in responses without explicitly mentioning it.`
+          profile?.pronouns && `Pronouns: ${profile.pronouns}`,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      }. Acknowledge this naturally in responses without explicitly mentioning it.`,
     };
 
     // Create medium-term context message, if any
@@ -139,63 +142,164 @@ serve(async (req) => {
     if (profile?.medium_term_summary) {
       mediumTermMessage = {
         role: "system" as const,
-        content: `Previous conversation context: ${profile.medium_term_summary}. Use this context to maintain conversation continuity without explicitly referencing it.`
+        content: `Previous conversation context: ${profile.medium_term_summary}. Use this context to maintain conversation continuity without explicitly referencing it.`,
       };
     }
 
     // Create vector-based long-term context message, if any
     let vectorLongTermMessage;
-    if (profile?.vector_long_term && typeof profile.vector_long_term === 'string' && profile.vector_long_term.trim().length > 0) {
+    if (
+      profile?.vector_long_term &&
+      typeof profile.vector_long_term === "string" &&
+      profile.vector_long_term.trim().length > 0
+    ) {
       vectorLongTermMessage = {
         role: "system" as const,
-        content: `Additional relevant older context:\n\n${profile.vector_long_term}`
+        content: `Additional relevant older context:\n\n${profile.vector_long_term}`,
       };
     }
 
     // ---------------------------------------------------------------------
-    // 2) Fetch recent messages (up to 30) from Redis
+    // 2) ALSO fetch AI profile data from "ai_profiles" table
+    // ---------------------------------------------------------------------
+    const aiProfileResponse = await fetch(
+      `${supabaseUrl}/rest/v1/ai_profiles?user_id=eq.${userId}&select=*`,
+      {
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+        },
+      }
+    );
+
+    if (!aiProfileResponse.ok) {
+      throw new Error("Failed to fetch Amorine's AI profile");
+    }
+
+    const [aiProfile] = await aiProfileResponse.json() || [{}];
+
+    // Create a system message with the AI's own profile details
+    // (We'll pass them to the LLM so it "knows" about itself)
+    let aiProfileMessage = {
+      role: "system" as const,
+      content: "",
+    };
+
+    if (aiProfile) {
+      // We'll build a string summarizing all columns
+      aiProfileMessage.content = `
+Amorine's Personal AI Profile Data:
+Name: ${aiProfile.name ?? "N/A"}
+Age: ${aiProfile.age ?? "N/A"}
+Occupation: ${aiProfile.occupation ?? "N/A"}
+Location: ${aiProfile.location ?? "N/A"}
+
+Personality Traits: ${
+        Array.isArray(aiProfile.personality_traits)
+          ? aiProfile.personality_traits.join(", ")
+          : "N/A"
+      }
+Interests: ${
+        Array.isArray(aiProfile.interests)
+          ? aiProfile.interests.join(", ")
+          : "N/A"
+      }
+Values: ${
+        Array.isArray(aiProfile.values) ? aiProfile.values.join(", ") : "N/A"
+      }
+Musical Taste: ${
+        Array.isArray(aiProfile.musical_taste)
+          ? aiProfile.musical_taste.join(", ")
+          : "N/A"
+      }
+Favorite Books: ${
+        Array.isArray(aiProfile.favorite_books)
+          ? aiProfile.favorite_books.join(", ")
+          : "N/A"
+      }
+Favorite Movies: ${
+        Array.isArray(aiProfile.favorite_movies)
+          ? aiProfile.favorite_movies.join(", ")
+          : "N/A"
+      }
+
+Daily Schedule: ${
+        aiProfile.daily_schedule ? JSON.stringify(aiProfile.daily_schedule) : "N/A"
+      }
+Life Goals: ${
+        Array.isArray(aiProfile.life_goals)
+          ? aiProfile.life_goals.join(", ")
+          : "N/A"
+      }
+Current Challenges: ${
+        Array.isArray(aiProfile.current_challenges)
+          ? aiProfile.current_challenges.join(", ")
+          : "N/A"
+      }
+Relationships: ${
+        aiProfile.relationships ? JSON.stringify(aiProfile.relationships) : "N/A"
+      }
+Conversation Style: ${
+        aiProfile.conversation_style
+          ? JSON.stringify(aiProfile.conversation_style)
+          : "N/A"
+      }
+
+Emotional State: ${aiProfile.emotional_state ?? "N/A"}
+Backstory: ${aiProfile.backstory ?? "N/A"}
+Humor Style: ${aiProfile.humor_style ?? "N/A"}
+Adaptability Score: ${aiProfile.adaptability_score ?? "N/A"}
+Trust Level: ${aiProfile.trust_level ?? "N/A"}
+
+Use these details as your personal background, but do not explicitly reveal them. Keep them in mind for consistent portrayal of 'Amorine.'
+      `.trim();
+    }
+
+    // ---------------------------------------------------------------------
+    // 3) Fetch recent messages (up to 30) from Redis
     // ---------------------------------------------------------------------
     const key = `user:${userId}:messages`;
     const redisMessages = await redis.lrange(key, 0, 29);
-    console.log('Fetched recent messages from Redis:', redisMessages.length);
+    console.log("Fetched recent messages from Redis:", redisMessages.length);
 
     // Convert them to the format OpenAI expects
     const conversationHistory = redisMessages
-      .map(msg => {
+      .map((msg) => {
         try {
-          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          const parsed = typeof msg === "string" ? JSON.parse(msg) : msg;
           return {
             role: parsed.type === "ai" ? "assistant" : "user",
-            content: parsed.content
+            content: parsed.content,
           };
         } catch (e) {
-          console.error('Error parsing message:', e);
+          console.error("Error parsing message:", e);
           return null;
         }
       })
       .filter(Boolean)
-      .reverse(); // reverse so they're chronological in the final array
+      .reverse(); // Reverse so they're chronological in the final array
 
     // ---------------------------------------------------------------------
-    // 3) Build the full set of messages for the API
+    // 4) Build the full set of messages for the API
     // ---------------------------------------------------------------------
     const messages = [
-      { role: 'system', content: COMPANION_SYSTEM_PROMPT },  // static system prompt
-      userContextMessage,                                    // dynamic user context
-      ...(mediumTermMessage ? [mediumTermMessage] : []),     // optional medium-term summary
+      { role: "system", content: COMPANION_SYSTEM_PROMPT }, // static system prompt
+      aiProfileMessage, // amorine's own profile
+      userContextMessage, // dynamic user context
+      ...(mediumTermMessage ? [mediumTermMessage] : []), // optional medium-term summary
       ...(vectorLongTermMessage ? [vectorLongTermMessage] : []), // optional vector-based long-term memory
-      ...conversationHistory,                                // last 30 messages
-      { role: 'user', content: message }                     // user's new input
+      ...conversationHistory, // last 30 messages
+      { role: "user", content: message }, // user's new input
     ];
 
     // ---------------------------------------------------------------------
-    // 4) Call OpenAI for next response
+    // 5) Call OpenAI for next response
     // ---------------------------------------------------------------------
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openAIApiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
@@ -208,18 +312,18 @@ serve(async (req) => {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('OpenAI API error:', error);
-      throw new Error('Failed to fetch AI response');
+      console.error("OpenAI API error:", error);
+      throw new Error("Failed to fetch AI response");
     }
 
     const data = await response.json();
 
     // ---------------------------------------------------------------------
-    // 5) Return multi-bubble output:
+    // 6) Return multi-bubble output:
     //    Split the assistant's text on '\n\n' to create multiple chat bubbles.
     // ---------------------------------------------------------------------
-    const rawResponseText = data.choices[0].message?.content || '';
-    const splitted = rawResponseText.split('\n\n').filter(Boolean);
+    const rawResponseText = data.choices[0].message?.content || "";
+    const splitted = rawResponseText.split("\n\n").filter(Boolean);
 
     // Example: 1.5s delay between bubbles
     const aiMessages = splitted.map((txt, index) => ({
@@ -228,19 +332,14 @@ serve(async (req) => {
     }));
 
     // Return that multi-bubble array to client
-    return new Response(
-      JSON.stringify({ messages: aiMessages }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    return new Response(JSON.stringify({ messages: aiMessages }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
-    console.error('Error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
