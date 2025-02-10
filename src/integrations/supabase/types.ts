@@ -134,6 +134,8 @@ export type Database = {
           age_range: string | null
           avatar_url: string | null
           created_at: string
+          extreme_content: string | null
+          guidance: string | null
           id: string
           medium_term_summary: string | null
           name: string | null
@@ -145,6 +147,8 @@ export type Database = {
           age_range?: string | null
           avatar_url?: string | null
           created_at?: string
+          extreme_content?: string | null
+          guidance?: string | null
           id: string
           medium_term_summary?: string | null
           name?: string | null
@@ -156,6 +160,8 @@ export type Database = {
           age_range?: string | null
           avatar_url?: string | null
           created_at?: string
+          extreme_content?: string | null
+          guidance?: string | null
           id?: string
           medium_term_summary?: string | null
           name?: string | null

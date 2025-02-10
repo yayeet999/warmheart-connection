@@ -22,3 +22,6 @@ verify_jwt = true
 [functions.vector-search-context]
 verify_jwt = true
 
+[functions.overseer]
+verify_jwt = true
+
