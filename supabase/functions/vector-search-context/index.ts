@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -81,8 +82,6 @@ serve(async (req) => {
     // ---------------------------------------------------------
     // 2) Fetch recent messages from Redis (last 5 or so)
     // ---------------------------------------------------------
-    // Grab the first 5 from the HEAD of the list
-    // (the list is stored newest at index 0)
     const recentMessagesRaw = await redis.lrange(key, 0, 4);
 
     const parsedMessages = recentMessagesRaw
@@ -117,12 +116,11 @@ serve(async (req) => {
     const queryVector = sumVector.map(val => val / embeddingsArray.length);
 
     // ---------------------------------------------------------
-    // 4) Query Upstash Vector
+    // 4) Query Upstash Vector with user-specific metadata filter
     // ---------------------------------------------------------
     const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL')!;
     const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!;
 
-    // e.g. must include /v1/ if your endpoint is /v1/query
     const searchResponse = await fetch(`${upstashVectorRestUrl}/query`, {
       method: 'POST',
       headers: {
@@ -134,6 +132,10 @@ serve(async (req) => {
         vector: queryVector,
         topK: 2,
         includeMetadata: true,
+        filter: {
+          field: "user_id",
+          value: userId,
+        },
       }),
     });
 
