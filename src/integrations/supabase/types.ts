@@ -9,6 +9,93 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_profiles: {
+        Row: {
+          adaptability_score: number | null
+          age: number
+          backstory: string | null
+          conversation_style: Json | null
+          created_at: string | null
+          current_challenges: string[] | null
+          daily_schedule: Json | null
+          emotional_state: string | null
+          favorite_books: string[] | null
+          favorite_movies: string[] | null
+          humor_style: string | null
+          id: string
+          interests: string[] | null
+          last_interaction: string | null
+          life_goals: string[] | null
+          location: string | null
+          musical_taste: string[] | null
+          name: string
+          occupation: string | null
+          personality_traits: string[] | null
+          recent_experiences: Json | null
+          relationships: Json | null
+          trust_level: number | null
+          updated_at: string | null
+          user_id: string
+          values: string[] | null
+        }
+        Insert: {
+          adaptability_score?: number | null
+          age: number
+          backstory?: string | null
+          conversation_style?: Json | null
+          created_at?: string | null
+          current_challenges?: string[] | null
+          daily_schedule?: Json | null
+          emotional_state?: string | null
+          favorite_books?: string[] | null
+          favorite_movies?: string[] | null
+          humor_style?: string | null
+          id?: string
+          interests?: string[] | null
+          last_interaction?: string | null
+          life_goals?: string[] | null
+          location?: string | null
+          musical_taste?: string[] | null
+          name: string
+          occupation?: string | null
+          personality_traits?: string[] | null
+          recent_experiences?: Json | null
+          relationships?: Json | null
+          trust_level?: number | null
+          updated_at?: string | null
+          user_id: string
+          values?: string[] | null
+        }
+        Update: {
+          adaptability_score?: number | null
+          age?: number
+          backstory?: string | null
+          conversation_style?: Json | null
+          created_at?: string | null
+          current_challenges?: string[] | null
+          daily_schedule?: Json | null
+          emotional_state?: string | null
+          favorite_books?: string[] | null
+          favorite_movies?: string[] | null
+          humor_style?: string | null
+          id?: string
+          interests?: string[] | null
+          last_interaction?: string | null
+          life_goals?: string[] | null
+          location?: string | null
+          musical_taste?: string[] | null
+          name?: string
+          occupation?: string | null
+          personality_traits?: string[] | null
+          recent_experiences?: Json | null
+          relationships?: Json | null
+          trust_level?: number | null
+          updated_at?: string | null
+          user_id?: string
+          values?: string[] | null
+        }
+        Relationships: []
+      }
       message_counts: {
         Row: {
           chunk_message_count: number
