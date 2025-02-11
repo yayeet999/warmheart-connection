@@ -612,7 +612,9 @@ const ChatInterface = () => {
                 touchAction: 'manipulation',
                 minHeight: '44px',
                 lineHeight: '1.4',
-                transition: 'height 0.2s ease'
+                transition: 'height 0.2s ease',
+                msOverflowStyle: 'none',  // Hide scrollbar in IE/Edge
+                scrollbarWidth: 'none'     // Hide scrollbar in Firefox
               }}
               onFocus={(e) => {
                 e.currentTarget.style.fontSize = '16px';
