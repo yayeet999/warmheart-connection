@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpCircle, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { useState } from "react";
@@ -75,12 +76,17 @@ const Support = () => {
 
     setIsSubmitting(true);
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const { error } = await supabase
         .from('user_feedback')
         .insert([
           {
             type: feedbackType,
             message: feedbackMessage,
+            user_id: user?.id,
           }
         ]);
 
