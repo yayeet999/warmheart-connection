@@ -586,11 +586,11 @@ const ChatInterface = () => {
             <button
               onClick={handleSend}
               className={cn(
-                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200",
-                message.trim() || isLoading
-                  ? "bg-gradient-primary shadow-md hover:opacity-90 active:scale-95"
-                  : "bg-gray-100",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
+                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 bg-gradient-primary",
+                message.trim() 
+                  ? "shadow-md hover:opacity-90 active:scale-95 opacity-100"
+                  : "opacity-50",
+                "disabled:cursor-not-allowed"
               )}
               disabled={isLoading || !message.trim()}
             >
