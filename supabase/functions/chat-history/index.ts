@@ -43,23 +43,23 @@ serve(async (req) => {
         throw new Error('Message is required for add action');
       }
 
-      console.log('Adding message to Redis:', { 
-        userId, 
-        messageType: message.type, 
+      console.log('Adding message to Redis:', {
+        userId,
+        messageType: message.type,
         content: message.content
       });
-      
+
       const messageToStore = {
         type: message.type,
         content: message.content,
         timestamp: new Date().toISOString() // store a timestamp
       };
-      
+
       // Push the new message to the front (index 0)
       const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
       console.log('Redis push result:', pushResult);
 
-      // Keep the list capped at, say, 10,000 
+      // Keep the list capped at, say, 10,000
       await redis.ltrim(key, 0, 9999);
 
       // Now check how many messages total
@@ -79,8 +79,7 @@ serve(async (req) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': req.headers.get('Authorization') ?? '', 
-              // pass along any JWT if needed
+              'Authorization': req.headers.get('Authorization') ?? '',
             },
             body: JSON.stringify({ userId }),
           });
@@ -121,7 +120,37 @@ serve(async (req) => {
           }
         } catch (e) {
           console.error('Failed to call Overseer function:', e);
-          // Again, do not throw to avoid blocking main storage
+        }
+      }
+
+      // -------------------------------------------------------------
+      // Trigger medium-term summarizer at 60 & every 30 after that
+      // -------------------------------------------------------------
+      // So if total length >= 60:
+      //  - If exactly 60 OR (length-60) is multiple of 30, call summarizer
+      if (currentLength >= 60) {
+        const offset = currentLength - 60;
+        if (currentLength === 60 || (offset > 0 && offset % 30 === 0)) {
+          console.log(`Message count: ${currentLength}. Triggering medium-term summarizer...`);
+          try {
+            const summarizerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/medium-term-summarizer`;
+            const res = await fetch(summarizerUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': req.headers.get('Authorization') ?? '',
+              },
+              body: JSON.stringify({ userId, messageCount: currentLength }),
+            });
+
+            if (!res.ok) {
+              console.error('Summarizer function error:', await res.text());
+            } else {
+              console.log('Summarizer function called successfully.');
+            }
+          } catch (summarizerErr) {
+            console.error('Failed to call summarizer function:', summarizerErr);
+          }
         }
       }
 
@@ -133,23 +162,23 @@ serve(async (req) => {
           status: 200
         }
       );
-    } 
-    
+    }
+
     else if (action === 'get') {
       console.log('Fetching messages for user:', userId, 'page:', page);
-      
+
       const MESSAGES_PER_PAGE = 50;
       const MAX_MESSAGES = 300;
-      
+
       // Calculate start/end indices
       const start = page * MESSAGES_PER_PAGE;
       const end = Math.min(start + MESSAGES_PER_PAGE - 1, MAX_MESSAGES - 1);
-      
+
       // If we've exceeded the max we want to show
       if (start >= MAX_MESSAGES) {
         return new Response(
           JSON.stringify({ messages: [], hasMore: false }),
-          { 
+          {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200
           }
@@ -158,10 +187,10 @@ serve(async (req) => {
 
       const listLength = await redis.llen(key);
       console.log('Total messages in Redis:', listLength);
-      
+
       const messages = await redis.lrange(key, start, end);
       console.log('Retrieved messages from Redis:', messages.length);
-      
+
       const parsedMessages = messages.map(msg => {
         try {
           return typeof msg === 'string' ? JSON.parse(msg) : msg;
@@ -176,11 +205,11 @@ serve(async (req) => {
       console.log('Has more messages:', hasMore);
 
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           messages: parsedMessages.reverse(),
           hasMore
         }),
-        { 
+        {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200
         }
@@ -194,12 +223,12 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in chat-history function:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message || 'Unknown error',
       }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
