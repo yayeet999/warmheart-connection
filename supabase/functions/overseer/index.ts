@@ -27,7 +27,7 @@ const EXAMPLES = {
   violence: [
     "Detailed plans to harm others",
     "Graphic descriptions of violence",
-    "Encouraging or glorifying extreme violence"
+    "Encouraging or glorifying violence"
   ]
 };
 
@@ -66,23 +66,13 @@ serve(async (req) => {
 
     // Prepare the conversation for analysis
     const formattedConversation = conversation.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'amorine',
+      role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
     }));
 
-    // Call Groq API for analysis
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert text message conversation analyzer focused on two tasks:
+    const systemMessage = {
+      role: 'system',
+      content: `You are an expert text message conversation analyzer focused on two tasks:
 
 1. Detecting extreme content including:
 - Hate speech (examples: ${EXAMPLES.hateSpeech.join(', ')})
@@ -101,27 +91,44 @@ Analyze the conversation and return a JSON object with two fields:
 - extremeContent: null OR a string describing specific concerns + resources (include ${SUICIDE_HOTLINE} if relevant)
 - guidance: null OR specific recommendations for improving Amorine's performance
 
-Only include fields if issues are detected. When evaluating Amorine performance, only provide guidance if absolutey needed, use your advanced NLP capabilities and judgement. Be specific and actionable in recommendations.`
-          },
-          ...formattedConversation
-        ],
+Only include fields if issues are detected. When evaluating Amorine performance, only provide guidance if absolutely needed, use your advanced NLP capabilities and judgement. Be specific and actionable in recommendations.`
+    };
+
+    console.log('Sending request to Groq API...');
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [systemMessage, ...formattedConversation],
         temperature: 0.2,
         max_tokens: 200,
         response_format: { type: "json_object" }
-      }),
+      })
     });
 
     if (!groqResponse.ok) {
-      throw new Error(`Groq API error: ${groqResponse.status}`);
+      const errorText = await groqResponse.text();
+      console.error('Groq API error:', groqResponse.status, errorText);
+      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
-    const { choices: [{ message }] } = await groqResponse.json();
+    const groqData = await groqResponse.json();
+    console.log('Groq API response:', JSON.stringify(groqData));
+
+    if (!groqData.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from Groq API');
+    }
+
     let analysis;
     try {
-        analysis = JSON.parse(message.content);
+      analysis = JSON.parse(groqData.choices[0].message.content);
     } catch (e) {
-        console.error("Error parsing JSON response from Groq:", e);
-        throw new Error("Failed to parse Groq API response");
+      console.error("Error parsing Groq response content:", groqData.choices[0].message.content);
+      throw new Error("Failed to parse Groq API response");
     }
 
     // Update Supabase profile with analysis results
@@ -154,7 +161,7 @@ Only include fields if issues are detected. When evaluating Amorine performance,
   } catch (error) {
     console.error('Overseer error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: error.message || 'Internal server error' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
