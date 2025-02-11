@@ -23,9 +23,9 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
         <BrowserRouter>
+          <Toaster />
+          <Sonner />
           <AuthProvider>
             <div className="min-h-screen bg-softgray">
               <Routes>
