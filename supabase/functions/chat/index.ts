@@ -315,10 +315,10 @@ Use these details as your personal background, but do not explicitly reveal them
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 0.7,
-        frequency_penalty: 0.8,
-        presence_penalty: 0.8,
+        frequency_penalty: 0.3,
+        presence_penalty: 0.3,
         messages,
       }),
     });
