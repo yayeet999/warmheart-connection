@@ -11,14 +11,11 @@ export type Database = {
     Tables: {
       ai_profiles: {
         Row: {
-          adaptability_score: number | null
           age: number
           backstory: string | null
-          conversation_style: Json | null
           created_at: string | null
           current_challenges: string[] | null
           daily_schedule: Json | null
-          emotional_state: string | null
           favorite_books: string[] | null
           favorite_movies: string[] | null
           humor_style: string | null
@@ -33,20 +30,16 @@ export type Database = {
           personality_traits: string[] | null
           recent_experiences: Json | null
           relationships: Json | null
-          trust_level: number | null
           updated_at: string | null
           user_id: string
           values: string[] | null
         }
         Insert: {
-          adaptability_score?: number | null
           age: number
           backstory?: string | null
-          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
-          emotional_state?: string | null
           favorite_books?: string[] | null
           favorite_movies?: string[] | null
           humor_style?: string | null
@@ -61,20 +54,16 @@ export type Database = {
           personality_traits?: string[] | null
           recent_experiences?: Json | null
           relationships?: Json | null
-          trust_level?: number | null
           updated_at?: string | null
           user_id: string
           values?: string[] | null
         }
         Update: {
-          adaptability_score?: number | null
           age?: number
           backstory?: string | null
-          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
-          emotional_state?: string | null
           favorite_books?: string[] | null
           favorite_movies?: string[] | null
           humor_style?: string | null
@@ -89,7 +78,6 @@ export type Database = {
           personality_traits?: string[] | null
           recent_experiences?: Json | null
           relationships?: Json | null
-          trust_level?: number | null
           updated_at?: string | null
           user_id?: string
           values?: string[] | null
