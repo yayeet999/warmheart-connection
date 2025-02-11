@@ -61,20 +61,6 @@ serve(async (req) => {
     const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
     console.log('Generated intro message:', introMessage);
 
-    // Set the initial medium-term summary
-    const initialSummary = "I'm just meeting this user for the first time I don't know anything about them, so it's all about making a good first impression.  It's key to make them feel really comfortable and welcome. If they're respectful I'll keep the engagement high but if they're disrespectful I'll let them know.  Like, focus on showing I'm genuinely interested in getting to know *them* – what they're like, what they're looking for eventually by meeting me. I should give longer texts and definitely be more detailed, more double and triple texts should help, just to get them talking and see what they feel like sharing.  Also talk about myself if they ask, but always keep it engaging and based on the user's personality and texting style. We're getting to know each other and figuring each other out.";
-
-    // Update the profile with the medium-term summary
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ medium_term_summary: initialSummary })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('Error updating medium-term summary:', updateError);
-      throw new Error('Could not update medium-term summary');
-    }
-
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

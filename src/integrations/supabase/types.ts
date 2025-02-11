@@ -137,7 +137,6 @@ export type Database = {
           extreme_content: string | null
           guidance: string | null
           id: string
-          medium_term_summary: string | null
           name: string | null
           pronouns: string | null
           username: string | null
@@ -150,7 +149,6 @@ export type Database = {
           extreme_content?: string | null
           guidance?: string | null
           id: string
-          medium_term_summary?: string | null
           name?: string | null
           pronouns?: string | null
           username?: string | null
@@ -163,7 +161,6 @@ export type Database = {
           extreme_content?: string | null
           guidance?: string | null
           id?: string
-          medium_term_summary?: string | null
           name?: string | null
           pronouns?: string | null
           username?: string | null
