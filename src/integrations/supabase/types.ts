@@ -16,6 +16,7 @@ export type Database = {
           created_at: string | null
           current_challenges: string[] | null
           daily_schedule: Json | null
+          emotional_state: string | null
           favorite_books: string[] | null
           favorite_movies: string[] | null
           humor_style: string | null
@@ -41,6 +42,7 @@ export type Database = {
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
+          emotional_state?: string | null
           favorite_books?: string[] | null
           favorite_movies?: string[] | null
           humor_style?: string | null
@@ -66,6 +68,7 @@ export type Database = {
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
+          emotional_state?: string | null
           favorite_books?: string[] | null
           favorite_movies?: string[] | null
           humor_style?: string | null
