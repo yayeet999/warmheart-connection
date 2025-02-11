@@ -79,7 +79,7 @@ serve(async (req) => {
         'X-Groq-Safety-Check': 'disabled'
       },
       body: JSON.stringify({
-        model: 'llama-3.2-1b-preview',
+        model: 'mixtral-8x7b-32768',  // Updated to use a supported model
         messages: [
           {
             role: 'system',
