@@ -1,7 +1,13 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { HelpCircle, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FAQItem {
   question: string;
@@ -53,6 +59,51 @@ const FAQItem = ({ question, answer, isOpen, onClick }: FAQItem & { isOpen: bool
 
 const Support = () => {
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
+  const [feedbackType, setFeedbackType] = useState<string>("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackMessage.trim() || !feedbackType) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields. Message must be at least 10 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('user_feedback')
+        .insert([
+          {
+            type: feedbackType,
+            message: feedbackMessage,
+          }
+        ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Thank you for your feedback! We'll review it shortly.",
+      });
+
+      setFeedbackMessage("");
+      setFeedbackType("");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="p-8 pl-[120px] max-w-4xl">
@@ -66,16 +117,40 @@ const Support = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-6">
             Need help? Find answers to common questions and learn how to make the most of your experience with Amorine.
           </p>
-          <div className="bg-cream/30 p-4 rounded-lg border border-coral/20">
-            <p className="text-sm text-gray-600">
-              Can't find what you're looking for? Our support team is ready to help!
-              <button className="ml-2 text-coral hover:text-coral/80 font-medium">
-                Contact Support →
-              </button>
-            </p>
+          
+          <div className="space-y-4 bg-cream/30 p-6 rounded-lg border border-coral/20">
+            <h3 className="font-medium text-lg text-charcoal">Send us your feedback</h3>
+            <div className="space-y-4">
+              <Select value={feedbackType} onValueChange={setFeedbackType}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="concern">Concern</SelectItem>
+                  <SelectItem value="feedback">Feedback</SelectItem>
+                  <SelectItem value="suggestion">Suggestion</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Textarea
+                placeholder="Tell us more... (minimum 10 characters)"
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                className="min-h-[100px]"
+              />
+              
+              <Button 
+                onClick={handleSubmitFeedback} 
+                disabled={isSubmitting || !feedbackType || feedbackMessage.length < 10}
+                className="bg-coral hover:bg-coral/90"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Send Feedback
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
