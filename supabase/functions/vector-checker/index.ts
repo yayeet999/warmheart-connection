@@ -22,14 +22,18 @@ serve(async (req) => {
     const { userId, message } = await req.json();
     
     if (!userId || typeof message !== 'string') {
+      console.error('Invalid request parameters:', { userId, message });
       throw new Error('Invalid request parameters');
     }
 
-    console.log('Running vector check for userId:', userId);
+    console.log('Starting vector check for userId:', userId);
+    console.log('Checking message:', message);
 
     // Check message count first
     const key = `user:${userId}:messages`;
     const totalCount = await redis.llen(key);
+
+    console.log('Total message count:', totalCount);
 
     if (totalCount < 47) {
       console.log('Message count below threshold:', totalCount);
@@ -43,23 +47,33 @@ serve(async (req) => {
     }
 
     // Get all recent messages and filter for last 2 USER messages
-    const recentMessages = await redis.lrange(key, 0, 10); // Get more messages to ensure we find 2 user messages
+    const recentMessages = await redis.lrange(key, 0, 10);
+    console.log('Fetched recent messages:', recentMessages.length);
+    
     const lastTwoUserMessages = recentMessages
       .map(msg => {
         try {
-          return JSON.parse(msg);
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          console.log('Parsed message:', parsed);
+          return parsed;
         } catch (e) {
           console.error('Error parsing message:', e);
           return null;
         }
       })
-      .filter(msg => msg && msg.type === 'user') // Only keep user messages
-      .slice(0, 2) // Take the last 2 user messages
+      .filter(msg => {
+        const isUser = msg && msg.type === 'user';
+        console.log('Message type check:', msg?.type, 'isUser:', isUser);
+        return isUser;
+      })
+      .slice(0, 2)
       .map(msg => msg.content)
-      .reverse()
-      .join('\n');
+      .reverse();
 
-    console.log('Analyzing with context from last 2 USER messages');
+    console.log('Last two USER messages:', lastTwoUserMessages);
+
+    const userMessagesContext = lastTwoUserMessages.join('\n');
+    console.log('Combined context:', userMessagesContext);
 
     // Call Groq API with updated system prompt
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -90,7 +104,7 @@ Most of the time the answer will be false. If the user is using very short messa
             content: `Current message: "${message}"
 
 Recent user messages:
-${lastTwoUserMessages}
+${userMessagesContext}
 
 Should we search long-term memory for relevant past interactions? Reply with just true or false.`
           }
@@ -101,13 +115,17 @@ Should we search long-term memory for relevant past interactions? Reply with jus
     });
 
     if (!groqResponse.ok) {
+      console.error('Groq API error status:', groqResponse.status);
+      const errorText = await groqResponse.text();
+      console.error('Groq API error response:', errorText);
       throw new Error(`Groq API error: ${groqResponse.status}`);
     }
 
     const groqData = await groqResponse.json();
+    console.log('Groq API response:', groqData);
+    
     const decision = groqData.choices[0].message.content.toLowerCase().includes('true');
-
-    console.log('Vector search decision:', decision);
+    console.log('Final vector search decision:', decision);
 
     return new Response(
       JSON.stringify({ 
@@ -119,10 +137,13 @@ Should we search long-term memory for relevant past interactions? Reply with jus
 
   } catch (error) {
     console.error('Error in vector-checker function:', error);
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
-        stack: error.stack 
+        stack: error instanceof Error ? error.stack : undefined
       }),
       { 
         status: 500,
@@ -131,4 +152,3 @@ Should we search long-term memory for relevant past interactions? Reply with jus
     );
   }
 });
-
