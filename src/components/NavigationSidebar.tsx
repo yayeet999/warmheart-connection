@@ -1,5 +1,5 @@
 
-import { Home, MessageSquare, Brain, Settings, HelpCircle, LogOut, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Home, MessageSquare, Settings, HelpCircle, LogOut, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -43,7 +43,6 @@ const NavigationSidebar = () => {
   const navItems = [
     { icon: Home, path: "/dashboard", label: "Dashboard" },
     { icon: MessageSquare, path: "/chat", label: "Chat" },
-    { icon: Brain, path: "/memories", label: "Memories" },
     { icon: Settings, path: "/settings", label: "Settings" },
     { icon: HelpCircle, path: "/support", label: "Support" },
   ];
