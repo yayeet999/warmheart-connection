@@ -79,6 +79,8 @@ const ChatInterface = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToBottom = useRef(true);
   const navigate = useNavigate();
 
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
@@ -240,19 +242,37 @@ const ChatInterface = () => {
 
     setIsLoadingMore(true);
     const nextPage = page + 1;
+    
+    // Store current scroll height
+    const scrollContainer = chatContainerRef.current;
+    const oldScrollHeight = scrollContainer?.scrollHeight || 0;
+    const oldScrollTop = scrollContainer?.scrollTop || 0;
+    
     const data = await fetchMessages(nextPage);
     
     if (data?.messages) {
+      shouldScrollToBottom.current = false;
       setMessages(prev => [...data.messages, ...prev]);
       setHasMore(data.hasMore);
       setPage(nextPage);
+      
+      // After render, adjust scroll position
+      requestAnimationFrame(() => {
+        if (scrollContainer) {
+          const newScrollHeight = scrollContainer.scrollHeight;
+          const newPosition = newScrollHeight - oldScrollHeight + oldScrollTop;
+          scrollContainer.scrollTop = newPosition;
+        }
+      });
     }
     
     setIsLoadingMore(false);
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollToBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   useEffect(() => {
@@ -496,6 +516,7 @@ const ChatInterface = () => {
         "sm:pl-[100px]"
       )}>
         <div 
+          ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
           onScroll={(e) => {
             const target = e.currentTarget;
