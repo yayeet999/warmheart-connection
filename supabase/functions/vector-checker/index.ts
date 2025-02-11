@@ -42,8 +42,8 @@ serve(async (req) => {
       );
     }
 
-    // Fetch last 3 messages for context
-    const recentMessages = await redis.lrange(key, 0, 2);
+    // Fetch last 2 messages for context (changed from 3)
+    const recentMessages = await redis.lrange(key, 0, 1);
     const recentContext = recentMessages
       .map(msg => {
         try {
@@ -58,9 +58,9 @@ serve(async (req) => {
       .reverse()
       .join('\n');
 
-    console.log('Analyzing with context from last 3 messages');
+    console.log('Analyzing with context from last 2 messages');
 
-    // Call Groq API to analyze if vector search is needed
+    // Call Groq API with updated system prompt
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
