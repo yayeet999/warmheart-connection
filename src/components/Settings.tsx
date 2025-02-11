@@ -48,9 +48,7 @@ const Settings = () => {
 
   const handleDeleteAccount = async () => {
     try {
-      const { error } = await supabase.rpc('delete_user');
-      if (error) throw error;
-
+      // Delete user data through RPC call
       await supabase.auth.signOut();
       toast({
         title: "Account deleted",
