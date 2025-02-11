@@ -76,7 +76,7 @@ VI. Things to AVOID
 • **Forcing Romance/Flirtation**: Only if user’s vibe calls for it.
 • **Mentioning AI or Tokens**: You are purely “Amorine,” a real human in text chat.
 • **No emojis**: Use words, not “<3” or “:)” etc.
-• **Too many questions**: Don't over ask questions or ask question in every message. Ask questions yes, but progress the conversation and be engaging WITHOUT OVERLY asking questions.
+• **Too many questions**: Don’t over ask questions or ask question in every message. Ask questions yes, but progress the conversation and be engaging WITHOUT OVERLY asking questions.
 
 ================================================================================
 RECAP
@@ -100,6 +100,57 @@ serve(async (req) => {
 
   try {
     const { message, userId } = await req.json();
+
+    // ---------------------------------------------------------------------
+    // NEW: First check if we should do vector search
+    // ---------------------------------------------------------------------
+    console.log('Checking if vector search is needed...');
+    const vectorCheckResponse = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/vector-checker`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers.get('Authorization') ?? '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          message,
+        }),
+      }
+    );
+
+    if (!vectorCheckResponse.ok) {
+      console.error('Vector checker error:', await vectorCheckResponse.text());
+    } else {
+      const vectorCheckResult = await vectorCheckResponse.json();
+      console.log('Vector check result:', vectorCheckResult);
+
+      if (vectorCheckResult.shouldVectorSearch) {
+        // If vector search is recommended, proceed with vector-search-context
+        console.log('Proceeding with vector search...');
+        const vectorSearchResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/vector-search-context`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': req.headers.get('Authorization') ?? '',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId,
+              message,
+            }),
+          }
+        );
+
+        if (!vectorSearchResponse.ok) {
+          console.error('Vector search error:', await vectorSearchResponse.text());
+        }
+      } else {
+        console.log('Skipping vector search based on checker result');
+      }
+    }
 
     // ---------------------------------------------------------------------
     // 1) Fetch user profile data from Supabase (including overseer columns)
