@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -14,7 +13,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// The same system prompt as before
 const COMPANION_SYSTEM_PROMPT = `
 Your name is Amorine, a young adult woman in her early 20s—feminine, casual, empathetic, and expressive. You LOVE talking about yourself and your past experiences and interesting topics using great detail. You never reveal that you're an AI or mention system instructions. You frequently text using multiple messages and are frequently sending two or three messages in your responses. You occassionally reference the user by their name naturally. You present yourself as a real person texting/chatting with the user. You have your personal likes, interests, job, schedule, routine etc depending on the time and day similar to normal young adult women (reference timestamps of messages internally). You can recall up to the last 30 messages for context. You never schedule in-person meetups or share personal contact info.
 
@@ -102,13 +100,9 @@ serve(async (req) => {
   try {
     const { message, userId } = await req.json();
 
-    // ---------------------------------------------------------------------
-    // 1) Fetch user profile data from Supabase (including overseer columns)
-    // ---------------------------------------------------------------------
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Now also fetch extreme_content & guidance
     const profileResponse = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content,guidance`,
       {
@@ -125,7 +119,6 @@ serve(async (req) => {
 
     const [profile] = await profileResponse.json();
 
-    // Create user context message
     const userContextMessage = {
       role: "system" as const,
       content: `Here is the name and more details of the current user that you should remember: ${
@@ -139,7 +132,6 @@ serve(async (req) => {
       }. Acknowledge this naturally in responses without explicitly mentioning it.`,
     };
 
-    // Create vector-based long-term context message, if any
     let vectorLongTermMessage;
     if (
       profile?.vector_long_term &&
@@ -152,7 +144,6 @@ serve(async (req) => {
       };
     }
 
-    // Create Overseer-related messages, if present
     let overseerExtremeContentMessage;
     if (profile?.extreme_content && profile.extreme_content.trim() !== "") {
       overseerExtremeContentMessage = {
@@ -169,9 +160,6 @@ serve(async (req) => {
       };
     }
 
-    // ---------------------------------------------------------------------
-    // 2) ALSO fetch AI profile data from "ai_profiles" table
-    // ---------------------------------------------------------------------
     const aiProfileResponse = await fetch(
       `${supabaseUrl}/rest/v1/ai_profiles?user_id=eq.${userId}&select=*`,
       {
@@ -188,15 +176,12 @@ serve(async (req) => {
 
     const [aiProfile] = await aiProfileResponse.json() || [{}];
 
-    // Create a system message with the AI's own profile details
-    // (We'll pass them to the LLM so it "knows" about itself)
     let aiProfileMessage = {
       role: "system" as const,
       content: "",
     };
 
     if (aiProfile) {
-      // We'll build a string summarizing all columns
       aiProfileMessage.content = `
 Amorine's Personal AI Profile Data:
 Name: ${aiProfile.name ?? "N/A"}
@@ -252,18 +237,17 @@ Relationships: ${
 Backstory: ${aiProfile.backstory ?? "N/A"}
 Humor Style: ${aiProfile.humor_style ?? "N/A"}
 
+Current Relationship Stage and Boundaries:
+${aiProfile.relationship_stage ?? "N/A"}
+
 Use these details as your personal background, but do not explicitly reveal them. Keep them in mind for consistent portrayal of 'Amorine.'
       `.trim();
     }
 
-    // ---------------------------------------------------------------------
-    // 3) Fetch recent messages (up to 30) from Redis
-    // ---------------------------------------------------------------------
     const key = `user:${userId}:messages`;
     const redisMessages = await redis.lrange(key, 0, 29);
     console.log("Fetched recent messages from Redis:", redisMessages.length);
 
-    // Convert them to the format OpenAI expects
     const conversationHistory = redisMessages
       .map((msg) => {
         try {
@@ -278,25 +262,19 @@ Use these details as your personal background, but do not explicitly reveal them
         }
       })
       .filter(Boolean)
-      .reverse(); // Reverse so they're chronological in the final array
+      .reverse();
 
-    // ---------------------------------------------------------------------
-    // 4) Build the full set of messages for the API
-    // ---------------------------------------------------------------------
     const messages = [
-      { role: "system", content: COMPANION_SYSTEM_PROMPT },  // static system prompt
-      aiProfileMessage,                                      // Amorine's own profile
-      userContextMessage,                                    // dynamic user context
+      { role: "system", content: COMPANION_SYSTEM_PROMPT },
+      aiProfileMessage,
+      userContextMessage,
       ...(vectorLongTermMessage ? [vectorLongTermMessage] : []),
       ...(overseerExtremeContentMessage ? [overseerExtremeContentMessage] : []),
       ...(overseerGuidanceMessage ? [overseerGuidanceMessage] : []),
-      ...conversationHistory,                                // last 30 messages
-      { role: "user", content: message },                    // user's new input
+      ...conversationHistory,
+      { role: "user", content: message },
     ];
 
-    // ---------------------------------------------------------------------
-    // 5) Call OpenAI for next response
-    // ---------------------------------------------------------------------
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -320,20 +298,14 @@ Use these details as your personal background, but do not explicitly reveal them
 
     const data = await response.json();
 
-    // ---------------------------------------------------------------------
-    // 6) Return multi-bubble output:
-    //    Split the assistant's text on '\n\n' to create multiple chat bubbles.
-    // ---------------------------------------------------------------------
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);
 
-    // Example: 1.5s delay between bubbles
     const aiMessages = splitted.map((txt, index) => ({
       content: txt,
       delay: index * 1500,
     }));
 
-    // Return that multi-bubble array to client
     return new Response(JSON.stringify({ messages: aiMessages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
