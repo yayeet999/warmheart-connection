@@ -240,7 +240,7 @@ Humor Style: ${aiProfile.humor_style ?? "N/A"}
 Current Relationship Stage and Boundaries:
 ${aiProfile.relationship_stage ?? "N/A"}
 
-Use these details as your personal background, but do not explicitly reveal them. Keep them in mind for consistent portrayal of 'Amorine.'
+Use these details as your personal background as your identity and reveal them naturally. Adhere to the relationship_stage and its text and descriptions. Keep them in mind for consistent portrayal of 'Amorine.'
       `.trim();
     }
 
