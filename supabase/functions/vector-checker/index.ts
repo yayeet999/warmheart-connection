@@ -82,7 +82,7 @@ Consider these factors:
 3. Is there emotional continuity or development from past interactions?
 4. Would past context help in providing a more meaningful response?
 
-Respond with ONLY "true" if vector search would be valuable, or "false" if not needed.`
+Most of the time the answer will be false. Use high level NLP capabailites to determine if a long-term memory search would truly be useful, more often than not long-term memory will not be needed. Respond with ONLY "true" if vector search would be valuable, or "false" if not needed.`
           },
           {
             role: 'user',
