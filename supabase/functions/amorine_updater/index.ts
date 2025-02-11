@@ -113,14 +113,14 @@ DO NOT produce anything else besides one valid JSON object.
     throw new Error("No OPENAI_API_KEY found in environment");
   }
 
-  const llamaResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+  const llamaResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${openAIApiKey}`,
+      "Authorization": `Bearer ${Deno.env.get("GROQ_API_KEY")}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-3.5-turbo", // or your llama-based endpoint 
+      model: "llama-3.1-8b-instant",
       temperature: 0.7,
       max_tokens: 600,
       messages: [
