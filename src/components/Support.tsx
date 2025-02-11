@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
@@ -11,20 +10,16 @@ interface FAQItem {
 
 const faqs: FAQItem[] = [
   {
-    question: "How do I get started with Amorine?",
-    answer: "Getting started is easy! After signing up, you'll be guided through our onboarding process where you can set up your profile and preferences. Once complete, you can immediately begin exploring all features of the app."
-  },
-  {
     question: "What makes Amorine different from other AI platforms?",
     answer: "Amorine combines powerful AI capabilities with a uniquely personal touch. Our platform learns from your interactions to provide more tailored and meaningful responses over time, while maintaining a warm and engaging conversation style."
   },
   {
     question: "Is my data secure with Amorine?",
-    answer: "Yes, absolutely! We take data security very seriously. All conversations are encrypted, and we never share your personal information with third parties. You have complete control over your data and can delete it at any time through your settings."
+    answer: "Yes, absolutely! We take data security very seriously. All conversations are encrypted, and we never share your personal information with third parties. Your conversations and personal information remain strictly confidential and are never used for any purpose other than improving your direct experience with Amorine."
   },
   {
     question: "Can I customize my Amorine experience?",
-    answer: "Yes! You can personalize various aspects of your experience through the settings panel, including conversation style, notification preferences, and UI themes. We're constantly adding new customization options based on user feedback."
+    answer: "Yes! Amorine learns and adapts through your conversations and interactions. The more you engage with Amorine, the better it understands your communication style, preferences, and needs, creating a truly personalized experience that evolves naturally over time."
   },
   {
     question: "What if I need help or encounter an issue?",
