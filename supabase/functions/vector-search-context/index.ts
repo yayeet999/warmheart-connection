@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -81,44 +82,15 @@ serve(async (req) => {
       );
     }
 
-    const recentMessagesRaw = await redis.lrange(key, 0, 4);
-    console.log('Recent messages retrieved:', recentMessagesRaw.length);
-
-    const parsedMessages = recentMessagesRaw
-      .map(msg => {
-        try {
-          return typeof msg === 'string' ? JSON.parse(msg) : msg;
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean)
-      .reverse();
-
-    const recentContents = parsedMessages.map((m: any) => m.content);
-    const messagesToEmbed = [...recentContents, message];
-
-    console.log('Generating embeddings for messages...');
-    const embeddingsArray = await Promise.all(
-      messagesToEmbed.map(txt => generateEmbeddings(txt))
-    );
-
-    // Calculate average vector
-    const dim = embeddingsArray[0]?.length || 0;
-    const sumVector = new Array(dim).fill(0);
-    for (const emb of embeddingsArray) {
-      for (let i = 0; i < dim; i++) {
-        sumVector[i] += emb[i];
-      }
-    }
-    const queryVector = sumVector.map(val => val / embeddingsArray.length);
+    console.log('Generating embedding for current message...');
+    const queryVector = await generateEmbeddings(message);
 
     // Vector search with proper filtering
     const searchResults = await vectorIndex.query({
       vector: queryVector,
       topK: 2,
       includeMetadata: true,
-      filter: `user_id = '${userId}'`, // Correct filter syntax
+      filter: `user_id = '${userId}'`,
     });
 
     console.log('Search response:', JSON.stringify(searchResults));
@@ -177,3 +149,4 @@ serve(async (req) => {
     );
   }
 });
+
