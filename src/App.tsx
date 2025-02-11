@@ -11,7 +11,6 @@ import LandingPage from "./components/LandingPage";
 import ChatInterface from "./components/ChatInterface";
 import NavigationSidebar from "./components/NavigationSidebar";
 import Dashboard from "./components/Dashboard";
-import Memories from "./components/Memories";
 import Settings from "./components/Settings";
 import Support from "./components/Support";
 import Auth from "./pages/Auth";
@@ -48,15 +47,6 @@ const App = () => {
                     <ProtectedRoute>
                       <NavigationSidebar />
                       <ChatInterface />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/memories"
-                  element={
-                    <ProtectedRoute>
-                      <NavigationSidebar />
-                      <Memories />
                     </ProtectedRoute>
                   }
                 />
