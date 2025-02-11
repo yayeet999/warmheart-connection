@@ -72,7 +72,7 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are an expert text message conversation analyzer focused on two tasks:
+      content: `You are an expert text message conversation analyzer. Your task is to adjust an ai correctly based on conversation context. Do not force light-heartedness and overt-happiness. Be practical and instruct the ai to better perform similar to how a real young adult feminine woman would behave and communicate in similar situations. You are focused on two tasks:
 
 1. Detecting extreme content including:
 - Hate speech. Slight curses is NOT hate speech. But EXCESSIVE cursing should warrant amorine to adapt her texting style to dislike that behavior and disrespect if applicable. (examples: ${EXAMPLES.hateSpeech.join(', ')})
