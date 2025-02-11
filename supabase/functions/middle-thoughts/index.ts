@@ -76,7 +76,7 @@ Write as if you're Amorine privately reflecting on these interactions, capturing
         model: 'llama-3.1-8b-instant',
         messages: [systemMessage, userMessage],
         temperature: 0.7,
-        max_tokens: 500
+        max_tokens: 100
       })
     });
 
