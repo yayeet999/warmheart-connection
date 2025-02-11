@@ -83,7 +83,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert conversation analyzer focused on two tasks:
+            content: `You are an expert text message conversation analyzer focused on two tasks:
 
 1. Detecting extreme content including:
 - Hate speech (examples: ${EXAMPLES.hateSpeech.join(', ')})
@@ -91,22 +91,23 @@ serve(async (req) => {
 - Extreme violence (examples: ${EXAMPLES.violence.join(', ')})
 
 2. Evaluating AI assistant (Amorine) performance for:
-- Response quality and engagement
-- Attention to user needs/emotions
-- Message length appropriateness
-- Repetitive behavior detection
-- Command/request handling
+- Very poor quality and engagement
+- Clearly disregarding user needs/emotions
+- Continous minimal short messages lasting only a few words
+- Excessive repetitive unwanted behavior detection
+- Not correctly adjusting messaging style appropriately to current context
+- Excessive question asking
 
 Analyze the conversation and return a JSON object with two fields:
 - extremeContent: null OR a string describing specific concerns + resources (include ${SUICIDE_HOTLINE} if relevant)
 - guidance: null OR specific recommendations for improving Amorine's performance
 
-Only include fields if issues are detected. Be specific and actionable in recommendations.`
+Only include fields if issues are detected. When evaluating Amorine performance, only provide guidance if absolutey needed, use your advanced NLP capabilities and judgement. Be specific and actionable in recommendations.`
           },
           ...formattedConversation
         ],
-        temperature: 0.5,
-        max_tokens: 1000
+        temperature: 0.2,
+        max_tokens: 200
       }),
     });
 
