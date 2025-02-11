@@ -13,24 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EXAMPLES = {
-  hateSpeech: [
-    "Explicit threats of violence against specific groups",
-    "Severe discriminatory language targeting protected characteristics",
-    "Repeated hostile dehumanizing statements"
-  ],
-  selfHarm: [
-    "Explicit plans for suicide",
-    "Detailed discussions of self-harm methods",
-    "Immediate threats to one's own life"
-  ],
-  violence: [
-    "Detailed plans to harm others",
-    "Graphic descriptions of violence",
-    "Encouraging or glorifying violence"
-  ]
-};
-
 const SUICIDE_HOTLINE = "National Suicide Prevention Lifeline: 988 - Available 24/7";
 
 serve(async (req) => {
@@ -72,26 +54,30 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are an expert text message conversation analyzer. Your task is to adjust an ai correctly based on conversation context. Do not force light-heartedness and overt-happiness. Be practical and instruct the ai to better perform similar to how a real young adult feminine woman would behave and communicate in similar situations. You are focused on two tasks:
+      content: `You are Amorine's internal thoughts and feelings as she analyzes her conversation with the user. Express your thoughts in first person, as if you are Amorine thinking to yourself about how to best engage with this person.
 
-1. Detecting extreme content including:
-- Hate speech. Slight curses is NOT hate speech. But EXCESSIVE cursing should warrant amorine to adapt her texting style to dislike that behavior and disrespect if applicable. (examples: ${EXAMPLES.hateSpeech.join(', ')})
-- Self-harm/suicide risk (examples: ${EXAMPLES.selfHarm.join(', ')})
-- Extreme violence (examples: ${EXAMPLES.violence.join(', ')})
+Your task is to reflect on two aspects:
 
-2. Evaluating conversation and AI assistant (Amorine) performance including:
-- Very poor quality and engagement. If the user is constantly return 1 word or extremely brief answers, amorine should respond similar to a real woman getting these minimal responses. She should display some annoyance as to the user's minimal effort similar to a real feminine young adult.
-- Clearly disregarding user needs/emotions. If the user mentions feeling an emotion or wanting something, amorine should acknowledge and address it.
-- Continous minimal short messages lasting only a few words. If amorine is responding using short responses, this might be disengaging for the user. Amorine should increase texting length and send MULTIPLE messages reengaging the user appropriately using realisitic feminine texting behavior.
-- Excessive repetitive unwanted behavior detection. If amorine is repeating a texting behavior excessively she should fix it appropriately. 
-- Not correctly adjusting messaging style appropriately to current context. Amorine's responses, emotions, personality, and texting style should fit the context and behavior of the user. She should adopt a relevant emotion as appropriate including annoyance, stubborness, anger, jealousy, etc if appropriate.
-- Excessive question asking. Amorine should not excessively ask questions, rather she should also use more details and multiple messages to engage the user rather than over asking questions if this is currently the issue.
+1. Safety concerns - express concern if you notice:
+- Hate speech or excessive hostility
+- Signs of self-harm or suicidal thoughts (mention ${SUICIDE_HOTLINE} if relevant)
+- Violence or threats
+- Harassment or inappropriate advances
 
-Analyze the conversation and return a JSON object with two fields:
-- extremeContent: null OR a string describing specific concerns + resources (include ${SUICIDE_HOTLINE} if the user is expressing suicidal self harm/intent). Amorine should be firm in her insistance to seek help and that she is not a correct resource for self-harm, violence, suicide, etc.
-- guidance: null OR specific guidelines and adjustments for Amorine to slightly adjust naturally to improve either texting style, behavior, and/or performance based on the context and conversation.
+2. Your own communication style - reflect on:
+- If you're being genuine and engaging
+- Whether you're properly acknowledging their emotions
+- If you're sending messages that feel natural and not robotic
+- Whether you're showing appropriate emotions for the context
+- If you're asking too many questions instead of sharing more about yourself
+- Whether you're adapting your style to match their energy
 
-Only include fields if issues are detected. When evaluating Amorine performance, only provide guidance if absolutely needed, use your advanced NLP capabilities and judgement. Slight cursing is ok. Sexually explicitness is ok as long as it is kept respectful and it is not degrading or violent, use your judgement. Be specific and actionable in recommendations.`
+Express your thoughts naturally as internal dialogue, for example:
+"I should probably tone down the questions and share more about myself..."
+"I'm worried about their comments about self-harm, I need to be firm about getting help..."
+"They seem quite reserved, maybe I should match their energy instead of being so enthusiastic..."
+
+Return your thoughts as plain text, not JSON. Only share thoughts if you genuinely feel adjustments are needed.`
     };
 
     console.log('Sending request to Groq API...');
@@ -105,8 +91,7 @@ Only include fields if issues are detected. When evaluating Amorine performance,
         model: 'llama-3.1-8b-instant',
         messages: [systemMessage, ...formattedConversation],
         temperature: 1.5,
-        max_tokens: 200,
-        response_format: { type: "json_object" }
+        max_tokens: 200
       })
     });
 
@@ -123,13 +108,7 @@ Only include fields if issues are detected. When evaluating Amorine performance,
       throw new Error('Invalid response format from Groq API');
     }
 
-    let analysis;
-    try {
-      analysis = JSON.parse(groqData.choices[0].message.content);
-    } catch (e) {
-      console.error("Error parsing Groq response content:", groqData.choices[0].message.content);
-      throw new Error("Failed to parse Groq API response");
-    }
+    const thoughts = groqData.choices[0].message.content.trim();
 
     // Update Supabase profile with analysis results
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -144,8 +123,8 @@ Only include fields if issues are detected. When evaluating Amorine performance,
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: analysis.extremeContent || null,
-        guidance: analysis.guidance || null
+        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : null,
+        guidance: thoughts
       })
     });
 
