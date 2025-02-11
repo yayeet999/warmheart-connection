@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -196,33 +197,12 @@ Her goal is maintaining a deep, meaningful connection while continuing to grow t
 `.trim(),
 };
 
-// New: Define stage progression order
+// Define stage progression order
 const STAGE_PROGRESSION = [
   'introductory_stage',
   'growing_attraction',
   'newly_dating',
   'stable_relationship'
-] as const;
-
-// New: Define allowed profile columns for updates
-const ALLOWED_PROFILE_COLUMNS = [
-  'occupation',
-  'location',
-  'personality_traits',
-  'interests',
-  'values',
-  'musical_taste',
-  'favorite_books',
-  'favorite_movies',
-  'daily_schedule',
-  'life_goals',
-  'current_challenges',
-  'relationships',
-  'emotional_state',
-  'backstory',
-  'humor_style',
-  'adaptability_score',
-  'trust_level'
 ] as const;
 
 // -------------------- Helper Functions --------------------
@@ -249,15 +229,15 @@ function isValidStageProgression(currentStage: string, newStage: string): boolea
   return newIndex === currentIndex + 1;
 }
 
-// -------------------- Llama or GPT Model Prompt Helper --------------------
-async function analyzeLast100MessagesAndUpdateProfile(
+// -------------------- Main Analysis Function --------------------
+async function analyzeLast100MessagesAndUpdateStage(
   userId: string,
   last100Messages: any[],
 ) {
   // 1) Fetch current relationship_stage from ai_profiles
   const { data: aiProfileData, error } = await supabase
     .from("ai_profiles")
-    .select("*")
+    .select("relationship_stage")
     .eq("user_id", userId)
     .single();
 
@@ -293,19 +273,16 @@ We have 100 recent messages of conversation between user and Amorine below.
 
 Based on how the conversation is going, decide if Amorine is ready to progress to the NEXT IMMEDIATE stage. 
 If yes, pick ONLY the next stage in sequence. If not, we stay in the same stage. 
-Then we also slightly (about 5% intensity) modify some of Amorine's other profile columns to reflect small life changes. 
-The changes should be realistic and minimal, only small aspects. 
 
-**We only want a single JSON in the final answer** with keys: 
+**We only want a single JSON in the final answer** with key: 
 "newStage" - the chosen stage name (must be current stage or next immediate stage)
-"modifiedProfile" - an object with any updated columns (only allowed columns: ${ALLOWED_PROFILE_COLUMNS.join(', ')})
 
 Here is the last 100 messages:
 ----------------
 ${conversationText}
 ----------------
 
-Now produce your final JSON with newStage and modifiedProfile. 
+Now produce your final JSON with newStage.
 DO NOT produce anything else besides one valid JSON object.
 `.trim();
 
@@ -343,10 +320,10 @@ DO NOT produce anything else besides one valid JSON object.
     throw new Error("LLM did not produce valid JSON.");
   }
 
-  const { newStage, modifiedProfile } = parsed;
+  const { newStage } = parsed;
 
   // 6) Validate stage progression
-  let finalStageKey = currentStageKey; // Now using the extracted key
+  let finalStageKey = currentStageKey;
   if (newStage && 
       STAGE_PROGRESSION.includes(newStage as any) && 
       isValidStageProgression(currentStageKey, newStage)) {
@@ -359,26 +336,10 @@ DO NOT produce anything else besides one valid JSON object.
   // Always use predefined stage text
   const finalStageText = RELATIONSHIP_STAGES[finalStageKey as keyof typeof RELATIONSHIP_STAGES];
 
-  // 7) Prepare the DB update object with validated columns
-  const updateObj: Record<string, any> = {
-    relationship_stage: finalStageText,
-  };
-
-  // Only include allowed profile columns
-  if (modifiedProfile && typeof modifiedProfile === "object") {
-    for (const [col, val] of Object.entries(modifiedProfile)) {
-      if (ALLOWED_PROFILE_COLUMNS.includes(col as any)) {
-        updateObj[col] = val;
-      } else {
-        console.log(`Skipping unauthorized column update attempt: ${col}`);
-      }
-    }
-  }
-
-  // 8) Perform the update in supabase
+  // 7) Perform the update in supabase
   const { error: updateError } = await supabase
     .from("ai_profiles")
-    .update(updateObj)
+    .update({ relationship_stage: finalStageText })
     .eq("user_id", userId);
 
   if (updateError) {
@@ -386,7 +347,6 @@ DO NOT produce anything else besides one valid JSON object.
   }
 
   console.log("Successfully updated relationship_stage to", finalStageKey);
-  console.log("Modified columns:", updateObj);
 }
 
 // -------------------- HTTP Handler --------------------
@@ -423,7 +383,7 @@ serve(async (req: Request) => {
     }
 
     // 2) Analyze with LLM and update
-    await analyzeLast100MessagesAndUpdateProfile(userId, last100Parsed);
+    await analyzeLast100MessagesAndUpdateStage(userId, last100Parsed);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -438,3 +398,4 @@ serve(async (req: Request) => {
     );
   }
 });
+
