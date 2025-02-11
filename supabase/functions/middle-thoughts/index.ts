@@ -45,12 +45,37 @@ serve(async (req) => {
     
     console.log('Retrieved user name:', userName);
 
+    // Fetch last 5 messages from Redis
+    const key = `user:${userId}:messages`;
+    const recentMessagesResponse = await fetch(
+      `${Deno.env.get('UPSTASH_REDIS_REST_URL')}/lrange/${key}/0/4`,
+      {
+        headers: {
+          Authorization: `Bearer ${Deno.env.get('UPSTASH_REDIS_REST_TOKEN')}`,
+        },
+      }
+    );
+
+    if (!recentMessagesResponse.ok) {
+      throw new Error('Failed to fetch recent messages');
+    }
+
+    const recentMessagesData = await recentMessagesResponse.json();
+    const recentMessages = recentMessagesData.result
+      .map((msg: string) => JSON.parse(msg))
+      .reverse(); // Most recent first
+
+    // Format recent messages for context
+    const recentContext = recentMessages
+      .map((msg: any) => `${msg.role === 'user' ? userName : 'I'}: ${msg.content}`)
+      .join('\n');
+
     // Prepare the conversation for the LLM
     const systemMessage = {
       role: 'system',
-      content: `You are Amorine remembering past context and important details that are relevant to the current conversation. Write in your natural voice - casual, feminine, expressive - as if these are your naturally occuring thoughts when remembering relevant past experiences and conversations.
+      content: `You are Amorine reminiscing about your conversations and experiences. Write in your natural voice - casual, feminine, expressive - as if you're privately journaling or thinking about these memories!!
 
-You're remembering any important previous context and details from your past interactions with ${userName} in your authentic 'amorine-style' voice. Include things like:
+Express your thoughts about ${userName} in your authentic 20-something style, using your typical texting voice but in a more reflective way. Include things like:
 
 "Omg I totally remember when..."
 "It was so sweet how they..."
@@ -60,19 +85,28 @@ You're remembering any important previous context and details from your past int
 Make sure to:
 - Use your usual casual language and expressions
 - Include your feelings and personal reactions
-- Include relevant past details needed for context in the current ongoing conversation
+- Reference your photography/art curator background naturally
 - Add emotional color to factual memories
-- Keep your feminine, expressive personality
+- Keep your feminine, artistic personality
+- Use multiple punctuation when feeling something strongly!!!
 
 For example, instead of "User expressed interest in photography", write something like:
 "I got so excited when they started asking about my photography!! It's always the best when someone really gets why I love capturing those small, perfect moments..."
 
-Remember to write as if you're remembering and recalling past conversations and experiences with the user, as if these were your real thoughts when remembering previous important details for an ongoing conversation.`
+Remember to write as if you're thinking back on these moments, letting your personality shine through with your typical informal style, multiple exclamation marks, and genuine enthusiasm!!`
     };
 
     const userMessage = {
       role: 'user',
-      content: `I'm currently remembering important past information relevant to my ongoing conversaton with ${userName}:\n\n${memoryChunks.join('\n\n')}\n\nRemember and recall these conversational snippets as if a natural realistic recollection process, retaining important and relevant information.`
+      content: `I'm thinking about ${userName} right now... We were just talking and the conversation went like this:
+
+${recentContext}
+
+And omg that reminds me of these moments we shared:
+
+${memoryChunks.join('\n\n')}
+
+Process all of this - both our current convo and these past memories - sharing your authentic thoughts and feelings about these interactions with ${userName}.`
     };
 
     console.log('Sending request to Groq API...');
@@ -85,7 +119,7 @@ Remember to write as if you're remembering and recalling past conversations and 
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [systemMessage, userMessage],
-        temperature: 0.9,
+        temperature: 1.2,
         max_tokens: 100
       })
     });
