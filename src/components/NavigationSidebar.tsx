@@ -54,52 +54,72 @@ const NavigationSidebar = () => {
       {isMobile && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="fixed left-4 top-4 z-50 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg text-gray-500 hover:text-coral transition-all duration-300 active:scale-95"
+          className={cn(
+            "fixed z-50 rounded-full transition-all duration-300",
+            "backdrop-blur-md bg-white/90 shadow-lg active:scale-95",
+            "p-3 top-4 left-4",
+            isExpanded ? "translate-x-[220px]" : "translate-x-0"
+          )}
           aria-label="Toggle menu"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5 text-gray-600" />
         </button>
       )}
 
       {/* Sidebar */}
       <nav
         className={cn(
-          "fixed left-0 top-0 h-full bg-white/90 backdrop-blur-sm shadow-lg flex flex-col items-center py-8 transition-all duration-300 ease-in-out z-40",
-          isExpanded ? "w-[100px] translate-x-0" : "w-[100px] -translate-x-full",
-          "touch-none" // Prevents iOS overscroll
+          "fixed left-0 top-0 h-full bg-white/95 backdrop-blur-md shadow-lg",
+          "flex flex-col items-start py-8 px-4 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40",
+          "touch-none", // Prevents iOS overscroll
+          isMobile ? (
+            isExpanded ? "w-[250px] translate-x-0" : "w-[250px] -translate-x-full"
+          ) : (
+            "w-[100px] translate-x-0"
+          )
         )}
       >
-        <div className="flex-1 flex flex-col items-center space-y-8 mt-16">
+        <div className="flex-1 flex flex-col w-full space-y-1 mt-16">
           {navItems.map(({ icon: Icon, path, label }) => (
             <Link
               key={path}
               to={path}
-              className={`p-3 rounded-xl transition-all duration-300 group ${
-                location.pathname === path
-                  ? "bg-gradient-primary text-white shadow-lg"
-                  : "text-gray-500 hover:text-coral active:scale-95"
-              }`}
-              title={label}
               onClick={() => isMobile && setIsExpanded(false)}
+              className={cn(
+                "flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200 group w-full",
+                location.pathname === path
+                  ? "bg-gradient-primary text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100/80",
+                "active:scale-[0.98]"
+              )}
             >
-              <Icon className="w-6 h-6" />
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {isMobile && (
+                <span className="text-sm font-medium">{label}</span>
+              )}
             </Link>
           ))}
         </div>
         
         <button
           onClick={handleLogout}
-          className="p-3 rounded-xl text-gray-500 hover:text-coral transition-all duration-300 mt-8 active:scale-95"
-          title="Logout"
+          className={cn(
+            "flex items-center gap-3 p-3.5 rounded-xl w-full",
+            "text-gray-600 hover:bg-gray-100/80 transition-all duration-200",
+            "active:scale-[0.98]"
+          )}
         >
-          <LogOut className="w-6 h-6" />
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {isMobile && (
+            <span className="text-sm font-medium">Logout</span>
+          )}
         </button>
       </nav>
 
       {/* Overlay for mobile */}
       {isMobile && isExpanded && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 transition-all duration-300"
+          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-30 transition-all duration-300"
           onClick={() => setIsExpanded(false)}
         />
       )}
