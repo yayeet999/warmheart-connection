@@ -102,14 +102,14 @@ serve(async (req) => {
     const { message, userId } = await req.json();
 
     // ---------------------------------------------------------------------
-    // 1) Fetch user profile data from Supabase (including vector_long_term)
+    // 1) Fetch user profile data from Supabase (including overseer columns)
     // ---------------------------------------------------------------------
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Fetch "profiles" table
+    // Now also fetch extreme_content & guidance
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary,vector_long_term`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary,vector_long_term,extreme_content,guidance`,
       {
         headers: {
           Authorization: `Bearer ${supabaseKey}`,
@@ -157,6 +157,23 @@ serve(async (req) => {
       vectorLongTermMessage = {
         role: "system" as const,
         content: `Additional relevant older context:\n\n${profile.vector_long_term}`,
+      };
+    }
+
+    // Create Overseer-related messages, if present
+    let overseerExtremeContentMessage;
+    if (profile?.extreme_content && profile.extreme_content.trim() !== "") {
+      overseerExtremeContentMessage = {
+        role: "system" as const,
+        content: `Overseer Alert: ${profile.extreme_content}. Keep this in mind and respond carefully.`,
+      };
+    }
+
+    let overseerGuidanceMessage;
+    if (profile?.guidance && profile.guidance.trim() !== "") {
+      overseerGuidanceMessage = {
+        role: "system" as const,
+        content: `Overseer Guidance: ${profile.guidance}. Adjust your style/approach accordingly.`,
       };
     }
 
@@ -284,13 +301,15 @@ Use these details as your personal background, but do not explicitly reveal them
     // 4) Build the full set of messages for the API
     // ---------------------------------------------------------------------
     const messages = [
-      { role: "system", content: COMPANION_SYSTEM_PROMPT }, // static system prompt
-      aiProfileMessage, // amorine's own profile
-      userContextMessage, // dynamic user context
-      ...(mediumTermMessage ? [mediumTermMessage] : []), // optional medium-term summary
-      ...(vectorLongTermMessage ? [vectorLongTermMessage] : []), // optional vector-based long-term memory
-      ...conversationHistory, // last 30 messages
-      { role: "user", content: message }, // user's new input
+      { role: "system", content: COMPANION_SYSTEM_PROMPT },  // static system prompt
+      aiProfileMessage,                                      // Amorine's own profile
+      userContextMessage,                                    // dynamic user context
+      ...(mediumTermMessage ? [mediumTermMessage] : []),     // optional medium-term summary
+      ...(vectorLongTermMessage ? [vectorLongTermMessage] : []), // optional vector-based memory
+      ...(overseerExtremeContentMessage ? [overseerExtremeContentMessage] : []),
+      ...(overseerGuidanceMessage ? [overseerGuidanceMessage] : []),
+      ...conversationHistory,                                // last 30 messages
+      { role: "user", content: message },                    // user's new input
     ];
 
     // ---------------------------------------------------------------------
