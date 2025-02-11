@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import Header from "./Header";
 import { Card } from "@/components/ui/card";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-cream relative overflow-hidden">
@@ -24,7 +26,11 @@ const LandingPage = () => {
                 <img
                   src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                   alt="Amorine AI Companion"
-                  className="w-full h-full object-cover object-center rounded-[32px] shadow-xl animate-fade-in"
+                  className="w-full h-full object-cover object-center rounded-[32px] shadow-xl animate-fade-in motion-reduce:animate-none"
+                  style={{ 
+                    animationDuration: '1s',
+                    animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
                 />
                 {/* Decorative elements */}
                 <div className="absolute -bottom-3 -right-3 w-24 h-24 bg-gradient-to-r from-coral/20 to-plum/20 rounded-full blur-xl" />
@@ -33,21 +39,54 @@ const LandingPage = () => {
             </div>
 
             <div className="text-center lg:text-left">
-              <div className="inline-block mb-6 relative animate-float">
+              <div 
+                className="inline-block mb-6 relative animate-float motion-reduce:animate-none"
+                style={{ 
+                  animationDuration: '3s',
+                  animationTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              >
                 <div className="absolute inset-0 bg-gradient-to-r from-coral/20 to-plum/20 blur-3xl" />
                 <Heart className="w-20 h-20 text-coral relative z-10" />
-                <Sparkles className="absolute -right-8 -top-4 w-6 h-6 text-plum animate-pulse" />
+                <Sparkles 
+                  className="absolute -right-8 -top-4 w-6 h-6 text-plum animate-pulse motion-reduce:animate-none"
+                  style={{ 
+                    animationDuration: '2s',
+                    animationTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                />
               </div>
               
-              <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text leading-tight animate-fade-in">
+              <h1 
+                className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text leading-tight animate-fade-in motion-reduce:animate-none"
+                style={{ 
+                  animationDelay: isMobile ? '0ms' : '300ms',
+                  animationDuration: '1s',
+                  animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
                 Your Always-Available Companion
               </h1>
               
-              <p className="text-xl md:text-2xl text-charcoal/80 mb-12 leading-relaxed animate-fade-in delay-100">
-                Experience meaningful connection, emotional support, and playful moments that evolve with you
+              <p 
+                className="text-xl md:text-2xl text-charcoal/80 mb-12 leading-relaxed animate-fade-in motion-reduce:animate-none"
+                style={{ 
+                  animationDelay: isMobile ? '200ms' : '600ms',
+                  animationDuration: '1s',
+                  animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
+                Experience meaningful connection, emotional support, and playful moments that <strong>evolve</strong> with you
               </p>
               
-              <div className="flex justify-center lg:justify-start items-center animate-fade-in delay-200">
+              <div 
+                className="flex justify-center lg:justify-start items-center animate-fade-in motion-reduce:animate-none"
+                style={{ 
+                  animationDelay: isMobile ? '400ms' : '900ms',
+                  animationDuration: '1s',
+                  animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
                 <Button
                   onClick={() => navigate("/auth")}
                   className="bg-gradient-to-r from-coral to-plum hover:opacity-90 transition-all duration-300 transform hover:scale-105 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg group"
@@ -64,14 +103,24 @@ const LandingPage = () => {
               <img
                 src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                 alt="Amorine AI Companion"
-                className="w-full h-[600px] object-cover object-center rounded-3xl shadow-xl animate-fade-in"
+                className="w-full h-[600px] object-cover object-center rounded-3xl shadow-xl animate-fade-in motion-reduce:animate-none"
+                style={{ 
+                  animationDelay: '600ms',
+                  animationDuration: '1.2s',
+                  animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
               />
             </div>
           </div>
         </div>
 
         {/* CTA Section */}
-        <div className="max-w-4xl mx-auto bg-gradient-to-r from-coral to-plum rounded-3xl p-12 text-white text-center transform hover:scale-[1.02] transition-all duration-300">
+        <div 
+          className="max-w-4xl mx-auto bg-gradient-to-r from-coral to-plum rounded-3xl p-12 text-white text-center transform hover:scale-[1.02] transition-all duration-300"
+          style={{ 
+            transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
           <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Experience Something Different?</h2>
           <p className="text-lg md:text-xl mb-8 opacity-90">
             Join thousands of others who've found comfort, growth, and meaningful connection with Amorine
