@@ -17,6 +17,21 @@ const LandingPage = () => {
         {/* Hero Section */}
         <div className="max-w-6xl mx-auto mb-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Mobile Image (shown only on mobile) */}
+            <div className="lg:hidden relative mb-8 px-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-[40px] blur-3xl" />
+              <div className="aspect-[3/4] relative">
+                <img
+                  src="/lovable-uploads/772b14f3-9f9e-44b6-ab7b-25092b6a2431.png"
+                  alt="Amorine AI Companion"
+                  className="w-full h-full object-cover object-center rounded-[32px] shadow-xl animate-fade-in"
+                />
+                {/* Decorative elements */}
+                <div className="absolute -bottom-3 -right-3 w-24 h-24 bg-gradient-to-r from-coral/20 to-plum/20 rounded-full blur-xl" />
+                <div className="absolute -top-3 -left-3 w-20 h-20 bg-gradient-to-r from-plum/20 to-coral/20 rounded-full blur-lg" />
+              </div>
+            </div>
+
             <div className="text-center lg:text-left">
               <div className="inline-block mb-6 relative animate-float">
                 <div className="absolute inset-0 bg-gradient-to-r from-coral/20 to-plum/20 blur-3xl" />
@@ -43,6 +58,7 @@ const LandingPage = () => {
               </div>
             </div>
 
+            {/* Desktop Image (shown only on desktop) */}
             <div className="hidden lg:block relative">
               <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-full blur-3xl" />
               <img
