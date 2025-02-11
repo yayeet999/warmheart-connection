@@ -322,7 +322,7 @@ Use these details as your personal background, but do not explicitly reveal them
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: ft:"gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         temperature: 1.5,
         frequency_penalty: 1.5,
         presence_penalty: 1.5,
