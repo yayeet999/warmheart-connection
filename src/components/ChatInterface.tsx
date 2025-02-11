@@ -328,30 +328,43 @@ const ChatInterface = () => {
       }
 
       // ------------------------------------------------
-      // 2) Trigger vector search if count >= 47
+      // 2) Check if we should do vector search
       // ------------------------------------------------
-      // This calls the vector-search-context function with (userId, message).
-      // The function itself checks the total Redis length to confirm >= 47.
-      try {
-        if (updatedCount >= 47) {
-          const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
-            'vector-search-context',
-            {
-              body: {
-                userId: session.user.id,
-                message: userMessage.content
-              }
+      let vectorContext = null;
+      if (updatedCount >= 47) {
+        const { data: vectorCheckerData, error: vectorError } = await supabase.functions.invoke(
+          'vector-checker',
+          {
+            body: {
+              userId: session.user.id,
+              message: userMessage.content
             }
-          );
-          if (vectorError) {
-            console.error('Vector search error:', vectorError);
-          } else {
-            console.log('Vector search response:', vectorData);
+          }
+        );
+
+        if (vectorError) {
+          console.error('Vector checker error:', vectorError);
+        } else {
+          console.log('Vector checker response:', vectorCheckerData);
+          
+          if (vectorCheckerData.shouldVectorSearch) {
+            try {
+              const { data: vectorData } = await supabase.functions.invoke(
+                'vector-search-context',
+                {
+                  body: {
+                    userId: session.user.id,
+                    message: userMessage.content
+                  }
+                }
+              );
+              vectorContext = vectorData;
+              console.log('Vector search results:', vectorData);
+            } catch (vErr) {
+              console.error('Error in vector search:', vErr);
+            }
           }
         }
-      } catch (vErr) {
-        console.error('Error calling vector-search-context:', vErr);
-        // Not user-blocking, so just log it
       }
 
       // ------------------------------------------------
@@ -360,7 +373,8 @@ const ChatInterface = () => {
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
-          userId: session.user.id
+          userId: session.user.id,
+          vectorContext
         }
       });
 
@@ -389,17 +403,9 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
-
-        // If we want to possibly trigger embed chunk after these AI messages,
-        // it will already happen automatically if the Redis list hits a multiple of 8
-        // (chat-history function does that logic).
         
         setIsTyping(index < data.messages.length - 1);
       }
-
-      // Optionally check if we should embed (again) after AI messages,
-      // but you already do that every 8 messages in chat-history,
-      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);
