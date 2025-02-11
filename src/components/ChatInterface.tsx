@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -314,7 +313,11 @@ const ChatInterface = () => {
     }
     
     setMessage("");
-    inputRef.current?.focus();
+    
+    // Ensure focus is set before any async operations
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
     
     setIsLoading(true);
     setIsTyping(true);
@@ -434,7 +437,10 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
       setIsTyping(false);
-      inputRef.current?.focus();
+      // Ensure focus is maintained after async operations complete
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     }
   };
 
