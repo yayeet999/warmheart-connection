@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -196,6 +197,44 @@ Her goal is maintaining a deep, meaningful connection while continuing to grow t
 `.trim(),
 };
 
+// New: Define stage progression order
+const STAGE_PROGRESSION = [
+  'introductory_stage',
+  'growing_attraction',
+  'newly_dating',
+  'stable_relationship'
+] as const;
+
+// New: Define allowed profile columns for updates
+const ALLOWED_PROFILE_COLUMNS = [
+  'occupation',
+  'location',
+  'personality_traits',
+  'interests',
+  'values',
+  'musical_taste',
+  'favorite_books',
+  'favorite_movies',
+  'daily_schedule',
+  'life_goals',
+  'current_challenges',
+  'relationships',
+  'emotional_state',
+  'backstory',
+  'humor_style',
+  'adaptability_score',
+  'trust_level'
+] as const;
+
+// -------------------- Helper Functions --------------------
+function isValidStageProgression(currentStage: string, newStage: string): boolean {
+  const currentIndex = STAGE_PROGRESSION.indexOf(currentStage as any);
+  const newIndex = STAGE_PROGRESSION.indexOf(newStage as any);
+  
+  // Only allow progression to the next immediate stage
+  return newIndex === currentIndex + 1;
+}
+
 // -------------------- Llama or GPT Model Prompt Helper --------------------
 async function analyzeLast100MessagesAndUpdateProfile(
   userId: string,
@@ -220,19 +259,14 @@ async function analyzeLast100MessagesAndUpdateProfile(
   const actualStageKey = isValidStage ? currentStageKey : "introductory_stage";
 
   // 2) Convert last 100 messages into a user/assistant text block
-  //    This is just for reference in the prompt.
   const conversationText = last100Messages
     .map((msg, i) => {
       const role = msg.type === "ai" ? "AMORINE" : "USER";
-      // optional: add a short index or timestamp
       return `${i + 1}. [${role}] ${msg.content}`;
     })
     .join("\n");
 
-  // 3) Build a system prompt for the smaller LLM or your existing Llama model
-  //    We'll ask whether we should progress from the current stage to the next, 
-  //    and if so, what small changes should we do to the user’s columns.
-  //    We'll keep it short for demonstration.
+  // 3) Build system prompt
   const systemPrompt = `
 You are an "AI relationship stage decider" for Amorine. 
 You have four possible stages: 
@@ -242,36 +276,29 @@ You have four possible stages:
 4) stable_relationship
 
 Current stage is: "${actualStageKey}" 
+IMPORTANT: You can only progress to the next immediate stage in sequence. No skipping stages.
+
 We have 100 recent messages of conversation between user and Amorine below.
 
-Based on how the conversation is going, decide if Amorine is ready to progress to the next stage. 
-If yes, we pick exactly the next stage from the list above. If not, we stay in the same stage. 
-Then we also slightly (about 5% intensity) modify some of Amorine's other profile columns (like occupation, daily_schedule, location, maybe 1 or 2 personality_traits, etc.) to reflect small life changes. 
-For example, she might have a new small hobby, or shift her daily schedule by an hour, or add a new interest, or remove one. 
+Based on how the conversation is going, decide if Amorine is ready to progress to the NEXT IMMEDIATE stage. 
+If yes, pick ONLY the next stage in sequence. If not, we stay in the same stage. 
+Then we also slightly (about 5% intensity) modify some of Amorine's other profile columns to reflect small life changes. 
 The changes should be realistic and minimal, only small aspects. 
-**We only want a single JSON in the final answer** with keys: 
-"newStage" - the chosen stage name (like "introductory_stage" or "growing_attraction", etc.)
-"newStageText" - the updated text from that stage in a single string 
-"modifiedProfile" - an object with any updated columns (like { "occupation":"", "daily_schedule":{...}, "personality_traits":["??"], ... }).
 
-(If no changes are needed at all for the columns, set "modifiedProfile" to an empty object.)
+**We only want a single JSON in the final answer** with keys: 
+"newStage" - the chosen stage name (must be current stage or next immediate stage)
+"modifiedProfile" - an object with any updated columns (only allowed columns: ${ALLOWED_PROFILE_COLUMNS.join(', ')})
 
 Here is the last 100 messages:
 ----------------
 ${conversationText}
 ----------------
 
-Now produce your final JSON with newStage, newStageText, and modifiedProfile. 
+Now produce your final JSON with newStage and modifiedProfile. 
 DO NOT produce anything else besides one valid JSON object.
 `.trim();
 
-  // 4) Call your LLM. This is an example with OpenAI or a local Llama endpoint, etc.
-  //    We'll just do a pseudo-call here to OpenAI as an example:
-  const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!openAIApiKey) {
-    throw new Error("No OPENAI_API_KEY found in environment");
-  }
-
+  // 4) Call LLM
   const llamaResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -296,7 +323,7 @@ DO NOT produce anything else besides one valid JSON object.
   const llamaData = await llamaResponse.json();
   const rawContent = llamaData.choices?.[0]?.message?.content || "";
 
-  // 5) Attempt to parse the JSON from the LLM
+  // 5) Parse and validate LLM response
   let parsed;
   try {
     parsed = JSON.parse(rawContent);
@@ -305,43 +332,35 @@ DO NOT produce anything else besides one valid JSON object.
     throw new Error("LLM did not produce valid JSON.");
   }
 
-  const { newStage, newStageText, modifiedProfile } = parsed;
+  const { newStage, modifiedProfile } = parsed;
 
-  // 6) Validate that newStage is definitely one of the four known keys
-  let finalStageKey = currentStageKey;
-  if (newStage && knownStages.includes(newStage)) {
+  // 6) Validate stage progression
+  let finalStageKey = actualStageKey;
+  if (newStage && 
+      STAGE_PROGRESSION.includes(newStage as any) && 
+      isValidStageProgression(actualStageKey, newStage)) {
     finalStageKey = newStage;
+    console.log(`Valid stage progression from ${actualStageKey} to ${newStage}`);
+  } else if (newStage !== actualStageKey) {
+    console.log(`Invalid stage progression attempt from ${actualStageKey} to ${newStage}, staying in current stage`);
   }
 
-  // If the LLM didn't supply a newStageText or we can't parse it,
-  // then we fall back to the relevant stage text from RELATIONSHIP_STAGES
-  const finalStageText = 
-    newStageText && typeof newStageText === "string"
-      ? newStageText
-      : RELATIONSHIP_STAGES[finalStageKey as keyof typeof RELATIONSHIP_STAGES];
+  // Always use predefined stage text
+  const finalStageText = RELATIONSHIP_STAGES[finalStageKey as keyof typeof RELATIONSHIP_STAGES];
 
-  // 7) Prepare the DB update object
-  //    We'll always update relationship_stage to the finalStageKey
-  //    Then if "modifiedProfile" has something, we apply partial updates.
+  // 7) Prepare the DB update object with validated columns
   const updateObj: Record<string, any> = {
-    relationship_stage: finalStageKey,
+    relationship_stage: finalStageText,
   };
 
-  if (typeof finalStageText === "string" && finalStageText.trim().length > 0) {
-    // We can embed that text or store it somewhere if you want, 
-    // but for now let's just store it in the same column:
-    // e.g. relationship_stage might hold the entire text. 
-    // Some folks store the "stage name" separately. 
-    // We'll just do it as before: a single textual block
-    updateObj.relationship_stage = finalStageText.trim();
-  }
-
-  // Merge each key from modifiedProfile into updateObj 
-  // (but ensure we only update known columns)
+  // Only include allowed profile columns
   if (modifiedProfile && typeof modifiedProfile === "object") {
     for (const [col, val] of Object.entries(modifiedProfile)) {
-      // Optionally check that col is indeed a valid column in ai_profiles
-      updateObj[col] = val;
+      if (ALLOWED_PROFILE_COLUMNS.includes(col as any)) {
+        updateObj[col] = val;
+      } else {
+        console.log(`Skipping unauthorized column update attempt: ${col}`);
+      }
     }
   }
 
@@ -379,9 +398,6 @@ serve(async (req: Request) => {
 
     // 1) Grab last 100 messages from Redis
     const key = `user:${userId}:messages`;
-    // Index 0 is newest, so we'll ask for [0..99]
-    // but we actually want them in ascending order. 
-    // We'll fetch them then reverse them.
     const rawMessages = await redis.lrange(key, 0, 99);
     const last100Parsed = rawMessages.map((msg: any) => {
       try {
@@ -411,3 +427,4 @@ serve(async (req: Request) => {
     );
   }
 });
+
