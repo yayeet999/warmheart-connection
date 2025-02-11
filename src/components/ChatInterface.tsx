@@ -585,14 +585,16 @@ const ChatInterface = () => {
             />
             <button
               onClick={handleSend}
-              className={`p-3 rounded-full transition-all duration-200 ${
-                isLoading 
-                  ? 'bg-gray-100 cursor-not-allowed' 
-                  : 'bg-gradient-primary hover:opacity-90 active:scale-95'
-              }`}
-              disabled={isLoading}
+              className={cn(
+                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200",
+                message.trim() || isLoading
+                  ? "bg-gradient-primary shadow-md hover:opacity-90 active:scale-95"
+                  : "bg-gray-100",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+              disabled={isLoading || !message.trim()}
             >
-              <Send className="w-5 h-5 text-white" />
+              <ArrowUp className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
