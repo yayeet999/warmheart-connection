@@ -46,42 +46,49 @@ serve(async (req) => {
     }
 
     const conversation = relevantMessages.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'amorine',
+      role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content.substring(0, 2000)
     }));
 
-    const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
+    const systemMessage = {
+      role: 'system',
+      content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 200 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
+    };
+
+    console.log('Sending request to Groq API...');
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
-        'Content-Type': 'application/json',
-        'X-Groq-Safety-Check': 'disabled'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.2-1b-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 200 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
-          },
-          ...conversation
-        ],
-        temperature: 0.5,
-        max_tokens: 200
-      }),
+        model: 'llama-3.1-8b-instant',
+        messages: [systemMessage, ...conversation],
+        temperature: 0.2,
+        max_tokens: 200,
+        response_format: { type: "json_object" }
+      })
     });
 
     if (!groqResponse.ok) {
-      throw new Error(`Groq API error: ${groqResponse.status}`);
+      const errorText = await groqResponse.text();
+      console.error('Groq API error:', groqResponse.status, errorText);
+      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
-    const { choices: [{ message }] } = await groqResponse.json();
-    const summary = message.content;
+    const groqData = await groqResponse.json();
+    console.log('Groq API response:', JSON.stringify(groqData));
+
+    if (!groqData.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from Groq API');
+    }
+
+    const summary = groqData.choices[0].message.content;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Updated to use the new medium_term_summary column
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -96,7 +103,7 @@ serve(async (req) => {
     });
 
     if (!updateResponse.ok) {
-      throw new Error('Supabase update failed');
+      throw new Error('Failed to update profile with summary');
     }
 
     return new Response(
@@ -107,7 +114,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Summary error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: error.message || 'Internal server error' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
