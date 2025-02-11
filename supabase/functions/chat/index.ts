@@ -109,7 +109,7 @@ serve(async (req) => {
 
     // Now also fetch extreme_content & guidance
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,medium_term_summary,vector_long_term,extreme_content,guidance`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content,guidance`,
       {
         headers: {
           Authorization: `Bearer ${supabaseKey}`,
@@ -138,14 +138,7 @@ serve(async (req) => {
       }. Acknowledge this naturally in responses without explicitly mentioning it.`,
     };
 
-    // Create medium-term context message, if any
-    let mediumTermMessage;
-    if (profile?.medium_term_summary) {
-      mediumTermMessage = {
-        role: "system" as const,
-        content: `Previous conversation context: ${profile.medium_term_summary}. Use this context to maintain conversation continuity without explicitly referencing it.`,
-      };
-    }
+    // (Removed references to medium_term_summary.)
 
     // Create vector-based long-term context message, if any
     let vectorLongTermMessage;
@@ -304,8 +297,8 @@ Use these details as your personal background, but do not explicitly reveal them
       { role: "system", content: COMPANION_SYSTEM_PROMPT },  // static system prompt
       aiProfileMessage,                                      // Amorine's own profile
       userContextMessage,                                    // dynamic user context
-      ...(mediumTermMessage ? [mediumTermMessage] : []),     // optional medium-term summary
-      ...(vectorLongTermMessage ? [vectorLongTermMessage] : []), // optional vector-based memory
+      // (Removed any medium-term messages.)
+      ...(vectorLongTermMessage ? [vectorLongTermMessage] : []),
       ...(overseerExtremeContentMessage ? [overseerExtremeContentMessage] : []),
       ...(overseerGuidanceMessage ? [overseerGuidanceMessage] : []),
       ...conversationHistory,                                // last 30 messages
