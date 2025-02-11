@@ -33,6 +33,7 @@ export type Database = {
           recent_experiences: Json | null
           relationship_stage: string | null
           relationships: Json | null
+          trust_level: number | null
           updated_at: string | null
           user_id: string
           values: string[] | null
@@ -60,6 +61,7 @@ export type Database = {
           recent_experiences?: Json | null
           relationship_stage?: string | null
           relationships?: Json | null
+          trust_level?: number | null
           updated_at?: string | null
           user_id: string
           values?: string[] | null
@@ -87,6 +89,7 @@ export type Database = {
           recent_experiences?: Json | null
           relationship_stage?: string | null
           relationships?: Json | null
+          trust_level?: number | null
           updated_at?: string | null
           user_id?: string
           values?: string[] | null
