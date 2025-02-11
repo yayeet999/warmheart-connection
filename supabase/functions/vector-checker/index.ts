@@ -42,23 +42,24 @@ serve(async (req) => {
       );
     }
 
-    // Fetch last 2 messages for context (changed from 3)
-    const recentMessages = await redis.lrange(key, 0, 1);
-    const recentContext = recentMessages
+    // Get all recent messages and filter for last 2 USER messages
+    const recentMessages = await redis.lrange(key, 0, 10); // Get more messages to ensure we find 2 user messages
+    const lastTwoUserMessages = recentMessages
       .map(msg => {
         try {
-          const parsed = JSON.parse(msg);
-          return parsed.content;
+          return JSON.parse(msg);
         } catch (e) {
           console.error('Error parsing message:', e);
-          return '';
+          return null;
         }
       })
-      .filter(Boolean)
+      .filter(msg => msg && msg.type === 'user') // Only keep user messages
+      .slice(0, 2) // Take the last 2 user messages
+      .map(msg => msg.content)
       .reverse()
       .join('\n');
 
-    console.log('Analyzing with context from last 2 messages');
+    console.log('Analyzing with context from last 2 USER messages');
 
     // Call Groq API with updated system prompt
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -88,8 +89,8 @@ Most of the time the answer will be false. Use high level NLP capabailites to de
             role: 'user',
             content: `Current message: "${message}"
 
-Recent context:
-${recentContext}
+Recent user messages:
+${lastTwoUserMessages}
 
 Should we search long-term memory for relevant past interactions? Reply with just true or false.`
           }
