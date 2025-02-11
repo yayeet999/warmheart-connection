@@ -1,5 +1,6 @@
+
 import { Link } from "react-router-dom";
-import { Heart, Menu, X } from "lucide-react";
+import { Heart, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
@@ -13,12 +14,6 @@ const Header = () => {
       setIsScrolled(window.scrollY > 20);
     });
   }
-
-  const navItems = [
-    { label: "Home", href: "/" },
-    { label: "Features", href: "#features" },
-    { label: "Testimonials", href: "#testimonials" },
-  ];
 
   return (
     <header 
@@ -41,15 +36,6 @@ const Header = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          {navItems.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className="text-charcoal/70 hover:text-coral transition-colors relative after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-coral after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left"
-            >
-              {item.label}
-            </a>
-          ))}
           <Button
             variant="ghost"
             className="bg-gradient-to-r from-coral to-plum text-white hover:opacity-90 transition-opacity"
@@ -68,15 +54,6 @@ const Header = () => {
           </SheetTrigger>
           <SheetContent>
             <div className="flex flex-col gap-6 pt-10">
-              {navItems.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className="text-lg font-medium text-charcoal/70 hover:text-coral transition-colors"
-                >
-                  {item.label}
-                </a>
-              ))}
               <Button
                 className="bg-gradient-to-r from-coral to-plum text-white hover:opacity-90 transition-opacity w-full"
                 onClick={() => window.location.href = '/auth'}
