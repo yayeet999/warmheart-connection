@@ -70,15 +70,18 @@ serve(async (req) => {
       content: msg.content
     }));
 
+    console.log('Making Groq API call with conversation:', formattedConversation);
+
     // Call Groq API for analysis
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Groq-Safety-Check': 'disabled'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.2-1b-preview',
         messages: [
           {
             role: 'system',
@@ -105,17 +108,21 @@ Only include fields if issues are detected. When evaluating Amorine performance,
           },
           ...formattedConversation
         ],
-        temperature: 0.2,
-        max_tokens: 200,
-        response_format: { type: "json_object" }
+        temperature: 0.5,
+        max_tokens: 200
       }),
     });
 
     if (!groqResponse.ok) {
-      throw new Error(`Groq API error: ${groqResponse.status}`);
+      const errorText = await groqResponse.text();
+      console.error('Groq API error details:', errorText);
+      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
-    const { choices: [{ message }] } = await groqResponse.json();
+    const groqData = await groqResponse.json();
+    console.log('Groq API response:', groqData);
+
+    const { choices: [{ message }] } = groqData;
     let analysis;
     try {
         analysis = JSON.parse(message.content);
