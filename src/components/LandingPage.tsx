@@ -22,7 +22,7 @@ const LandingPage = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-[40px] blur-3xl" />
               <div className="aspect-[3/4] relative">
                 <img
-                  src="/lovable-uploads/772b14f3-9f9e-44b6-ab7b-25092b6a2431.png"
+                  src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                   alt="Amorine AI Companion"
                   className="w-full h-full object-cover object-center rounded-[32px] shadow-xl animate-fade-in"
                 />
@@ -62,7 +62,7 @@ const LandingPage = () => {
             <div className="hidden lg:block relative">
               <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-full blur-3xl" />
               <img
-                src="/lovable-uploads/772b14f3-9f9e-44b6-ab7b-25092b6a2431.png"
+                src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                 alt="Amorine AI Companion"
                 className="w-full h-[600px] object-cover object-center rounded-3xl shadow-xl animate-fade-in"
               />
