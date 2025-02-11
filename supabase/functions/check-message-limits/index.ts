@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -18,7 +17,7 @@ serve(async (req) => {
 
   try {
     const { userId, tier } = await req.json();
-    
+
     // Get Redis URL and token from environment
     const UPSTASH_REDIS_REST_URL = Deno.env.get('UPSTASH_REDIS_REST_URL');
     const UPSTASH_REDIS_REST_TOKEN = Deno.env.get('UPSTASH_REDIS_REST_TOKEN');
@@ -27,68 +26,42 @@ serve(async (req) => {
       throw new Error('Redis configuration missing');
     }
 
-    // Get current count from Redis
+    // Build a Redis key based on user + current date
     const key = `user:${userId}:daily:${new Date().toISOString().split('T')[0]}`;
-    
+
+    // 1) Fetch current daily message count
     const getCountResponse = await fetch(`${UPSTASH_REDIS_REST_URL}/get/${key}`, {
       headers: {
         Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
       },
     });
-    
+
     const countData = await getCountResponse.json();
     const currentCount = countData.result ? parseInt(countData.result) : 0;
-    
-    // Check if user has exceeded daily limit
+
+    // 2) Compare vs. daily limit
     const dailyLimit = DAILY_LIMITS[tier as keyof typeof DAILY_LIMITS] || DAILY_LIMITS.free;
     const canSendMessage = currentCount < dailyLimit;
-    
+
     if (canSendMessage) {
-      // Increment the count if under limit
+      // 3) If still under the limit, increment the count
       await fetch(`${UPSTASH_REDIS_REST_URL}/incr/${key}`, {
         headers: {
           Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
         },
       });
-      
-      // Set expiry to end of day if not already set
-      const ttl = 86400 - (new Date().getHours() * 3600 + new Date().getMinutes() * 60 + new Date().getSeconds());
+
+      // 4) Ensure the key expires at end-of-day (if not already)
+      const now = new Date();
+      const ttl = 86400 - (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
       await fetch(`${UPSTASH_REDIS_REST_URL}/expire/${key}/${ttl}`, {
         headers: {
           Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
         },
       });
-
-      // Check if we need to trigger medium-term summarization
-      // Trigger at 60 messages and then every 30 messages after that
-      const shouldTriggerSummary = currentCount + 1 === 60 || (currentCount + 1 > 60 && ((currentCount + 1 - 60) % 30 === 0));
-      
-      if (shouldTriggerSummary) {
-        console.log('Triggering medium-term summarization for user:', userId, 'at count:', currentCount + 1);
-        
-        try {
-          const summarizerResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/medium-term-summarizer`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId,
-              messageCount: currentCount + 1
-            })
-          });
-
-          if (!summarizerResponse.ok) {
-            console.error('Failed to trigger summarizer:', await summarizerResponse.text());
-          }
-        } catch (error) {
-          console.error('Error triggering summarizer:', error);
-          // Don't throw the error as this is a background task
-        }
-      }
     }
 
+    // 5) Return result
     return new Response(
       JSON.stringify({
         canSendMessage,
@@ -96,9 +69,9 @@ serve(async (req) => {
         dailyLimit,
         remainingMessages: dailyLimit - currentCount
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       }
     );
 
@@ -106,9 +79,9 @@ serve(async (req) => {
     console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
+        status: 500
       }
     );
   }
