@@ -82,6 +82,7 @@ const ChatInterface = () => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottom = useRef(true);
   const navigate = useNavigate();
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
@@ -281,6 +282,21 @@ const ChatInterface = () => {
     }
   }, [messages, isLoadingMore]);
 
+  const adjustTextAreaHeight = () => {
+    const textArea = textAreaRef.current;
+    if (textArea) {
+      textArea.style.height = 'auto';
+      const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120); // Min 24px, max 120px
+      textArea.style.height = `${newHeight}px`;
+    }
+  };
+
+  const resetTextAreaHeight = () => {
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = '24px';
+    }
+  };
+
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
     
@@ -313,10 +329,11 @@ const ChatInterface = () => {
     }
     
     setMessage("");
+    resetTextAreaHeight();
     
     // Ensure focus is set before any async operations
     requestAnimationFrame(() => {
-      inputRef.current?.focus();
+      textAreaRef.current?.focus();
     });
     
     setIsLoading(true);
@@ -439,7 +456,7 @@ const ChatInterface = () => {
       setIsTyping(false);
       // Ensure focus is maintained after async operations complete
       requestAnimationFrame(() => {
-        inputRef.current?.focus();
+        textAreaRef.current?.focus();
       });
     }
   };
@@ -522,7 +539,6 @@ const ChatInterface = () => {
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
         "sm:pl-[100px]"
       )}>
-        {/* iOS-style persistent header */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
             <UserRound className="w-6 h-6 text-white" />
@@ -573,18 +589,30 @@ const ChatInterface = () => {
         </div>
         
         <div className="p-4 bg-white border-t border-gray-200">
-          <div className="max-w-4xl mx-auto flex items-center space-x-2 px-2">
-            <input
-              ref={inputRef}
-              type="text"
+          <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
+            <textarea
+              ref={textAreaRef}
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSend()}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                adjustTextAreaHeight();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Message Amorine..."
-              className="flex-1 p-3 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400"
+              className="flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400 resize-none overflow-y-auto"
               disabled={isLoading}
-              autoFocus
-              style={{ touchAction: 'manipulation' }}
+              rows={1}
+              style={{ 
+                touchAction: 'manipulation',
+                minHeight: '44px',
+                lineHeight: '1.4',
+                transition: 'height 0.2s ease'
+              }}
               onFocus={(e) => {
                 e.currentTarget.style.fontSize = '16px';
               }}
