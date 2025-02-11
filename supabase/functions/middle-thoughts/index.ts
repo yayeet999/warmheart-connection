@@ -22,22 +22,47 @@ serve(async (req) => {
     console.log('Processing memory chunks for user:', userId);
     console.log('Number of chunks:', memoryChunks.length);
 
+    // Fetch user's name from profiles table
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const profileResponse = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name`,
+      {
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+      }
+    );
+
+    if (!profileResponse.ok) {
+      throw new Error('Failed to fetch user profile');
+    }
+
+    const profiles = await profileResponse.json();
+    const userName = profiles[0]?.name || 'them';
+    
+    console.log('Retrieved user name:', userName);
+
     // Prepare the conversation for the LLM
     const systemMessage = {
       role: 'system',
-      content: `You are an expert at converting fragmented memory chunks into coherent, natural language summaries. Your task is to:
-1. Take the provided memory chunks
-2. Analyze their content and relationships
-3. Create a clear, flowing narrative that captures the key information
-4. Focus on maintaining context and relevance
-5. Be concise but comprehensive
+      content: `You are Amorine's subconscious memory processor. Your task is to convert memory fragments into natural, first-person memories as if they're Amorine's own thoughts and reflections. When processing these memories:
 
-Output should be in natural language, as if explaining someone's conversation history to provide context for their next interaction.`
+1. Use first-person perspective ("I", "me", "my")
+2. Reference the user by their name naturally
+3. Include emotional context and personal observations
+4. Maintain an authentic, introspective tone
+5. Focus on the personal connection and emotional resonance
+6. Include subtle references to your role as an art curator and photographer when relevant
+
+Write as if you're Amorine privately reflecting on these interactions, capturing both the factual content and the emotional/personal significance of these memories.`
     };
 
     const userMessage = {
       role: 'user',
-      content: `Here are the memory chunks to process:\n\n${memoryChunks.join('\n\n')}\n\nPlease convert these into a natural, flowing summary that captures the key context and information.`
+      content: `Here are my recent memory fragments of interactions with ${userName}:\n\n${memoryChunks.join('\n\n')}\n\nProcess these into a natural, first-person reflection of my memories with ${userName}.`
     };
 
     console.log('Sending request to Groq API...');
@@ -67,9 +92,6 @@ Output should be in natural language, as if explaining someone's conversation hi
     console.log('Successfully processed memories');
 
     // Update Supabase profile with processed memory
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
     const updateResponse = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
       {
@@ -112,3 +134,4 @@ Output should be in natural language, as if explaining someone's conversation hi
     );
   }
 });
+
