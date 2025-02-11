@@ -17,7 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    // Attempt Redis connection right away (for debugging)
+    // Attempt Redis connection (for debugging)
     try {
       await redis.ping();
       console.log('Redis connection successful');
@@ -55,25 +55,23 @@ serve(async (req) => {
         timestamp: new Date().toISOString() // store a timestamp
       };
 
-      // Push the new message to the front (index 0)
+      // Push the new message to the FRONT (index 0)
       const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
       console.log('Redis push result:', pushResult);
 
-      // Keep the list capped at, say, 10,000
+      // Keep the list capped at 10,000
       await redis.ltrim(key, 0, 9999);
 
-      // Now check how many messages total
+      // Now check how many total messages
       const currentLength = await redis.llen(key);
       console.log('Current list length after adding message:', currentLength);
 
-      // -------------------------------------------------------------
+      // ---------------------------------------------------------------------
       // Trigger embedding if we just hit a multiple of 8 messages
-      // -------------------------------------------------------------
+      // ---------------------------------------------------------------------
       if (currentLength % 8 === 0) {
         console.log(`Reached a multiple of 8 (count = ${currentLength}), triggering embedding...`);
-
         try {
-          // Call your embed-conversation-chunk function
           const embedUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/embed-conversation-chunk`;
           const res = await fetch(embedUrl, {
             method: 'POST',
@@ -83,7 +81,6 @@ serve(async (req) => {
             },
             body: JSON.stringify({ userId }),
           });
-
           if (!res.ok) {
             console.error('Embed function error:', await res.text());
           } else {
@@ -91,18 +88,15 @@ serve(async (req) => {
           }
         } catch (e) {
           console.error('Failed to call embed function:', e);
-          // We do NOT throw here to avoid breaking the main message storage
         }
       }
 
-      // -------------------------------------------------------------
+      // ---------------------------------------------------------------------
       // Trigger Overseer if we just hit a multiple of 5 messages
-      // -------------------------------------------------------------
+      // ---------------------------------------------------------------------
       if (currentLength % 5 === 0) {
         console.log(`Reached a multiple of 5 (count = ${currentLength}), triggering Overseer...`);
-
         try {
-          // Call your overseer function
           const overseerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/overseer`;
           const res = await fetch(overseerUrl, {
             method: 'POST',
@@ -112,7 +106,6 @@ serve(async (req) => {
             },
             body: JSON.stringify({ userId }),
           });
-
           if (!res.ok) {
             console.error('Overseer function error:', await res.text());
           } else {
@@ -123,7 +116,36 @@ serve(async (req) => {
         }
       }
 
-      // (Removed all medium-term summarizer references here.)
+      // ---------------------------------------------------------------------
+      // [NEW] Trigger "amorine_updater" every 100 messages, starting from 100
+      // ---------------------------------------------------------------------
+      if (currentLength >= 100 && currentLength % 100 === 0) {
+        console.log(`Reached a multiple of 100 (count = ${currentLength}), triggering amorine_updater...`);
+        try {
+          const updaterUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/amorine_updater`;
+          // Fire & forget (async)
+          fetch(updaterUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': req.headers.get('Authorization') ?? '',
+            },
+            body: JSON.stringify({ userId }),
+          })
+            .then((res) => {
+              if (!res.ok) {
+                console.error('amorine_updater error:', res.status, res.statusText);
+              } else {
+                console.log('amorine_updater function called successfully.');
+              }
+            })
+            .catch((err) => {
+              console.error('Failed to call amorine_updater:', err);
+            });
+        } catch (e) {
+          console.error('Failed to call amorine_updater function:', e);
+        }
+      }
 
       // Return success to client
       return new Response(
@@ -145,7 +167,6 @@ serve(async (req) => {
       const start = page * MESSAGES_PER_PAGE;
       const end = Math.min(start + MESSAGES_PER_PAGE - 1, MAX_MESSAGES - 1);
 
-      // If we've exceeded the max we want to show
       if (start >= MAX_MESSAGES) {
         return new Response(
           JSON.stringify({ messages: [], hasMore: false }),
@@ -171,10 +192,10 @@ serve(async (req) => {
         }
       }).filter(Boolean);
 
-      // We reverse so oldest -> newest in the final array
       const hasMore = listLength > end + 1 && end < MAX_MESSAGES - 1;
       console.log('Has more messages:', hasMore);
 
+      // Reverse so oldest -> newest
       return new Response(
         JSON.stringify({
           messages: parsedMessages.reverse(),
