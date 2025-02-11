@@ -299,10 +299,7 @@ const ChatInterface = () => {
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
     
-    // Add the user message locally
     setMessages(prev => [...prev, userMessage]);
-
-    // We'll track the new count in a local variable
     const updatedCount = messageCount + 1;
     setMessageCount(updatedCount);
 
@@ -332,6 +329,7 @@ const ChatInterface = () => {
       // ------------------------------------------------
       let vectorContext = null;
       if (updatedCount >= 47) {
+        console.log('Message count >= 47, checking if vector search needed...');
         const { data: vectorCheckerData, error: vectorError } = await supabase.functions.invoke(
           'vector-checker',
           {
@@ -345,9 +343,10 @@ const ChatInterface = () => {
         if (vectorError) {
           console.error('Vector checker error:', vectorError);
         } else {
-          console.log('Vector checker response:', vectorCheckerData);
+          console.log('Vector checker raw response:', vectorCheckerData);
           
-          if (vectorCheckerData.shouldVectorSearch) {
+          if (vectorCheckerData && vectorCheckerData.shouldVectorSearch === true) {
+            console.log('Vector search approved, proceeding with search...');
             try {
               const { data: vectorData } = await supabase.functions.invoke(
                 'vector-search-context',
@@ -363,12 +362,14 @@ const ChatInterface = () => {
             } catch (vErr) {
               console.error('Error in vector search:', vErr);
             }
+          } else {
+            console.log('Vector search NOT needed:', vectorCheckerData?.reason || 'No reason provided');
           }
         }
       }
 
       // ------------------------------------------------
-      // 3) Call your main chat function to get AI response
+      // 3) Call main chat function to get AI response
       // ------------------------------------------------
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
@@ -390,12 +391,10 @@ const ChatInterface = () => {
 
         const aiMessage = { type: "ai", content: msg.content };
         setMessages(prev => [...prev, aiMessage]);
-
-        // Increment local message count
+        
         const newAiCount = (count) => count + 1;
         setMessageCount(newAiCount);
 
-        // Also store the AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
