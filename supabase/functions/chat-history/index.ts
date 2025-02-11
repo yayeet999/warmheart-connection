@@ -123,36 +123,7 @@ serve(async (req) => {
         }
       }
 
-      // -------------------------------------------------------------
-      // Trigger medium-term summarizer at 60 & every 30 after that
-      // -------------------------------------------------------------
-      // So if total length >= 60:
-      //  - If exactly 60 OR (length-60) is multiple of 30, call summarizer
-      if (currentLength >= 60) {
-        const offset = currentLength - 60;
-        if (currentLength === 60 || (offset > 0 && offset % 30 === 0)) {
-          console.log(`Message count: ${currentLength}. Triggering medium-term summarizer...`);
-          try {
-            const summarizerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/medium-term-summarizer`;
-            const res = await fetch(summarizerUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': req.headers.get('Authorization') ?? '',
-              },
-              body: JSON.stringify({ userId, messageCount: currentLength }),
-            });
-
-            if (!res.ok) {
-              console.error('Summarizer function error:', await res.text());
-            } else {
-              console.log('Summarizer function called successfully.');
-            }
-          } catch (summarizerErr) {
-            console.error('Failed to call summarizer function:', summarizerErr);
-          }
-        }
-      }
+      // (Removed all medium-term summarizer references here.)
 
       // Return success to client
       return new Response(
