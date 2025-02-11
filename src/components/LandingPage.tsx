@@ -1,7 +1,7 @@
 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Clock, Shield, Heart, Sparkles, Star, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import Header from "./Header";
 import { Card } from "@/components/ui/card";
 
@@ -30,20 +30,13 @@ const LandingPage = () => {
             Experience meaningful connection, emotional support, and playful moments that evolve with you
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in delay-200">
+          <div className="flex justify-center items-center animate-fade-in delay-200">
             <Button
               onClick={() => navigate("/auth")}
               className="bg-gradient-to-r from-coral to-plum hover:opacity-90 transition-all duration-300 transform hover:scale-105 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg group"
             >
               Meet Amorine
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-              className="px-8 py-6 rounded-full text-lg border-2 border-plum/20 hover:bg-plum/5"
-            >
-              Learn More
             </Button>
           </div>
         </div>
