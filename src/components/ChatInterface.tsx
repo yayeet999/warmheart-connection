@@ -1,5 +1,6 @@
+
 import { useState, useRef, useEffect } from "react";
-import { Send, Info, ArrowUp } from "lucide-react";
+import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -515,6 +516,14 @@ const ChatInterface = () => {
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
         "sm:pl-[100px]"
       )}>
+        {/* iOS-style persistent header */}
+        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
+            <UserRound className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-sm font-medium text-gray-800">Amorine</span>
+        </div>
+
         <div 
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
