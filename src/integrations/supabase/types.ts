@@ -13,7 +13,6 @@ export type Database = {
         Row: {
           age: number
           backstory: string | null
-          conversation_style: Json | null
           created_at: string | null
           current_challenges: string[] | null
           daily_schedule: Json | null
@@ -39,7 +38,6 @@ export type Database = {
         Insert: {
           age: number
           backstory?: string | null
-          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
@@ -65,7 +63,6 @@ export type Database = {
         Update: {
           age?: number
           backstory?: string | null
-          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
