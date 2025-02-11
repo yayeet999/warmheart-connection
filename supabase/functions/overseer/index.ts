@@ -104,7 +104,7 @@ Only include fields if issues are detected. When evaluating Amorine performance,
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [systemMessage, ...formattedConversation],
-        temperature: 0.3,
+        temperature: 0.8,
         max_tokens: 200,
         response_format: { type: "json_object" }
       })
