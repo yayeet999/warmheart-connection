@@ -96,6 +96,35 @@ serve(async (req) => {
         }
       }
 
+      // -------------------------------------------------------------
+      // Trigger Overseer if we just hit a multiple of 5 messages
+      // -------------------------------------------------------------
+      if (currentLength % 5 === 0) {
+        console.log(`Reached a multiple of 5 (count = ${currentLength}), triggering Overseer...`);
+
+        try {
+          // Call your overseer function
+          const overseerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/overseer`;
+          const res = await fetch(overseerUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': req.headers.get('Authorization') ?? '',
+            },
+            body: JSON.stringify({ userId }),
+          });
+
+          if (!res.ok) {
+            console.error('Overseer function error:', await res.text());
+          } else {
+            console.log('Overseer function called successfully.');
+          }
+        } catch (e) {
+          console.error('Failed to call Overseer function:', e);
+          // Again, do not throw to avoid blocking main storage
+        }
+      }
+
       // Return success to client
       return new Response(
         JSON.stringify({ success: true }),
@@ -143,7 +172,6 @@ serve(async (req) => {
       }).filter(Boolean);
 
       // We reverse so oldest -> newest in the final array
-      // (But note: if you want chronological from top to bottom, you might skip reversing.)
       const hasMore = listLength > end + 1 && end < MAX_MESSAGES - 1;
       console.log('Has more messages:', hasMore);
 
