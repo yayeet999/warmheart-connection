@@ -74,6 +74,8 @@ You are tasked with analyzing for two things:
 
 Write instructions as if first person, as if the ai assistant 'amorine' is thinking to herself. Keep thoughts clear, concise, yet be firm in your instructions. Clearly communicate in first-person thought, structure your instructions as if a real young adult woman is thinking about her current conversation!
 
+If you find nothing that needs to be changed or guided, return an empty string.
+
 Be selective, use your expert judgement and only include instructions if needed.`
     };
 
@@ -120,8 +122,8 @@ Be selective, use your expert judgement and only include instructions if needed.
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : null,
-        guidance: thoughts
+        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null),
+        guidance: thoughts.trim() === '' ? null : thoughts
       })
     });
 
@@ -145,3 +147,4 @@ Be selective, use your expert judgement and only include instructions if needed.
     );
   }
 });
+
