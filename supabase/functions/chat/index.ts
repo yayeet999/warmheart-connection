@@ -128,7 +128,7 @@ serve(async (req) => {
     // Create user context message
     const userContextMessage = {
       role: "system" as const,
-      content: `Current user context: ${
+      content: `Here is the name and more details of the current user that you should remember: ${
         [
           profile?.name && `Name: ${profile.name}`,
           profile?.age_range && `Age range: ${profile.age_range}`,
