@@ -15,29 +15,42 @@ const LandingPage = () => {
       
       <main className="container mx-auto px-4 py-12 md:py-20 relative z-10">
         {/* Hero Section */}
-        <div className="max-w-4xl mx-auto text-center mb-20">
-          <div className="inline-block mb-6 relative animate-float">
-            <div className="absolute inset-0 bg-gradient-to-r from-coral/20 to-plum/20 blur-3xl" />
-            <Heart className="w-20 h-20 text-coral relative z-10" />
-            <Sparkles className="absolute -right-8 -top-4 w-6 h-6 text-plum animate-pulse" />
-          </div>
-          
-          <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text leading-tight animate-fade-in">
-            Your Always-Available Companion
-          </h1>
-          
-          <p className="text-xl md:text-2xl text-charcoal/80 mb-12 leading-relaxed max-w-3xl mx-auto animate-fade-in delay-100">
-            Experience meaningful connection, emotional support, and playful moments that evolve with you
-          </p>
-          
-          <div className="flex justify-center items-center animate-fade-in delay-200">
-            <Button
-              onClick={() => navigate("/auth")}
-              className="bg-gradient-to-r from-coral to-plum hover:opacity-90 transition-all duration-300 transform hover:scale-105 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg group"
-            >
-              Meet Amorine
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
+        <div className="max-w-6xl mx-auto mb-20">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="text-center lg:text-left">
+              <div className="inline-block mb-6 relative animate-float">
+                <div className="absolute inset-0 bg-gradient-to-r from-coral/20 to-plum/20 blur-3xl" />
+                <Heart className="w-20 h-20 text-coral relative z-10" />
+                <Sparkles className="absolute -right-8 -top-4 w-6 h-6 text-plum animate-pulse" />
+              </div>
+              
+              <h1 className="text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text leading-tight animate-fade-in">
+                Your Always-Available Companion
+              </h1>
+              
+              <p className="text-xl md:text-2xl text-charcoal/80 mb-12 leading-relaxed animate-fade-in delay-100">
+                Experience meaningful connection, emotional support, and playful moments that evolve with you
+              </p>
+              
+              <div className="flex justify-center lg:justify-start items-center animate-fade-in delay-200">
+                <Button
+                  onClick={() => navigate("/auth")}
+                  className="bg-gradient-to-r from-coral to-plum hover:opacity-90 transition-all duration-300 transform hover:scale-105 text-white px-8 py-6 rounded-full text-lg font-semibold shadow-lg group"
+                >
+                  Meet Amorine
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="hidden lg:block relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-full blur-3xl" />
+              <img
+                src="/lovable-uploads/772b14f3-9f9e-44b6-ab7b-25092b6a2431.png"
+                alt="Amorine AI Companion"
+                className="w-full h-[600px] object-cover object-center rounded-3xl shadow-xl animate-fade-in"
+              />
+            </div>
           </div>
         </div>
 
