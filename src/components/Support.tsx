@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpCircle, ChevronDown, ChevronUp, Send } from "lucide-react";
 import { useState } from "react";
@@ -29,7 +28,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: "What if I need help or encounter an issue?",
-    answer: "Our support team is here to help! You can reach out through the help center, and we typically respond within 24 hours. For immediate assistance, check our comprehensive FAQ section or community forums."
+    answer: "Our support team is here to help! You can reach out through the help center, and we typically respond within 24 hours."
   }
 ];
 
