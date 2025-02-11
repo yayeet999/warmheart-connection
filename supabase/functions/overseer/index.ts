@@ -144,8 +144,8 @@ Only include fields if issues are detected. When evaluating Amorine performance,
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: analysis.extremeContent,
-        guidance: analysis.guidance
+        extreme_content: analysis.extremeContent || null,
+        guidance: analysis.guidance || null
       })
     });
 
