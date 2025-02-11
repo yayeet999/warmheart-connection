@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -227,6 +226,21 @@ const ALLOWED_PROFILE_COLUMNS = [
 ] as const;
 
 // -------------------- Helper Functions --------------------
+function getStageKeyFromText(stageText: string): string {
+  // Default to introductory_stage if we can't determine
+  if (!stageText) return 'introductory_stage';
+  
+  // Extract the stage key by checking which stage text matches
+  for (const [key, text] of Object.entries(RELATIONSHIP_STAGES)) {
+    if (stageText.includes(text.slice(0, 50))) { // Compare first 50 chars to avoid full text comparison
+      return key;
+    }
+  }
+  
+  // Default to introductory_stage if no match found
+  return 'introductory_stage';
+}
+
 function isValidStageProgression(currentStage: string, newStage: string): boolean {
   const currentIndex = STAGE_PROGRESSION.indexOf(currentStage as any);
   const newIndex = STAGE_PROGRESSION.indexOf(newStage as any);
@@ -251,12 +265,9 @@ async function analyzeLast100MessagesAndUpdateProfile(
     throw new Error("Failed to fetch ai_profile for user " + userId);
   }
 
-  const currentStageKey = aiProfileData.relationship_stage || "introductory_stage";
-
-  // If it's not one of the known stage keys, treat it as 'introductory_stage' by default
-  const knownStages = Object.keys(RELATIONSHIP_STAGES);
-  const isValidStage = knownStages.includes(currentStageKey);
-  const actualStageKey = isValidStage ? currentStageKey : "introductory_stage";
+  // Extract the stage key from the full text
+  const currentStageKey = getStageKeyFromText(aiProfileData.relationship_stage);
+  console.log("Current stage key extracted:", currentStageKey);
 
   // 2) Convert last 100 messages into a user/assistant text block
   const conversationText = last100Messages
@@ -275,7 +286,7 @@ You have four possible stages:
 3) newly_dating
 4) stable_relationship
 
-Current stage is: "${actualStageKey}" 
+Current stage is: "${currentStageKey}" 
 IMPORTANT: You can only progress to the next immediate stage in sequence. No skipping stages.
 
 We have 100 recent messages of conversation between user and Amorine below.
@@ -335,14 +346,14 @@ DO NOT produce anything else besides one valid JSON object.
   const { newStage, modifiedProfile } = parsed;
 
   // 6) Validate stage progression
-  let finalStageKey = actualStageKey;
+  let finalStageKey = currentStageKey; // Now using the extracted key
   if (newStage && 
       STAGE_PROGRESSION.includes(newStage as any) && 
-      isValidStageProgression(actualStageKey, newStage)) {
+      isValidStageProgression(currentStageKey, newStage)) {
     finalStageKey = newStage;
-    console.log(`Valid stage progression from ${actualStageKey} to ${newStage}`);
-  } else if (newStage !== actualStageKey) {
-    console.log(`Invalid stage progression attempt from ${actualStageKey} to ${newStage}, staying in current stage`);
+    console.log(`Valid stage progression from ${currentStageKey} to ${newStage}`);
+  } else if (newStage !== currentStageKey) {
+    console.log(`Invalid stage progression attempt from ${currentStageKey} to ${newStage}, staying in current stage`);
   }
 
   // Always use predefined stage text
@@ -427,4 +438,3 @@ serve(async (req: Request) => {
     );
   }
 });
-
