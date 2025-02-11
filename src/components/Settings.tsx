@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,7 +68,7 @@ const Settings = () => {
       "min-h-screen bg-gray-50/80",
       "px-4 py-6 md:p-8 md:pl-[120px]"
     )}>
-      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-charcoal">Settings</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-charcoal text-center md:text-left">Settings</h1>
       
       <div className="space-y-4 max-w-2xl mx-auto">
         {/* Profile Section */}

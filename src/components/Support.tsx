@@ -119,7 +119,7 @@ const Support = () => {
       "px-4 py-6 md:p-8 md:pl-[120px]",
       "max-w-4xl mx-auto"
     )}>
-      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-charcoal">Support</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-charcoal text-center md:text-left">Support</h1>
       
       <Card className="mb-8 border-0 shadow-sm bg-white/80 backdrop-blur-sm">
         <CardHeader className="pb-3">
