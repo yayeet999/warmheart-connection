@@ -99,38 +99,49 @@ serve(async (req) => {
       .filter(r => r.metadata?.memory_chunk)
       .map(r => r.metadata.memory_chunk);
 
-    const joinedMemoryChunks = memoryChunks.join('\n\n-----\n\n');
+    if (memoryChunks.length === 0) {
+      console.log('No memory chunks found');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          retrievedMemoryCount: 0,
+          retrievedMemoryChunks: [] 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Supabase update
+    // Call middle-thoughts function to process the memories
+    console.log('Calling middle-thoughts function to process memories...');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const updateResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
+    const middleThoughtsResponse = await fetch(
+      `${supabaseUrl}/functions/v1/middle-thoughts`,
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
+          'Authorization': req.headers.get('Authorization') ?? '',
           'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
         },
         body: JSON.stringify({
-          vector_long_term: joinedMemoryChunks,
+          userId,
+          memoryChunks,
         }),
       }
     );
 
-    if (!updateResponse.ok) {
-      const error = await updateResponse.json();
-      throw new Error(`Supabase update failed: ${JSON.stringify(error)}`);
+    if (!middleThoughtsResponse.ok) {
+      const error = await middleThoughtsResponse.text();
+      throw new Error(`Middle-thoughts function error: ${error}`);
     }
+
+    const middleThoughtsResult = await middleThoughtsResponse.json();
 
     return new Response(
       JSON.stringify({
         success: true,
         retrievedMemoryCount: memoryChunks.length,
         retrievedMemoryChunks: memoryChunks,
+        processedMemory: middleThoughtsResult.processedMemory
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -149,4 +160,3 @@ serve(async (req) => {
     );
   }
 });
-
