@@ -47,8 +47,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Check if user has completed onboarding
       const hasCompletedOnboarding = await checkOnboardingStatus(session.user.id);
       
-      // Only redirect to chat if onboarding is complete and we're on home/auth pages
-      if (hasCompletedOnboarding && (location.pathname === "/" || location.pathname === "/auth")) {
+      // Only redirect to chat if onboarding is complete and we're on the auth page
+      if (hasCompletedOnboarding && location.pathname === "/auth") {
         navigate("/chat");
       }
     }
@@ -76,4 +76,3 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
-
