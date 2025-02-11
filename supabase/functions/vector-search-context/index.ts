@@ -13,7 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// For embedding with OpenAI
 async function generateEmbeddings(text: string): Promise<number[]> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openAIApiKey) {
@@ -28,10 +27,9 @@ async function generateEmbeddings(text: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        // Example model name and config
         model: "text-embedding-3-small",
         input: text,
-        dimensions: 384, 
+        dimensions: 384,
       }),
     });
 
@@ -62,13 +60,11 @@ serve(async (req) => {
       throw new Error('Invalid request parameters: userId and message are required.');
     }
 
-    // ---------------------------------------------------------
-    // 1) Check total message count from Redis (like chat-history)
-    // ---------------------------------------------------------
+    console.log('Processing request for userId:', userId);
+
     const key = `user:${userId}:messages`;
     const totalCount = await redis.llen(key);
 
-    // Only run vector search if user has >= 47 messages
     if (totalCount < 47) {
       return new Response(
         JSON.stringify({ 
@@ -79,10 +75,8 @@ serve(async (req) => {
       );
     }
 
-    // ---------------------------------------------------------
-    // 2) Fetch recent messages from Redis (last 5 or so)
-    // ---------------------------------------------------------
     const recentMessagesRaw = await redis.lrange(key, 0, 4);
+    console.log('Recent messages retrieved:', recentMessagesRaw.length);
 
     const parsedMessages = recentMessagesRaw
       .map(msg => {
@@ -93,15 +87,12 @@ serve(async (req) => {
         }
       })
       .filter(Boolean)
-      .reverse(); // optional reverse so oldest -> newest in array
+      .reverse();
 
     const recentContents = parsedMessages.map((m: any) => m.content);
-    // We'll embed these + the current user message
     const messagesToEmbed = [...recentContents, message];
 
-    // ---------------------------------------------------------
-    // 3) Generate embeddings & average them
-    // ---------------------------------------------------------
+    console.log('Generating embeddings for messages...');
     const embeddingsArray = await Promise.all(
       messagesToEmbed.map(txt => generateEmbeddings(txt))
     );
@@ -115,44 +106,54 @@ serve(async (req) => {
     }
     const queryVector = sumVector.map(val => val / embeddingsArray.length);
 
-    // ---------------------------------------------------------
-    // 4) Query Upstash Vector with user-specific metadata filter
-    // ---------------------------------------------------------
     const upstashVectorRestUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL')!;
     const upstashVectorRestToken = Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!;
 
-    const searchResponse = await fetch(`${upstashVectorRestUrl}/query`, {
+    console.log('Querying Upstash Vector with params:', {
+      indexName: 'amorine-vector',
+      vectorLength: queryVector.length,
+      hasUserId: Boolean(userId)
+    });
+
+    const searchBody = {
+      vector: queryVector,
+      topK: 2,
+      includeMetadata: true,
+      includeVectors: false,
+      filter: {
+        field: "user_id",
+        value: userId,
+      },
+    };
+
+    console.log('Search request body:', JSON.stringify(searchBody));
+
+    const searchResponse = await fetch(`${upstashVectorRestUrl}/amorine-vector/query`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${upstashVectorRestToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        indexName: 'amorine-vector',
-        vector: queryVector,
-        topK: 2,
-        includeMetadata: true,
-        filter: {
-          field: "user_id",
-          value: userId,
-        },
-      }),
+      body: JSON.stringify(searchBody),
     });
 
     if (!searchResponse.ok) {
-      throw new Error(`Vector search failed: ${searchResponse.status}`);
+      const errorText = await searchResponse.text();
+      console.error('Vector search failed:', searchResponse.status, errorText);
+      throw new Error(`Vector search failed: ${searchResponse.status} - ${errorText}`);
     }
 
     const searchData = await searchResponse.json();
+    console.log('Search response:', JSON.stringify(searchData));
+
     const memoryChunks = (searchData.result || [])
       .map((r: any) => r.metadata?.memory_chunk)
       .filter((c: any) => typeof c === 'string' && c.length > 0);
 
     const joinedMemoryChunks = memoryChunks.join('\n\n-----\n\n');
 
-    // ---------------------------------------------------------
-    // 5) Update user profile with the retrieved memory
-    // ---------------------------------------------------------
+    console.log('Retrieved memory chunks:', memoryChunks.length);
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
@@ -188,7 +189,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Vector search error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'Internal server error' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
