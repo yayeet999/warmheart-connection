@@ -19,29 +19,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const checkOnboardingStatus = async (userId: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name, pronouns, age_range')
+        .eq('id', userId)
+        .single();
+
+      // If any of these fields are null/undefined, user needs onboarding
+      if (!profile?.name || !profile?.pronouns || !profile?.age_range) {
+        navigate('/onboarding');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      return false;
+    }
+  };
+
+  const handleAuthChange = async (session: Session | null) => {
+    setSession(session);
+    setIsLoading(false);
+
+    if (session) {
+      // Check if user has completed onboarding
+      const hasCompletedOnboarding = await checkOnboardingStatus(session.user.id);
+      
+      // Only redirect to chat if onboarding is complete and we're on home/auth pages
+      if (hasCompletedOnboarding && (location.pathname === "/" || location.pathname === "/auth")) {
+        navigate("/chat");
+      }
+    }
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsLoading(false);
-      
-      // If we have a session and we're on the home page or auth page, redirect to chat
-      if (session && (location.pathname === "/" || location.pathname === "/auth")) {
-        navigate("/chat");
-      }
+      handleAuthChange(session);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setIsLoading(false);
-      
-      // If we have a session and we're on the home page or auth page, redirect to chat
-      if (session && (location.pathname === "/" || location.pathname === "/auth")) {
-        navigate("/chat");
-      }
+      handleAuthChange(session);
     });
 
     return () => subscription.unsubscribe();
