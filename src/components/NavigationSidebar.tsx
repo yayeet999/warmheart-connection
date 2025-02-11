@@ -1,5 +1,5 @@
 
-import { Home, MessageSquare, Brain, Settings, HelpCircle, LogOut, Menu } from "lucide-react";
+import { Home, MessageSquare, Brain, Settings, HelpCircle, LogOut, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -62,7 +62,11 @@ const NavigationSidebar = () => {
           )}
           aria-label="Toggle menu"
         >
-          <Menu className="w-5 h-5 text-gray-600" />
+          {isExpanded ? (
+            <PanelLeftClose className="w-5 h-5 text-gray-600 stroke-[1.5]" />
+          ) : (
+            <PanelLeft className="w-5 h-5 text-gray-600 stroke-[1.5]" />
+          )}
         </button>
       )}
 
