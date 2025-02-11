@@ -299,7 +299,10 @@ const ChatInterface = () => {
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
     
+    // Add the user message locally
     setMessages(prev => [...prev, userMessage]);
+
+    // We'll track the new count in a local variable
     const updatedCount = messageCount + 1;
     setMessageCount(updatedCount);
 
@@ -325,57 +328,39 @@ const ChatInterface = () => {
       }
 
       // ------------------------------------------------
-      // 2) Check if we should do vector search
+      // 2) Trigger vector search if count >= 47
       // ------------------------------------------------
-      let vectorContext = null;
-      if (updatedCount >= 47) {
-        console.log('Message count >= 47, checking if vector search needed...');
-        const { data: vectorCheckerData, error: vectorError } = await supabase.functions.invoke(
-          'vector-checker',
-          {
-            body: {
-              userId: session.user.id,
-              message: userMessage.content
+      // This calls the vector-search-context function with (userId, message).
+      // The function itself checks the total Redis length to confirm >= 47.
+      try {
+        if (updatedCount >= 47) {
+          const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
+            'vector-search-context',
+            {
+              body: {
+                userId: session.user.id,
+                message: userMessage.content
+              }
             }
-          }
-        );
-
-        if (vectorError) {
-          console.error('Vector checker error:', vectorError);
-        } else {
-          console.log('Vector checker raw response:', vectorCheckerData);
-          
-          if (vectorCheckerData && vectorCheckerData.shouldVectorSearch === true) {
-            console.log('Vector search approved, proceeding with search...');
-            try {
-              const { data: vectorData } = await supabase.functions.invoke(
-                'vector-search-context',
-                {
-                  body: {
-                    userId: session.user.id,
-                    message: userMessage.content
-                  }
-                }
-              );
-              vectorContext = vectorData;
-              console.log('Vector search results:', vectorData);
-            } catch (vErr) {
-              console.error('Error in vector search:', vErr);
-            }
+          );
+          if (vectorError) {
+            console.error('Vector search error:', vectorError);
           } else {
-            console.log('Vector search NOT needed:', vectorCheckerData?.reason || 'No reason provided');
+            console.log('Vector search response:', vectorData);
           }
         }
+      } catch (vErr) {
+        console.error('Error calling vector-search-context:', vErr);
+        // Not user-blocking, so just log it
       }
 
       // ------------------------------------------------
-      // 3) Call main chat function to get AI response
+      // 3) Call your main chat function to get AI response
       // ------------------------------------------------
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
-          userId: session.user.id,
-          vectorContext
+          userId: session.user.id
         }
       });
 
@@ -391,10 +376,12 @@ const ChatInterface = () => {
 
         const aiMessage = { type: "ai", content: msg.content };
         setMessages(prev => [...prev, aiMessage]);
-        
+
+        // Increment local message count
         const newAiCount = (count) => count + 1;
         setMessageCount(newAiCount);
 
+        // Also store the AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -402,9 +389,17 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
+
+        // If we want to possibly trigger embed chunk after these AI messages,
+        // it will already happen automatically if the Redis list hits a multiple of 8
+        // (chat-history function does that logic).
         
         setIsTyping(index < data.messages.length - 1);
       }
+
+      // Optionally check if we should embed (again) after AI messages,
+      // but you already do that every 8 messages in chat-history,
+      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);

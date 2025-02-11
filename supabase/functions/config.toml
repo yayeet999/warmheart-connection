@@ -25,6 +25,3 @@ verify_jwt = true
 [functions.middle-thoughts]
 verify_jwt = true
 
-[functions.vector-checker]
-verify_jwt = true
-
