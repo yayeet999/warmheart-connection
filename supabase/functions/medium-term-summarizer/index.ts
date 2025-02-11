@@ -52,7 +52,7 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 200 tokens detailed summary focusing on key discussion points, topics and emotional tone.'
+      content: 'You are an expert analyzer of conversations, you know how to spot important details, nuances, and relevant context. You are tasked with analyzing a conversation history and generating a concise MAX 200 tokens detailed summary focusing on key discussion points, topics and emotional tone. Return a JSON object with a "summary" field containing your analysis.'
     };
 
     console.log('Sending request to Groq API...');
