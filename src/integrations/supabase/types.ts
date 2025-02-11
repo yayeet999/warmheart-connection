@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       ai_profiles: {
         Row: {
+          adaptability_score: number | null
           age: number
           backstory: string | null
           created_at: string | null
@@ -37,6 +38,7 @@ export type Database = {
           values: string[] | null
         }
         Insert: {
+          adaptability_score?: number | null
           age: number
           backstory?: string | null
           created_at?: string | null
@@ -63,6 +65,7 @@ export type Database = {
           values?: string[] | null
         }
         Update: {
+          adaptability_score?: number | null
           age?: number
           backstory?: string | null
           created_at?: string | null
