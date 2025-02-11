@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Settings as SettingsIcon, UserCircle, CreditCard, Trash2 } from "lucide-react";
+import { UserCircle, CreditCard, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -101,21 +101,6 @@ const Settings = () => {
             <p className="text-sm font-medium text-gray-500">Current Plan</p>
             <p className="text-base text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Preferences Section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <SettingsIcon className="h-6 w-6 text-coral" />
-            Preferences
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-600">
-            Customize your experience with Amorine. Settings coming soon...
-          </p>
         </CardContent>
       </Card>
 
