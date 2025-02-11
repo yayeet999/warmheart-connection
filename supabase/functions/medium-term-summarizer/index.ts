@@ -84,8 +84,15 @@ serve(async (req) => {
       throw new Error('Invalid response format from Groq API');
     }
 
-    const summary = groqData.choices[0].message.content;
+    let summary;
+    try {
+      summary = JSON.parse(groqData.choices[0].message.content);
+    } catch (e) {
+      console.error("Error parsing Groq response content:", groqData.choices[0].message.content);
+      throw new Error("Failed to parse Groq API response");
+    }
 
+    // Update Supabase profile with summary
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -98,7 +105,7 @@ serve(async (req) => {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        medium_term_summary: summary
+        medium_term_summary: summary.summary || null
       })
     });
 
