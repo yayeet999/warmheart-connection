@@ -53,26 +53,48 @@ serve(async (req) => {
     const lastTwoUserMessages = recentMessages
       .map(msg => {
         try {
-          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          console.log('Parsed message:', parsed);
-          return parsed;
+          // First check if it's already an object
+          if (typeof msg === 'object' && msg !== null) {
+            console.log('Message is already an object:', msg);
+            return msg;
+          }
+          // If it's a string, try to parse it
+          if (typeof msg === 'string') {
+            const parsed = JSON.parse(msg);
+            console.log('Successfully parsed message string:', parsed);
+            return parsed;
+          }
+          console.error('Invalid message format:', msg);
+          return null;
         } catch (e) {
-          console.error('Error parsing message:', e);
+          console.error('Error processing message:', e, 'Message was:', msg);
           return null;
         }
       })
       .filter(msg => {
-        const isUser = msg && msg.type === 'user';
-        console.log('Message type check:', msg?.type, 'isUser:', isUser);
+        if (!msg) return false;
+        const isUser = msg.type === 'user';
+        console.log('Message type check:', msg.type, 'isUser:', isUser);
         return isUser;
       })
       .slice(0, 2)
-      .map(msg => msg.content)
-      .reverse();
+      .map(msg => msg.content);
 
     console.log('Last two USER messages:', lastTwoUserMessages);
 
-    const userMessagesContext = lastTwoUserMessages.join('\n');
+    // If we don't have enough context, don't do vector search
+    if (lastTwoUserMessages.length < 2) {
+      console.log('Not enough user message context');
+      return new Response(
+        JSON.stringify({ 
+          shouldVectorSearch: false,
+          reason: 'Not enough user message context'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userMessagesContext = lastTwoUserMessages.reverse().join('\n');
     console.log('Combined context:', userMessagesContext);
 
     // Call Groq API with updated system prompt
