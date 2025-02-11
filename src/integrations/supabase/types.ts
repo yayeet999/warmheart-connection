@@ -13,6 +13,7 @@ export type Database = {
         Row: {
           age: number
           backstory: string | null
+          conversation_style: Json | null
           created_at: string | null
           current_challenges: string[] | null
           daily_schedule: Json | null
@@ -29,6 +30,7 @@ export type Database = {
           occupation: string | null
           personality_traits: string[] | null
           recent_experiences: Json | null
+          relationship_stage: string | null
           relationships: Json | null
           updated_at: string | null
           user_id: string
@@ -37,6 +39,7 @@ export type Database = {
         Insert: {
           age: number
           backstory?: string | null
+          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
@@ -53,6 +56,7 @@ export type Database = {
           occupation?: string | null
           personality_traits?: string[] | null
           recent_experiences?: Json | null
+          relationship_stage?: string | null
           relationships?: Json | null
           updated_at?: string | null
           user_id: string
@@ -61,6 +65,7 @@ export type Database = {
         Update: {
           age?: number
           backstory?: string | null
+          conversation_style?: Json | null
           created_at?: string | null
           current_challenges?: string[] | null
           daily_schedule?: Json | null
@@ -77,6 +82,7 @@ export type Database = {
           occupation?: string | null
           personality_traits?: string[] | null
           recent_experiences?: Json | null
+          relationship_stage?: string | null
           relationships?: Json | null
           updated_at?: string | null
           user_id?: string
