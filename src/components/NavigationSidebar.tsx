@@ -72,14 +72,13 @@ const NavigationSidebar = () => {
       {/* Sidebar */}
       <nav
         className={cn(
-          "fixed left-0 top-0 h-full bg-white/95 backdrop-blur-md",
+          "fixed left-0 top-0 h-full bg-white/95 backdrop-blur-md shadow-lg",
           "flex flex-col items-start py-8 px-4 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40",
           "touch-none", // Prevents iOS overscroll
-          !isMobile && "border-r border-gray-100 shadow-[1px_0px_20px_-2px_rgba(0,0,0,0.02)]",
           isMobile ? (
             isExpanded ? "w-[250px] translate-x-0" : "w-[250px] -translate-x-full"
           ) : (
-            "w-[240px] translate-x-0"
+            "w-[100px] translate-x-0"
           )
         )}
       >
@@ -90,26 +89,16 @@ const NavigationSidebar = () => {
               to={path}
               onClick={() => isMobile && setIsExpanded(false)}
               className={cn(
-                "flex items-center gap-4 p-3.5 rounded-2xl transition-all duration-200 group w-full",
-                !isMobile && "px-6 py-4",
+                "flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200 group w-full",
                 location.pathname === path
                   ? "bg-gradient-primary text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-50",
+                  : "text-gray-600 hover:bg-gray-100/80",
                 "active:scale-[0.98]"
               )}
             >
-              <Icon className={cn(
-                "flex-shrink-0",
-                !isMobile && "w-[22px] h-[22px] stroke-[1.5]"
-              )} />
-              {(!isMobile || (isMobile && isExpanded)) && (
-                <span className={cn(
-                  "text-sm font-medium",
-                  !isMobile && "text-[15px]",
-                  location.pathname === path
-                    ? "text-white"
-                    : "text-gray-700"
-                )}>{label}</span>
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {isMobile && (
+                <span className="text-sm font-medium">{label}</span>
               )}
             </Link>
           ))}
@@ -118,21 +107,14 @@ const NavigationSidebar = () => {
         <button
           onClick={handleLogout}
           className={cn(
-            "flex items-center gap-4 p-3.5 rounded-2xl w-full",
-            !isMobile && "px-6 py-4",
-            "text-gray-600 hover:bg-gray-50 transition-all duration-200",
+            "flex items-center gap-3 p-3.5 rounded-xl w-full",
+            "text-gray-600 hover:bg-gray-100/80 transition-all duration-200",
             "active:scale-[0.98]"
           )}
         >
-          <LogOut className={cn(
-            "flex-shrink-0",
-            !isMobile && "w-[22px] h-[22px] stroke-[1.5]"
-          )} />
-          {(!isMobile || (isMobile && isExpanded)) && (
-            <span className={cn(
-              "text-sm font-medium",
-              !isMobile && "text-[15px] text-gray-700"
-            )}>Logout</span>
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {isMobile && (
+            <span className="text-sm font-medium">Logout</span>
           )}
         </button>
       </nav>
