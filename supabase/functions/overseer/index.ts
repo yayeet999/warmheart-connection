@@ -71,12 +71,11 @@ serve(async (req) => {
     }));
 
     // Call Groq API for analysis
-    const groqResponse = await fetch('https://api.groq.com/v1/chat/completions', {
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
-        'Content-Type': 'application/json',
-        'X-Groq-Safety-Check': 'disabled'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
@@ -107,7 +106,8 @@ Only include fields if issues are detected. When evaluating Amorine performance,
           ...formattedConversation
         ],
         temperature: 0.2,
-        max_tokens: 200
+        max_tokens: 200,
+        response_format: { type: "json_object" }
       }),
     });
 
@@ -116,7 +116,13 @@ Only include fields if issues are detected. When evaluating Amorine performance,
     }
 
     const { choices: [{ message }] } = await groqResponse.json();
-    const analysis = JSON.parse(message.content);
+    let analysis;
+    try {
+        analysis = JSON.parse(message.content);
+    } catch (e) {
+        console.error("Error parsing JSON response from Groq:", e);
+        throw new Error("Failed to parse Groq API response");
+    }
 
     // Update Supabase profile with analysis results
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
