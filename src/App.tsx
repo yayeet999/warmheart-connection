@@ -16,6 +16,7 @@ import Support from "./components/Support";
 import Auth from "./pages/Auth";
 import Onboarding from "./components/Onboarding";
 import NotFound from "./pages/NotFound";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route
                   path="/dashboard"
                   element={
