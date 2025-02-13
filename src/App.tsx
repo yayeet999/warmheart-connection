@@ -35,12 +35,7 @@ const App = () => {
               <Routes>
                 <Route 
                   path="/" 
-                  element={
-                    <div>
-                      {console.log("Landing page route hit")} {/* Debug log */}
-                      <LandingPage />
-                    </div>
-                  } 
+                  element={<LandingPage />} 
                 />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/onboarding" element={<Onboarding />} />
