@@ -67,6 +67,13 @@ const DateSeparator = ({ date }: { date: string }) => {
   }
 };
 
+// Helper function to check if a string is an image URL
+const isImageUrl = (str: string): boolean => {
+  return str.includes('supabase.co/storage') && 
+         (str.includes('.jpg') || str.includes('.png') || 
+          str.includes('pregenerated-images') || str.includes('?token='));
+};
+
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -160,7 +167,7 @@ const ChatInterface = () => {
     checkAuth();
   }, [navigate]);
 
-  const { data: userData, isError: userDataError } = useQuery({
+  const { data: userData } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -176,9 +183,18 @@ const ChatInterface = () => {
           .maybeSingle(),
       ]);
 
+      const [{ data: profile }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single(),
+      ]);
+
       return {
         subscription: subscription || { tier: 'free' },
-        userId: session.user.id
+        userId: session.user.id,
+        profile
       };
     },
     retry: false,
@@ -464,11 +480,6 @@ const ChatInterface = () => {
               action: 'add'
             }
           });
-
-          if (storeError) {
-            console.error('Error storing message:', storeError);
-            throw new Error('Failed to store message');
-          }
 
           // Call the chat function for AI response
           const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
