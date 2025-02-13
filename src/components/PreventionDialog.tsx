@@ -2,6 +2,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PhoneCall, Heart, AlertTriangle } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
 interface PreventionDialogProps {
   isOpen: boolean;
@@ -9,7 +10,15 @@ interface PreventionDialogProps {
   type: "SUICIDE" | "RACISM" | "VIOLENCE" | null;
 }
 
-const PREVENTION_CONTENT = {
+interface PreventionContent {
+  title: string;
+  description: string;
+  hotline: string | null;
+  actionText: string;
+  Icon: LucideIcon;
+}
+
+const PREVENTION_CONTENT: Record<NonNullable<PreventionDialogProps["type"]>, PreventionContent> = {
   SUICIDE: {
     title: "We Care About You",
     description: "We've noticed some concerning content and want to make sure you're okay. Would you like to talk to someone? The National Suicide Prevention Lifeline is available 24/7.",
@@ -37,7 +46,7 @@ const PreventionDialog = ({ isOpen, onClose, type }: PreventionDialogProps) => {
   if (!type) return null;
 
   const content = PREVENTION_CONTENT[type];
-  const IconComponent = content.Icon;
+  const { Icon } = content;
 
   const handleAction = () => {
     if (content.hotline) {
@@ -51,7 +60,7 @@ const PreventionDialog = ({ isOpen, onClose, type }: PreventionDialogProps) => {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <IconComponent className="w-5 h-5 text-red-500" />
+            <Icon className="w-5 h-5 text-red-500" />
             {content.title}
           </DialogTitle>
           <DialogDescription className="text-base">
