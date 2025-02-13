@@ -1,4 +1,4 @@
-<lov-code>
+
 import Header from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -151,13 +151,13 @@ const TermsOfService = () => {
               <section className="mb-12">
                 <h2 className="text-2xl font-bold text-charcoal mb-4">6. Intellectual Property and License</h2>
                 <p className="text-charcoal/80 mb-4">
-                  <strong>Ownership:</strong> Amorine and all content, software, and other materials within the Service (excluding your User Content) are the property of Nevaubi LLC or our licensors and are protected by intellectual property laws. This includes the Amorine name, logo, all design elements, algorithms, code, text, graphics, and other content we provide (“<strong>Amorine Content</strong>”). All Amorine Content is provided to you <strong>for your personal use only</strong> as part of the Service. We reserve all rights not expressly granted to you.
+                  <strong>Ownership:</strong> Amorine and all content, software, and other materials within the Service (excluding your User Content) are the property of Nevaubi LLC or our licensors and are protected by intellectual property laws. This includes the Amorine name, logo, all design elements, algorithms, code, text, graphics, and other content we provide ("<strong>Amorine Content</strong>"). All Amorine Content is provided to you <strong>for your personal use only</strong> as part of the Service. We reserve all rights not expressly granted to you.
                 </p>
                 <p className="text-charcoal/80 mb-4">
                   <strong>Your License to Use Amorine:</strong> Subject to your compliance with these Terms, we grant you a limited, non-exclusive, non-transferable, revocable license to download, install, and use Amorine on your personal device(s) and to access the Service solely for your personal, non-commercial use. You agree not to use Amorine for any resale, distribution, public performance, or other commercial purposes.
                 </p>
                 <p className="text-charcoal/80 mb-4">
-                  <strong>Restrictions:</strong> You may not copy, modify, distribute, sell, or lease any part of the Service or the included content, nor may you reverse engineer or attempt to extract the source code of any software, except to the extent that such restrictions are expressly prohibited by law. You may not use any meta tags or other “hidden text” utilizing “Amorine” or “Nevaubi” or any of our trademarks without our express written consent.
+                  <strong>Restrictions:</strong> You may not copy, modify, distribute, sell, or lease any part of the Service or the included content, nor may you reverse engineer or attempt to extract the source code of any software, except to the extent that such restrictions are expressly prohibited by law. You may not use any meta tags or other "hidden text" utilizing "Amorine" or "Nevaubi" or any of our trademarks without our express written consent.
                 </p>
                 <p className="text-charcoal/80 mb-4">
                   <strong>Content License from You:</strong> As noted in Section 4, any User Content you input remains yours, but you give us a license to use it for operating the Service. You also agree that we may collect and use de-identified, aggregated data derived from your usage (for example, overall usage statistics, or training data that cannot be linked to you personally) for improving Amorine and other legitimate purposes. This aggregated data will not identify you personally.
@@ -292,4 +292,21 @@ const TermsOfService = () => {
                   If you have any questions or concerns about these Terms or the Service, please contact us at:
                 </p>
                 <div className="mt-4 p-6 bg-cream rounded-xl">
-                  <strong className
+                  <strong className="block text-charcoal">Nevaubi LLC – Amorine Support</strong>
+                  <a href="mailto:amorineapp@gmail.com" className="text-coral hover:text-plum transition-colors">
+                    amorineapp@gmail.com
+                  </a>
+                  <div className="text-charcoal/80 mt-2">
+                    1234 Example Street, Evanston, IL 60201, USA
+                  </div>
+                </div>
+              </section>
+            </div>
+          </ScrollArea>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default TermsOfService;
