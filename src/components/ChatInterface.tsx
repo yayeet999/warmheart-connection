@@ -67,13 +67,6 @@ const DateSeparator = ({ date }: { date: string }) => {
   }
 };
 
-// Helper function to check if a string is an image URL
-const isImageUrl = (str: string): boolean => {
-  return str.includes('supabase.co/storage') && 
-         (str.includes('.jpg') || str.includes('.png') || 
-          str.includes('pregenerated-images') || str.includes('?token='));
-};
-
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -167,7 +160,7 @@ const ChatInterface = () => {
     checkAuth();
   }, [navigate]);
 
-  const { data: userData } = useQuery({
+  const { data: userData, isError: userDataError } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -183,18 +176,9 @@ const ChatInterface = () => {
           .maybeSingle(),
       ]);
 
-      const [{ data: profile }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single(),
-      ]);
-
       return {
         subscription: subscription || { tier: 'free' },
-        userId: session.user.id,
-        profile
+        userId: session.user.id
       };
     },
     retry: false,
@@ -481,6 +465,11 @@ const ChatInterface = () => {
             }
           });
 
+          if (storeError) {
+            console.error('Error storing message:', storeError);
+            throw new Error('Failed to store message');
+          }
+
           // Call the chat function for AI response
           const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
             body: { 
@@ -551,23 +540,6 @@ const ChatInterface = () => {
 
   const isFreeUser = userData?.subscription?.tier === 'free';
 
-  const renderContent = (content: string) => {
-    // Strip markdown image syntax if present
-    const cleanContent = content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
-    
-    if (isImageUrl(cleanContent)) {
-      return (
-        <img 
-          src={cleanContent} 
-          alt="AI Generated" 
-          className="rounded-lg max-w-full h-auto"
-          loading="lazy"
-        />
-      );
-    }
-    return <p className="text-[15px] leading-relaxed">{cleanContent}</p>;
-  };
-
   const renderMessages = () => {
     let currentDate = "";
     
@@ -585,6 +557,9 @@ const ChatInterface = () => {
       } catch (error) {
         console.error("Error processing message date:", error);
       }
+
+      // Parse the message content to handle both regular text and image URLs
+      const content = msg.content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
 
       return (
         <div key={i}>
@@ -606,7 +581,7 @@ const ChatInterface = () => {
               onTouchMove={handleTouchMove}
               onTouchEnd={() => handleTouchEnd(i)}
             >
-              {renderContent(msg.content)}
+              <p className="text-[15px] leading-relaxed">{content}</p>
             </div>
           </div>
         </div>
