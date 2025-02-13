@@ -29,6 +29,7 @@ serve(async (req) => {
     const key = `user:${userId}:messages`;
     console.log('Analyzing messages for user:', userId);
 
+    // Get the last 5 messages instead of 10
     const messages = await redis.lrange(key, 0, 4);
     const conversation = messages.map(msg => {
       try {
@@ -45,6 +46,7 @@ serve(async (req) => {
       );
     }
 
+    // Prepare the conversation for analysis
     const formattedConversation = conversation.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
@@ -132,36 +134,8 @@ IMPORTANT:
       throw new Error('Failed to update profile with analysis');
     }
 
-    // Prepare popup data based on detected content
-    let popupData = null;
-    if (thoughts === 'SUICIDE') {
-      popupData = {
-        type: 'SUICIDE',
-        title: 'Crisis Support Available',
-        message: SUICIDE_HOTLINE,
-        severity: 'critical'
-      };
-    } else if (thoughts === 'RACISM') {
-      popupData = {
-        type: 'RACISM',
-        title: 'Content Warning',
-        message: 'This conversation has been flagged for containing hate speech. Please be mindful of our community guidelines.',
-        severity: 'warning'
-      };
-    } else if (thoughts === 'VIOLENCE') {
-      popupData = {
-        type: 'VIOLENCE',
-        title: 'Safety Alert',
-        message: 'This conversation has been flagged for containing violent content. If you feel unsafe, please contact appropriate authorities.',
-        severity: 'danger'
-      };
-    }
-
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        popup: popupData // Will be null if no issues detected
-      }),
+      JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
