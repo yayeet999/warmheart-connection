@@ -54,19 +54,19 @@ serve(async (req) => {
 
 1. For Suicidal Content:
 - Return "SUICIDE" if you detect:
-  * Direct statements about wanting to end one's life
+  * Direct statements about wanting to end one's life 'kms, end it all, don't want to live anymore, etc'
   * Specific suicide plans or methods
   * Clear expressions of suicidal intent
   * Immediate threats of self-harm
-  * Explicit statements about not wanting to live
+  * Explicit statements about not wanting to live, if assistant mentions 'hotline' this is usually a red flag but use conversation context as well
 
 2. For Violent Content:
 - Return "VIOLENCE" if you detect:
   * Direct threats to harm others
-  * Specific plans for violent acts
+  * Specific plans for violent acts 
   * Clear intentions to cause physical harm
   * Immediate threats of violence
-  * Explicit descriptions of planned violence
+  * Explicit descriptions of planned violence 'stab, kill, shoot, etc'
 
 3. For everything else:
 - Return an empty string ("")
@@ -76,7 +76,7 @@ IMPORTANT:
 - If there's any ambiguity, return an empty string
 - Ignore past tense stories, hypotheticals, or figurative language
 - Do not flag fictional references or quotes
-- Focus on immediate and serious threats only
+- Focus on immediate and serious threats only, reference conversational context as needed
 - Do not flag sexually explicit content`
     };
 
