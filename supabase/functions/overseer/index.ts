@@ -13,8 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUICIDE_HOTLINE = "National Suicide Prevention Lifeline: 988 - Available 24/7";
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -92,19 +90,25 @@ IMPORTANT:
     });
 
     if (!groqResponse.ok) {
+      console.error('Groq API error status:', groqResponse.status);
       const errorText = await groqResponse.text();
-      console.error('Groq API error:', groqResponse.status, errorText);
+      console.error('Groq API error text:', errorText);
       throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
     const groqData = await groqResponse.json();
     console.log('Groq API response:', JSON.stringify(groqData));
 
-    if (!groqData.choices?.[0]?.message?.content) {
-      throw new Error('Invalid response format from Groq API');
+    // More robust error handling for Groq response
+    if (!groqData || !groqData.choices || !Array.isArray(groqData.choices) || groqData.choices.length === 0) {
+      console.error('Invalid Groq response format:', groqData);
+      // Instead of throwing, we'll treat this as no concerns found
+      console.log('Treating invalid response as no concerns');
+      groqData.choices = [{ message: { content: '' } }];
     }
 
-    const thoughts = groqData.choices[0].message.content.trim();
+    // Extract content with fallback to empty string
+    const thoughts = (groqData.choices[0]?.message?.content || '').trim();
     console.log('Analysis result:', thoughts);
 
     // Update Supabase profile with analysis results
@@ -118,6 +122,7 @@ IMPORTANT:
     }
 
     if (concernType) {
+      console.log('Incrementing safety concern:', concernType);
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/increment_safety_concern`, {
         method: 'POST',
         headers: {
@@ -133,11 +138,13 @@ IMPORTANT:
       });
 
       if (!updateResponse.ok) {
+        console.error('Failed to increment safety concern:', await updateResponse.text());
         throw new Error('Failed to increment safety concern');
       }
     }
 
     // Update the extreme_content field
+    console.log('Updating extreme_content to:', concernType);
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -152,6 +159,7 @@ IMPORTANT:
     });
 
     if (!updateResponse.ok) {
+      console.error('Failed to update profile:', await updateResponse.text());
       throw new Error('Failed to update profile with analysis');
     }
 
