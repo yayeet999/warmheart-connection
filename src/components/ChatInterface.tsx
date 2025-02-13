@@ -543,6 +543,40 @@ const ChatInterface = () => {
     }
   }, [profile?.extreme_content]);
 
+  const [showSuspensionDialog, setShowSuspensionDialog] = useState(false);
+
+  const SUICIDE_RESOURCES = `National Suicide Prevention Lifeline (24/7):
+1-800-273-8255
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+Veterans Crisis Line:
+1-800-273-8255 (Press 1)
+
+Trevor Project (LGBTQ+):
+1-866-488-7386
+
+Please seek professional help immediately. Your life matters, and there are people who want to help.`;
+
+  const VIOLENCE_RESOURCES = `National Crisis Hotline (24/7):
+1-800-662-4357
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+National Domestic Violence Hotline:
+1-800-799-SAFE (7233)
+
+If you're having thoughts of harming others, please seek professional help immediately.
+If there is an immediate danger to anyone's safety, contact emergency services (911).`;
+
+  useEffect(() => {
+    if (profile?.suicide_concern === 5 || profile?.violence_concern === 5) {
+      setShowSuspensionDialog(true);
+    }
+  }, [profile]);
+
   return (
     <>
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
@@ -564,6 +598,29 @@ const ChatInterface = () => {
               className="w-full sm:w-auto"
             >
               Got it!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">
+              Account Suspended
+            </DialogTitle>
+            <DialogDescription className="space-y-4">
+              <p className="font-medium">Your account has been suspended due to multiple safety violations.</p>
+              <p>Please email amorineapp@gmail.com for support.</p>
+              
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
+                {profile?.suicide_concern === 5 ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => navigate("/")}>
+              Return to Home
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -637,9 +694,18 @@ const ChatInterface = () => {
                   handleSend();
                 }
               }}
-              placeholder="Message Amorine..."
-              className="flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400 resize-none scrollbar-none"
-              disabled={isLoading}
+              disabled={isLoading || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
+              placeholder={
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
+                  ? "Account suspended" 
+                  : "Message Amorine..."
+              }
+              className={cn(
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                  : "bg-gray-50"
+              )}
               rows={1}
               style={{ 
                 touchAction: 'manipulation',
@@ -653,19 +719,17 @@ const ChatInterface = () => {
                 e.currentTarget.style.fontSize = '16px';
               }}
             />
-            <button
+            <Button
               onClick={handleSend}
+              size="icon"
               className={cn(
-                "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 bg-gradient-primary",
-                message.trim() 
-                  ? "shadow-md hover:opacity-90 active:scale-95 opacity-100"
-                  : "opacity-50",
-                "disabled:cursor-not-allowed"
+                "bg-gradient-primary hover:bg-gradient-primary/90 rounded-full w-10 h-10 flex items-center justify-center shrink-0",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
-              disabled={isLoading || !message.trim()}
+              disabled={isLoading || !message.trim() || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
             >
               <ArrowUp className="w-5 h-5 text-white" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
