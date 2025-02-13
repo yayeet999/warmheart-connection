@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,71 +23,522 @@ const MESSAGE_LIMITS = {
   pro: 500
 };
 
-interface Message {
-  content: string;
-  type: "user" | "ai";
-  timestamp?: string;
-}
-
-const formatMessageDate = (date: string) => {
-  const messageDate = new Date(date);
-  if (isToday(messageDate)) {
-    return "Today";
+const formatMessageDate = (timestamp?: string) => {
+  if (!timestamp) return "";
+  
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return "";
+    
+    if (isToday(date)) {
+      return format(date, "h:mm a");
+    } else if (isYesterday(date)) {
+      return `Yesterday ${format(date, "h:mm a")}`;
+    } else {
+      return format(date, "MMM d, h:mm a");
+    }
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "";
   }
-  if (isYesterday(messageDate)) {
-    return "Yesterday";
-  }
-  return format(messageDate, "MMMM d, yyyy");
 };
 
-const DateSeparator = ({ date }: { date: string }) => (
-  <div className="flex justify-center my-4">
-    <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-sm">
-      {formatMessageDate(date)}
-    </span>
-  </div>
-);
+const DateSeparator = ({ date }: { date: string }) => {
+  try {
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) return null;
+    
+    return (
+      <div className="flex items-center justify-center my-4">
+        <div className="bg-gray-200 px-3 py-1 rounded-full">
+          <span className="text-sm text-gray-600">
+            {isToday(parsedDate)
+              ? "Today"
+              : isYesterday(parsedDate)
+              ? "Yesterday"
+              : format(parsedDate, "MMMM d, yyyy")}
+          </span>
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error("Error in DateSeparator:", error);
+    return null;
+  }
+};
 
 const ChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
-  const [showDialog, setShowDialog] = useState(false);
-  const [showSafetyDialog, setShowSafetyDialog] = useState(false);
+  const [page, setPage] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [messageCount, setMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [touchStart, setTouchStart] = useState(0);
-  const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const messagesStartRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToBottom = useRef(true);
   const navigate = useNavigate();
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { data: session } = useQuery({
-    queryKey: ["session"],
+  const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent, messageId: number) => {
+    touchStartX.current = e.touches[0].clientX;
+    if (swipedMessageId !== messageId) {
+      setSwipedMessageId(null);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (messageId: number) => {
+    const swipeThreshold = 50;
+    const swipeDistance = touchStartX.current - touchEndX.current;
+    
+    if (swipeDistance > swipeThreshold) {
+      setSwipedMessageId(messageId);
+    } else if (swipeDistance < -swipeThreshold || swipeDistance < swipeThreshold) {
+      setSwipedMessageId(null);
+    }
+  };
+
+  const triggerEmbedding = async (userId: string, recentMessages: any[]) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('embed-conversation-chunk', {
+        body: { 
+          userId,
+          messages: recentMessages.slice(-8) // Take last 8 messages
+        }
+      });
+
+      if (error) {
+        console.error('Error embedding conversation:', error);
+      }
+    } catch (error) {
+      console.error('Error calling embed function:', error);
+    }
+  };
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setMessages([]);
+        setMessageCount(0);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      setMessages([]);
+      setMessageCount(0);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setMessages([]);
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to access the chat.",
+          variant: "destructive"
+        });
+        navigate("/auth");
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  const { data: userData, isError: userDataError } = useQuery({
+    queryKey: ["user-data"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      return session;
+      if (!session?.user) {
+        throw new Error("No authenticated user");
+      }
+
+      const [{ data: subscription }] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("tier")
+          .eq("user_id", session.user.id)
+          .maybeSingle(),
+      ]);
+
+      return {
+        subscription: subscription || { tier: 'free' },
+        userId: session.user.id
+      };
     },
+    retry: false,
+    meta: {
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to load user data. Please try logging in again.",
+          variant: "destructive"
+        });
+        navigate("/auth");
+      }
+    }
   });
 
-  const { data: userData } = useQuery({
-    queryKey: ["userData", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", session!.user!.id)
-        .single();
+  const fetchMessages = async (pageNum = 0) => {
+    if (!userData?.userId) {
+      console.log("No user ID available yet");
+      return;
+    }
 
-      if (error) throw error;
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-history', {
+        body: { 
+          userId: userData.userId,
+          action: 'get',
+          page: pageNum
+        }
+      });
+
+      if (error) {
+        console.error('Error fetching chat history:', error);
+        throw error;
+      }
+
       return data;
-    },
-  });
-
-  // Helper function to check if a string is an image URL
-  const isImageUrl = (str: string): boolean => {
-    return str.includes('supabase.co/storage') && 
-           (str.includes('.jpg') || str.includes('.png') || 
-            str.includes('pregenerated-images') || str.includes('?token='));
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load chat history",
+        variant: "destructive"
+      });
+      return null;
+    }
   };
+
+  useEffect(() => {
+    const loadInitialMessages = async () => {
+      const data = await fetchMessages(0);
+      if (data?.messages) {
+        setMessages(data.messages);
+        setHasMore(data.hasMore);
+        setMessageCount(data.messages.length);
+      }
+    };
+
+    loadInitialMessages();
+  }, [userData?.userId]);
+
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    
+    // Store current scroll height
+    const scrollContainer = chatContainerRef.current;
+    const oldScrollHeight = scrollContainer?.scrollHeight || 0;
+    const oldScrollTop = scrollContainer?.scrollTop || 0;
+    
+    const data = await fetchMessages(nextPage);
+    
+    if (data?.messages) {
+      shouldScrollToBottom.current = false;
+      setMessages(prev => [...data.messages, ...prev]);
+      setHasMore(data.hasMore);
+      setPage(nextPage);
+      
+      // After render, adjust scroll position
+      requestAnimationFrame(() => {
+        if (scrollContainer) {
+          const newScrollHeight = scrollContainer.scrollHeight;
+          const newPosition = newScrollHeight - oldScrollHeight + oldScrollTop;
+          scrollContainer.scrollTop = newPosition;
+        }
+      });
+    }
+    
+    setIsLoadingMore(false);
+  };
+
+  const scrollToBottom = () => {
+    if (shouldScrollToBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoadingMore) {
+      scrollToBottom();
+    }
+  }, [messages, isLoadingMore]);
+
+  const adjustTextAreaHeight = () => {
+    const textArea = textAreaRef.current;
+    if (textArea) {
+      textArea.style.height = 'auto';
+      const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120); // Min 24px, max 120px
+      textArea.style.height = `${newHeight}px`;
+    }
+  };
+
+  const resetTextAreaHeight = () => {
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = '24px';
+    }
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() || isLoading) return;
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      toast({
+        title: "Error",
+        description: "Please log in to send messages.",
+        variant: "destructive"
+      });
+      navigate("/auth");
+      return;
+    }
+
+    // Check daily limits
+    const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
+      body: { 
+        userId: session.user.id,
+        tier: userData?.subscription?.tier || 'free'
+      }
+    });
+
+    if (limitError || !limitData.canSendMessage) {
+      toast({
+        title: "Daily Limit Reached",
+        description: `You've reached your daily limit of ${MESSAGE_LIMITS[userData?.subscription?.tier || 'free']} messages. Please try again tomorrow or upgrade your plan.`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setMessage("");
+    resetTextAreaHeight();
+    
+    // Ensure focus is set before any async operations
+    requestAnimationFrame(() => {
+      textAreaRef.current?.focus();
+    });
+    
+    setIsLoading(true);
+    setIsTyping(true);
+    const userMessage = { type: "user", content: message.trim() };
+    
+    // Add the user message locally
+    setMessages(prev => [...prev, userMessage]);
+
+    // We'll track the new count in a local variable
+    const updatedCount = messageCount + 1;
+    setMessageCount(updatedCount);
+
+    try {
+      // First check with pre-checker if special handling is needed
+      const { data: preCheckData, error: preCheckError } = await supabase.functions.invoke('pre-checker', {
+        body: { 
+          userId: session.user.id,
+          message: userMessage.content
+        }
+      });
+
+      if (preCheckError) {
+        console.error('Pre-checker error:', preCheckError);
+        // Continue with normal flow if pre-checker fails
+      } else if (preCheckData?.messageType === 'image') {
+        try {
+          // Call image-context-analyzer
+          const { data: imageContext, error: imageContextError } = await supabase.functions.invoke(
+            'image-context-analyzer',
+            {
+              body: { 
+                userId: session.user.id,
+                message: userMessage.content
+              }
+            }
+          );
+
+          if (imageContextError) {
+            console.error('Image context analysis error:', imageContextError);
+            throw new Error('Image analysis failed');
+          }
+
+          // Validate the analysis result
+          if (!imageContext?.analysis) {
+            console.error('Invalid image context analysis result');
+            throw new Error('Invalid image analysis');
+          }
+
+          // Store the user message with image request metadata
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: {
+                ...userMessage,
+                metadata: {
+                  type: 'image_request',
+                  analysis: imageContext.analysis
+                }
+              },
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing image request:', storeError);
+            throw new Error('Failed to store image request');
+          }
+
+          // Show typing indicator for image search
+          setIsTyping(true);
+
+          // Call the image search function
+          const { data: imageSearchResult, error: searchError } = await supabase.functions.invoke(
+            'amorine-image-search',
+            {
+              body: { analysis: imageContext.analysis }
+            }
+          );
+
+          if (searchError) {
+            throw new Error('Image search failed');
+          }
+
+          if (!imageSearchResult.success) {
+            throw new Error(imageSearchResult.error || 'No matching images found');
+          }
+
+          // Create AI response with the images
+          const aiResponse = {
+            type: "ai",
+            content: imageSearchResult.images.map(img => 
+              `![Generated Image](${img.url})`
+            ).join('\n')
+          };
+
+          // Add the response to messages
+          setMessages(prev => [...prev, aiResponse]);
+
+          // Store the AI response
+          await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: aiResponse,
+              action: 'add'
+            }
+          });
+
+          // Update message count
+          setMessageCount(prev => prev + 1);
+
+        } catch (error) {
+          console.error('Error in image generation flow:', error);
+          // Let the error bubble up to be handled by the main error handler
+          throw error;
+        } finally {
+          setIsTyping(false);
+        }
+      } else {
+        // Handle text messages
+        try {
+          // Store the user message
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: userMessage,
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing message:', storeError);
+            throw new Error('Failed to store message');
+          }
+
+          // Call the chat function for AI response
+          const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
+            body: { 
+              userId: session.user.id,
+              message: userMessage.content
+            }
+          });
+
+          if (chatError) {
+            console.error('Chat function error:', chatError);
+            throw new Error('Failed to get AI response');
+          }
+
+          // Process and validate the AI response
+          if (!chatResponse?.messages?.length) {
+            throw new Error('Invalid chat response format');
+          }
+
+          // Add AI responses to messages (handling multiple messages if present)
+          for (const msg of chatResponse.messages) {
+            const aiResponse = {
+              type: "ai",
+              content: msg.content,
+              delay: msg.delay
+            };
+
+            // Add the response to messages
+            setMessages(prev => [...prev, aiResponse]);
+
+            // Store the AI response
+            await supabase.functions.invoke('chat-history', {
+              body: {
+                userId: session.user.id,
+                message: aiResponse,
+                action: 'add'
+              }
+            });
+          }
+
+          // Update message count
+          setMessageCount(prev => prev + 1);
+
+        } catch (error) {
+          console.error('Error in text message flow:', error);
+          throw error;
+        } finally {
+          setIsTyping(false);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prev => [
+        ...prev,
+        {
+          type: "ai",
+          content: "I apologize, but I'm having trouble connecting right now. Please try again later."
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
+      setIsTyping(false);
+      requestAnimationFrame(() => {
+        textAreaRef.current?.focus();
+      });
+    }
+  };
+
+  const isFreeUser = userData?.subscription?.tier === 'free';
 
   const renderContent = (content: string) => {
     // Strip markdown image syntax if present
@@ -106,144 +556,6 @@ const ChatInterface = () => {
     }
     return <p className="text-[15px] leading-relaxed">{cleanContent}</p>;
   };
-
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!session?.user?.id) return;
-
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("Error fetching messages:", error);
-        return;
-      }
-
-      const formattedMessages = data.map((msg) => ({
-        content: msg.content,
-        type: msg.role as "user" | "ai",
-        timestamp: msg.created_at,
-      }));
-
-      setMessages(formattedMessages);
-    };
-
-    fetchMessages();
-  }, [session?.user?.id]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || isTyping) return;
-
-    const messageCount = messages.filter(
-      (msg) => msg.type === "user"
-    ).length;
-
-    if (
-      isFreeUser &&
-      messageCount >= MESSAGE_LIMITS.free
-    ) {
-      setShowDialog(true);
-      return;
-    }
-
-    if (
-      userData?.subscription?.tier === "pro" &&
-      messageCount >= MESSAGE_LIMITS.pro
-    ) {
-      toast({
-        title: "Message limit reached",
-        description:
-          "You've reached the maximum number of messages for your plan.",
-      });
-      return;
-    }
-
-    const userMessage = {
-      content: newMessage,
-      type: "user" as const,
-      timestamp: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setNewMessage("");
-    setIsTyping(true);
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: newMessage,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
-
-      const data = await response.json();
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          content: data.message,
-          type: "ai" as const,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
-  };
-
-  const handleTouchStart = (
-    e: React.TouchEvent<HTMLDivElement>,
-    messageId: number
-  ) => {
-    setTouchStart(e.touches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!touchStart) return;
-
-    const currentTouch = e.touches[0].clientX;
-    const diff = touchStart - currentTouch;
-
-    if (diff > 50) {
-      // Swiped left
-      setSwipedMessageId(null);
-    }
-  };
-
-  const handleTouchEnd = (messageId: number) => {
-    setTouchStart(0);
-  };
-
-  const isFreeUser = userData?.subscription?.tier === 'free';
 
   const renderMessages = () => {
     let currentDate = "";
@@ -291,68 +603,239 @@ const ChatInterface = () => {
     });
   };
 
+  const [safetyDialog, setSafetyDialog] = useState<{
+    open: boolean;
+    type: "suicide" | "violence" | null;
+  }>({ open: false, type: null });
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile", userData?.userId],
+    queryFn: async () => {
+      if (!userData?.userId) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("suicide_concern, violence_concern, extreme_content")
+        .eq("id", userData.userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userData?.userId,
+    refetchInterval: 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true
+  });
+
+  useEffect(() => {
+    if (profile?.extreme_content) {
+      setSafetyDialog({
+        open: true,
+        type: profile.extreme_content.toLowerCase() as "suicide" | "violence",
+      });
+    }
+  }, [profile?.extreme_content]);
+
+  const [showSuspensionDialog, setShowSuspensionDialog] = useState(false);
+
+  const SUICIDE_RESOURCES = `National Suicide Prevention Lifeline (24/7):
+1-800-273-8255
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+Veterans Crisis Line:
+1-800-273-8255 (Press 1)
+
+Trevor Project (LGBTQ+):
+1-866-488-7386
+
+Please seek professional help immediately. Your life matters, and there are people who want to help.`;
+
+  const VIOLENCE_RESOURCES = `National Crisis Hotline (24/7):
+1-800-662-4357
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+National Domestic Violence Hotline:
+1-800-799-SAFE (7233)
+
+If you're having thoughts of harming others, please seek professional help immediately.
+If there is an immediate danger to anyone's safety, contact emergency services (911).`;
+
+  useEffect(() => {
+    if (profile?.suicide_concern === 5 || profile?.violence_concern === 5) {
+      setShowSuspensionDialog(true);
+    }
+  }, [profile]);
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="space-y-4">{renderMessages()}</div>
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      <div className="border-t bg-white p-4">
-        <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-            <textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type a message..."
-              className="flex-1 p-2 border rounded-lg resize-none h-[42px] max-h-[160px] min-h-[42px]"
-              rows={1}
-            />
-            <Button
-              type="submit"
-              disabled={!newMessage.trim() || isTyping}
-              size="icon"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-        </div>
-      </div>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+    <>
+      <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Upgrade to Pro</DialogTitle>
-            <DialogDescription>
-              You've reached the message limit for the free plan. Upgrade to Pro
-              for unlimited messages.
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5 text-coral" />
+              Welcome to Amorine!
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              We're excited to have you! You're welcome to chat and interact with Amorine. 
+              Just remember there's a limit of 50 daily messages on the free tier. 
+              You can upgrade to our pro plan for unlimited and voice calling/video features!
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => navigate("/settings?tab=billing")}>
-              Upgrade to Pro
+            <Button 
+              onClick={() => setShowWelcomeDialog(false)}
+              className="w-full sm:w-auto"
+            >
+              Got it!
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <SafetyAcknowledgmentDialog
-        open={showSafetyDialog}
-        onOpenChange={setShowSafetyDialog}
-      />
+      <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" hideCloseButton>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">
+              Account Suspended
+            </DialogTitle>
+            <DialogDescription className="space-y-4">
+              <p className="font-medium">Your account has been suspended due to multiple safety violations.</p>
+              <p>Please email amorineapp@gmail.com for support.</p>
+              
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
+                {profile?.suicide_concern === 5 ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => navigate("/")}>
+              Return to Home
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {isTyping && (
-        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2">
-          <TypingIndicator />
+      <div className={cn(
+        "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
+        "sm:pl-[100px]"
+      )}>
+        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
+            <UserRound className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
+
+        <div 
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            if (target.scrollTop === 0 && hasMore && !isLoadingMore) {
+              loadMoreMessages();
+            }
+          }}
+        >
+          {hasMore && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreMessages}
+                disabled={isLoadingMore}
+                className="flex items-center gap-2"
+              >
+                {isLoadingMore ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    Load More
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          <div ref={messagesStartRef} />
+          {renderMessages()}
+          {isTyping && (
+            <div className="flex justify-start items-end space-x-2">
+              <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
+                <TypingIndicator />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        
+        <div className="p-4 bg-white border-t border-gray-200">
+          <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
+            <textarea
+              ref={textAreaRef}
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                adjustTextAreaHeight();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={isLoading || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
+              placeholder={
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
+                  ? "Account suspended" 
+                  : "Message Amorine..."
+              }
+              className={cn(
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                  : "bg-gray-50"
+              )}
+              rows={1}
+              style={{ 
+                touchAction: 'manipulation',
+                minHeight: '44px',
+                lineHeight: '1.4',
+                transition: 'height 0.2s ease',
+                msOverflowStyle: 'none',  // Hide scrollbar in IE/Edge
+                scrollbarWidth: 'none'     // Hide scrollbar in Firefox
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.fontSize = '16px';
+              }}
+            />
+            <Button
+              onClick={handleSend}
+              size="icon"
+              className={cn(
+                "bg-gradient-primary hover:bg-gradient-primary/90 rounded-full w-10 h-10 flex items-center justify-center shrink-0",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+              disabled={isLoading || !message.trim() || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
+            >
+              <ArrowUp className="w-5 h-5 text-white" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {userData?.userId && safetyDialog.type && (
+        <SafetyAcknowledgmentDialog
+          open={safetyDialog.open}
+          onOpenChange={(open) => setSafetyDialog(prev => ({ ...prev, open }))}
+          type={safetyDialog.type}
+          userId={userData.userId}
+        />
       )}
-    </div>
+    </>
   );
 };
 
