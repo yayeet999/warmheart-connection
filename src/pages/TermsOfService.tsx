@@ -1,3 +1,4 @@
+<lov-code>
 import Header from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -161,9 +162,6 @@ const TermsOfService = () => {
                 <p className="text-charcoal/80 mb-4">
                   <strong>Content License from You:</strong> As noted in Section 4, any User Content you input remains yours, but you give us a license to use it for operating the Service. You also agree that we may collect and use de-identified, aggregated data derived from your usage (for example, overall usage statistics, or training data that cannot be linked to you personally) for improving Amorine and other legitimate purposes. This aggregated data will not identify you personally.
                 </p>
-                <p className="text-charcoal/80 mb-4">
-                  <strong>Trademarks:</strong> “Amorine,” the Amorine logo, “Nevaubi,” and any other product or service names or slogans we use are trademarks of Nevaubi LLC. You must not use these without our prior written permission. All other names and logos are the property of their respective owners and are used on the Service for identification purposes only; use of them does not imply any endorsement or affiliation.
-                </p>
               </section>
 
               <Separator className="my-8" />
@@ -294,21 +292,4 @@ const TermsOfService = () => {
                   If you have any questions or concerns about these Terms or the Service, please contact us at:
                 </p>
                 <div className="mt-4 p-6 bg-cream rounded-xl">
-                  <strong className="block text-charcoal">Nevaubi LLC – Amorine Support</strong>
-                  <a href="mailto:amorineapp@gmail.com" className="text-coral hover:text-plum transition-colors">
-                    amorineapp@gmail.com
-                  </a>
-                  <div className="text-charcoal/80 mt-2">
-                    1234 Example Street, Evanston, IL 60201, USA
-                  </div>
-                </div>
-              </section>
-            </div>
-          </ScrollArea>
-        </div>
-      </main>
-    </div>
-  );
-};
-
-export default TermsOfService;
+                  <strong className
