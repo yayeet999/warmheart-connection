@@ -540,6 +540,23 @@ const ChatInterface = () => {
 
   const isFreeUser = userData?.subscription?.tier === 'free';
 
+  const renderContent = (content: string) => {
+    // Strip markdown image syntax if present
+    const cleanContent = content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
+    
+    if (isImageUrl(cleanContent)) {
+      return (
+        <img 
+          src={cleanContent} 
+          alt="AI Generated" 
+          className="rounded-lg max-w-full h-auto"
+          loading="lazy"
+        />
+      );
+    }
+    return <p className="text-[15px] leading-relaxed">{cleanContent}</p>;
+  };
+
   const renderMessages = () => {
     let currentDate = "";
     
@@ -557,9 +574,6 @@ const ChatInterface = () => {
       } catch (error) {
         console.error("Error processing message date:", error);
       }
-
-      // Parse the message content to handle both regular text and image URLs
-      const content = msg.content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
 
       return (
         <div key={i}>
@@ -581,7 +595,7 @@ const ChatInterface = () => {
               onTouchMove={handleTouchMove}
               onTouchEnd={() => handleTouchEnd(i)}
             >
-              <p className="text-[15px] leading-relaxed">{content}</p>
+              {renderContent(msg.content)}
             </div>
           </div>
         </div>
