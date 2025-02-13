@@ -13,6 +13,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const SUICIDE_HOTLINE = "National Suicide Prevention Lifeline: 988 - Available 24/7";
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,54 +23,69 @@ serve(async (req) => {
   try {
     const { userId } = await req.json();
     if (!userId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'User ID is required' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('User ID is required');
     }
 
     const key = `user:${userId}:messages`;
-    console.log('Overseer analyzing messages for user:', userId);
+    console.log('Analyzing messages for user:', userId);
 
-    // Get the most recent 5 messages
-    const messages = await redis.lrange(key, 0, 4); 
-    console.log('Retrieved last 5 messages from Redis:', messages.length);
-
-    if (!Array.isArray(messages) || messages.length === 0) {
-      console.log('No messages found for analysis');
-      return new Response(
-        JSON.stringify({ success: false, error: 'No messages to analyze', warningCount: 0, concernType: null, accountDisabled: false }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Parse each Redis item
-    const conversation = messages.map((msg) => {
+    // Get the last 5 messages instead of 10
+    const messages = await redis.lrange(key, 0, 4);
+    const conversation = messages.map(msg => {
       try {
         return typeof msg === 'string' ? JSON.parse(msg) : msg;
-      } catch (e) {
-        console.error('Error parsing message:', e);
+      } catch {
         return null;
       }
     }).filter(Boolean);
 
-    // Format for the Groq classification
+    if (conversation.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No messages to analyze' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Prepare the conversation for analysis
     const formattedConversation = conversation.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
     }));
 
-    // Overly strict system prompt to only detect serious SUICIDE or VIOLENCE
     const systemMessage = {
       role: 'system',
-      content: `You are a content moderator focusing ONLY on urgent, explicit signals of self-harm or violent threats. Return EXACTLY one of: "SUICIDE", "VIOLENCE", or "" (empty string). 
-Criteria:
-1) "SUICIDE" if there's a clear direct statement of suicidal intent/plans (not jokes or iffy language).
-2) "VIOLENCE" if there's a specific, immediate threat of harm to others (not joking or vague).
-3) Otherwise, return empty string.`
+      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be MAX 50 tokens and ONLY if a serious issue is detected.
+
+ONLY analyze for these specific scenarios:
+
+1. EXPLICIT Suicidal Intent:
+- ONLY flag direct, clear statements of suicidal intent or plans
+- Must be current/immediate, not past experiences or hypotheticals
+- DO NOT flag casual expressions like "I'm gonna die" or "FML"
+- When flagged, include: "${SUICIDE_HOTLINE}"
+
+2. CLEAR Racial Hate Speech:
+- ONLY flag explicitly racist statements with clear malicious intent
+- Must be direct attacks or clear hate speech
+- DO NOT flag discussions about race, jokes, or ambiguous statements
+- DO NOT flag casual slang or culturally accepted terms
+
+3. EXPLICIT Violence:
+- ONLY flag clear, specific threats or plans for violence
+- Must be direct and immediate, not metaphorical
+- DO NOT flag gaming references, movie quotes, or playful banter
+- DO NOT flag past experiences or hypothetical scenarios
+
+IMPORTANT:
+- Return 'null' if there's ANY doubt about the severity
+- Ignore dark humor, sarcasm, song lyrics, or casual venting
+- Do not flag content unless it's absolutely clear and serious
+- When in doubt, do not flag
+
+If you find a clear violation, be direct and concise in your response. Otherwise, return an empty string.`
     };
 
-    // Send to Groq for classification
+    console.log('Sending request to Groq API...');
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,110 +102,53 @@ Criteria:
 
     if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
-      console.error('Groq API error response:', errorText);
-      throw new Error(`Groq classification error: ${groqResponse.status}`);
+      console.error('Groq API error:', groqResponse.status, errorText);
+      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
     const groqData = await groqResponse.json();
-    const classification = (groqData.choices?.[0]?.message?.content || '').trim();
-    console.log('Overseer classification result:', classification);
+    console.log('Groq API response:', JSON.stringify(groqData));
 
-    // Next we check the existing extreme_content in profiles, so we don't increment repeatedly
+    if (!groqData.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from Groq API');
+    }
+
+    const thoughts = groqData.choices[0].message.content.trim();
+
+    // Update Supabase profile with analysis results
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // 1) Fetch user profile to see if the same classification is already set
-    const profileRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=extreme_content`, {
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey
-      }
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null)
+      })
     });
-    if (!profileRes.ok) {
-      throw new Error(`Could not fetch user profile. Status: ${profileRes.status}`);
-    }
-    const [profile] = await profileRes.json();
-    const currentFlag = profile?.extreme_content || null;
-    console.log('Current extreme_content in DB:', currentFlag);
 
-    // 2) Decide how to update
-    //    - If classification is "", remove any existing flag
-    //    - If classification is "SUICIDE" or "VIOLENCE" but matches the existing flag, do nothing
-    //    - If classification is "SUICIDE" or "VIOLENCE" AND is different from existing, increment concerns
-    let result = null;
-
-    if (classification === "") {
-      console.log('No new issues -> clearing extreme_content if any');
-      // Clear the extreme_content in DB
-      const clearRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          extreme_content: null
-        })
-      });
-      if (!clearRes.ok) {
-        console.error('Error clearing extreme_content:', await clearRes.text());
-      }
-
-      // Return base response
-      result = { success: true, warningCount: 0, concernType: null, accountDisabled: false };
-    } else if (classification === currentFlag) {
-      console.log(`Classification matches existing flag (${currentFlag}), skipping increment.`);
-      // Return current state without incrementing
-      result = { success: true, warningCount: 0, concernType: currentFlag, accountDisabled: false };
-    } else {
-      // We have a newly detected SUICIDE or VIOLENCE different from the old flag
-      console.log('New serious content detected -> increment_safety_concern');
-      const increment = await fetch(`${supabaseUrl}/rest/v1/rpc/increment_safety_concern`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          user_id_param: userId,
-          concern_type: classification
-        })
-      });
-      if (!increment.ok) {
-        const incErr = await increment.text();
-        throw new Error(`Failed to increment safety concern: ${incErr}`);
-      }
-      const incData = await increment.json();
-      console.log('increment_safety_concern returned:', incData);
-
-      // Format the response
-      result = {
-        success: true,
-        warningCount: incData.warningCount,
-        concernType: incData.concernType,
-        accountDisabled: incData.accountDisabled
-      };
+    if (!updateResponse.ok) {
+      throw new Error('Failed to update profile with analysis');
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Overseer error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || 'Internal server error',
-        warningCount: 0,
-        concernType: null,
-        accountDisabled: false
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
-

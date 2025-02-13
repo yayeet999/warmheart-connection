@@ -131,7 +131,6 @@ export type Database = {
       }
       profiles: {
         Row: {
-          account_disabled: boolean
           age_range: string | null
           avatar_url: string | null
           created_at: string
@@ -139,13 +138,10 @@ export type Database = {
           id: string
           name: string | null
           pronouns: string | null
-          suicide_concern: number
           username: string | null
           vector_long_term: string | null
-          violence_concern: number
         }
         Insert: {
-          account_disabled?: boolean
           age_range?: string | null
           avatar_url?: string | null
           created_at?: string
@@ -153,13 +149,10 @@ export type Database = {
           id: string
           name?: string | null
           pronouns?: string | null
-          suicide_concern?: number
           username?: string | null
           vector_long_term?: string | null
-          violence_concern?: number
         }
         Update: {
-          account_disabled?: boolean
           age_range?: string | null
           avatar_url?: string | null
           created_at?: string
@@ -167,10 +160,8 @@ export type Database = {
           id?: string
           name?: string | null
           pronouns?: string | null
-          suicide_concern?: number
           username?: string | null
           vector_long_term?: string | null
-          violence_concern?: number
         }
         Relationships: []
       }
@@ -294,13 +285,6 @@ export type Database = {
           "": unknown
         }
         Returns: unknown
-      }
-      increment_safety_concern: {
-        Args: {
-          user_id_param: string
-          concern_type: string
-        }
-        Returns: Json
       }
       ivfflat_bit_support: {
         Args: {
