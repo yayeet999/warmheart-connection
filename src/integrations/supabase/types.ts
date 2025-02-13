@@ -129,51 +129,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pre_checker_logs: {
-        Row: {
-          created_at: string
-          error: string | null
-          id: string
-          input_message: string
-          output_type: string
-          processing_time_ms: number
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          error?: string | null
-          id?: string
-          input_message: string
-          output_type: string
-          processing_time_ms: number
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          error?: string | null
-          id?: string
-          input_message?: string
-          output_type?: string
-          processing_time_ms?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_user"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pre_checker_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           account_disabled: boolean
