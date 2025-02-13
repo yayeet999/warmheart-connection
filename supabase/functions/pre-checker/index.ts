@@ -84,16 +84,21 @@ Current message: ${message}
 
 Classify:`;
 
-    console.log('Calling Llama model with prompt');
+    console.log('Calling Groq API...');
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Log API key presence (not the actual key)
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    console.log('GROQ_API_KEY present:', !!groqApiKey);
+
+    const response = await fetch('https://api.groq.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
+        'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
-        model: "llama2-3.1-8b-instant",
+        model: "llama2-70b-4096",
         messages: [
           { 
             role: 'system', 
@@ -107,7 +112,13 @@ Classify:`;
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get model response: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Groq API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Failed to get model response: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -188,4 +199,3 @@ Classify:`;
     );
   }
 });
-
