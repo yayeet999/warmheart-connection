@@ -558,6 +558,9 @@ const ChatInterface = () => {
         console.error("Error processing message date:", error);
       }
 
+      // Parse the message content to handle both regular text and image URLs
+      const content = msg.content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
+
       return (
         <div key={i}>
           {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
@@ -578,7 +581,7 @@ const ChatInterface = () => {
               onTouchMove={handleTouchMove}
               onTouchEnd={() => handleTouchEnd(i)}
             >
-              <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              <p className="text-[15px] leading-relaxed">{content}</p>
             </div>
           </div>
         </div>
