@@ -70,13 +70,13 @@ const WARNING_MESSAGES = {
     title: "Multiple Warnings",
     description: (type: string) => 
       `You have received multiple warnings about ${type} content. Please take this seriously.`,
-    variant: "default" as const // Changed from warning to default
+    variant: "default" as const 
   },
   3: {
     title: "Several Warnings",
     description: (type: string) => 
       `Warning: You have several flags for ${type} content. Few warnings remaining before account suspension.`,
-    variant: "default" as const // Changed from warning to default
+    variant: "default" as const 
   },
   4: {
     title: "Final Warning",
@@ -171,7 +171,7 @@ export function SafetyAcknowledgmentDialog({
 
       if (ackError) throw ackError;
 
-      // Then, increment the safety concern counter
+      // Then, increment the safety concern counter and properly type the response
       const { data, error: incrementError } = await supabase
         .rpc('increment_safety_concern', {
           user_id_param: userId,
@@ -180,11 +180,23 @@ export function SafetyAcknowledgmentDialog({
 
       if (incrementError) throw incrementError;
 
-      // Type assertion for the RPC response
-      const incrementResult = data as IncrementSafetyConcernResponse;
+      // Safely type check and cast the response
+      if (data && 
+          typeof data === 'object' && 
+          'warningCount' in data && 
+          'accountDisabled' in data && 
+          'concernType' in data) {
+        const incrementResult = {
+          warningCount: Number(data.warningCount),
+          accountDisabled: Boolean(data.accountDisabled),
+          concernType: String(data.concernType)
+        } as IncrementSafetyConcernResponse;
 
-      // Show the appropriate warning toast
-      showWarningToast(incrementResult.warningCount, type);
+        // Show the appropriate warning toast
+        showWarningToast(incrementResult.warningCount, type);
+      } else {
+        throw new Error('Invalid response format from increment_safety_concern');
+      }
 
       onOpenChange(false);
     } catch (error) {
