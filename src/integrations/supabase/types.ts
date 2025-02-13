@@ -300,7 +300,7 @@ export type Database = {
           user_id_param: string
           concern_type: string
         }
-        Returns: boolean
+        Returns: Json
       }
       ivfflat_bit_support: {
         Args: {

@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -332,7 +331,6 @@ const ChatInterface = () => {
     setMessage("");
     resetTextAreaHeight();
     
-    // Ensure focus is set before any async operations
     requestAnimationFrame(() => {
       textAreaRef.current?.focus();
     });
@@ -341,17 +339,11 @@ const ChatInterface = () => {
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
     
-    // Add the user message locally
     setMessages(prev => [...prev, userMessage]);
-
-    // We'll track the new count in a local variable
     const updatedCount = messageCount + 1;
     setMessageCount(updatedCount);
 
     try {
-      // ------------------------------------------------
-      // 1) Store the user message in Redis via chat-history
-      // ------------------------------------------------
       const { error: storeError } = await supabase.functions.invoke('chat-history', {
         body: {
           userId: session.user.id,
@@ -369,11 +361,6 @@ const ChatInterface = () => {
         });
       }
 
-      // ------------------------------------------------
-      // 2) Trigger vector search if count >= 47
-      // ------------------------------------------------
-      // This calls the vector-search-context function with (userId, message).
-      // The function itself checks the total Redis length to confirm >= 47.
       try {
         if (updatedCount >= 47) {
           const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
@@ -393,12 +380,46 @@ const ChatInterface = () => {
         }
       } catch (vErr) {
         console.error('Error calling vector-search-context:', vErr);
-        // Not user-blocking, so just log it
       }
 
-      // ------------------------------------------------
-      // 3) Call your main chat function to get AI response
-      // ------------------------------------------------
+      const { data: overseerData } = await supabase.functions.invoke('overseer', {
+        body: { userId: session.user.id }
+      });
+
+      if (overseerData) {
+        const { warningCount, concernType, accountDisabled } = overseerData;
+        
+        const warningMessages = {
+          1: {
+            title: "Content Warning",
+            description: "We noticed concerning content about self-harm. If you're struggling, please call the National Suicide Prevention Lifeline: 988. This is your first warning.",
+          },
+          2: {
+            title: "Second Warning",
+            description: "Please refrain from discussing self-harm. Remember, help is available 24/7 at 988. This is your second warning.",
+          },
+          3: {
+            title: "Third Warning",
+            description: "This is your third warning about concerning content. Further violations may result in account restrictions. Crisis help: 988",
+          },
+          4: {
+            title: "Final Warning",
+            description: "This is your final warning. Your next violation will result in account suspension. If you need help, please call 988.",
+          },
+          5: {
+            title: "Account Disabled",
+            description: "Your account has been disabled due to repeated violations. If you're experiencing thoughts of self-harm, please call 988 immediately.",
+          }
+        };
+
+        toast({
+          title: warningMessages[warningCount as keyof typeof warningMessages].title,
+          description: warningMessages[warningCount as keyof typeof warningMessages].description,
+          variant: "destructive",
+          duration: 10000,
+        });
+      }
+
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -408,9 +429,6 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // ------------------------------------------------
-      // 4) For each chunk of AI message, add to chat 
-      // ------------------------------------------------
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
@@ -419,11 +437,9 @@ const ChatInterface = () => {
         const aiMessage = { type: "ai", content: msg.content };
         setMessages(prev => [...prev, aiMessage]);
 
-        // Increment local message count
         const newAiCount = (count) => count + 1;
         setMessageCount(newAiCount);
 
-        // Also store the AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -431,17 +447,9 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
-
-        // If we want to possibly trigger embed chunk after these AI messages,
-        // it will already happen automatically if the Redis list hits a multiple of 8
-        // (chat-history function does that logic).
         
         setIsTyping(index < data.messages.length - 1);
       }
-
-      // Optionally check if we should embed (again) after AI messages,
-      // but you already do that every 8 messages in chat-history,
-      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);
@@ -455,7 +463,6 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
       setIsTyping(false);
-      // Ensure focus is maintained after async operations complete
       requestAnimationFrame(() => {
         textAreaRef.current?.focus();
       });
