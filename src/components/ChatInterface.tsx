@@ -349,6 +349,23 @@ const ChatInterface = () => {
     setMessageCount(updatedCount);
 
     try {
+      // NEW: First call pre-checker to determine message type
+      const { data: preCheckData, error: preCheckError } = await supabase.functions.invoke('pre-checker', {
+        body: { 
+          userId: session.user.id,
+          message: userMessage.content
+        }
+      });
+
+      if (preCheckError) {
+        console.error('Pre-checker error:', preCheckError);
+        // Continue with default text type if pre-checker fails
+      }
+
+      // Extract message type from pre-checker (defaults to 'text' if there was an error)
+      const messageType = preCheckData?.messageType || 'text';
+      console.log('Pre-checker determined message type:', messageType);
+
       // ------------------------------------------------
       // 1) Store the user message in Redis via chat-history
       // ------------------------------------------------
@@ -372,8 +389,6 @@ const ChatInterface = () => {
       // ------------------------------------------------
       // 2) Trigger vector search if count >= 47
       // ------------------------------------------------
-      // This calls the vector-search-context function with (userId, message).
-      // The function itself checks the total Redis length to confirm >= 47.
       try {
         if (updatedCount >= 47) {
           const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
@@ -397,12 +412,13 @@ const ChatInterface = () => {
       }
 
       // ------------------------------------------------
-      // 3) Call your main chat function to get AI response
+      // 3) Call chat function with message type from pre-checker
       // ------------------------------------------------
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
-          userId: session.user.id
+          userId: session.user.id,
+          messageType: messageType // Pass the determined message type to chat function
         }
       });
 
@@ -431,17 +447,9 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
-
-        // If we want to possibly trigger embed chunk after these AI messages,
-        // it will already happen automatically if the Redis list hits a multiple of 8
-        // (chat-history function does that logic).
         
         setIsTyping(index < data.messages.length - 1);
       }
-
-      // Optionally check if we should embed (again) after AI messages,
-      // but you already do that every 8 messages in chat-history,
-      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);
