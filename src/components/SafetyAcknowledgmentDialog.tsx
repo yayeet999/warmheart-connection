@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -51,6 +52,39 @@ If you're having thoughts of harming others, please seek professional help immed
 If there is an immediate danger to anyone's safety, contact emergency services (911).
 `;
 
+const WARNING_MESSAGES = {
+  1: {
+    title: "First Warning",
+    description: (type: string) => 
+      `This is your first warning regarding ${type} content. Please review our privacy policy and terms of service.`,
+    variant: "default" as const
+  },
+  2: {
+    title: "Multiple Warnings",
+    description: (type: string) => 
+      `You have received multiple warnings about ${type} content. Please take this seriously.`,
+    variant: "warning" as const
+  },
+  3: {
+    title: "Several Warnings",
+    description: (type: string) => 
+      `Warning: You have several flags for ${type} content. Few warnings remaining before account suspension.`,
+    variant: "warning" as const
+  },
+  4: {
+    title: "Final Warning",
+    description: (type: string) => 
+      `URGENT: This is your final warning. Next flag for ${type} content will result in account suspension.`,
+    variant: "destructive" as const
+  },
+  5: {
+    title: "Account Suspended",
+    description: (type: string) => 
+      `Account suspended due to multiple ${type} content violations. Contact support for assistance.`,
+    variant: "destructive" as const
+  }
+} as const;
+
 export function SafetyAcknowledgmentDialog({
   open,
   onOpenChange,
@@ -94,6 +128,17 @@ export function SafetyAcknowledgmentDialog({
     setAcknowledgmentText("");
   };
 
+  const showWarningToast = (warningCount: number, concernType: string) => {
+    const messageConfig = WARNING_MESSAGES[warningCount as keyof typeof WARNING_MESSAGES] || WARNING_MESSAGES[1];
+    
+    toast({
+      title: messageConfig.title,
+      description: messageConfig.description(concernType.toLowerCase()),
+      variant: messageConfig.variant,
+      duration: warningCount >= 4 ? 10000 : 5000, // Longer duration for severe warnings
+    });
+  };
+
   const handleSubmit = async () => {
     const requiredText = getRequiredText(showResources);
     if (acknowledgmentText !== requiredText) {
@@ -107,7 +152,8 @@ export function SafetyAcknowledgmentDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      // First, save the acknowledgment
+      const { error: ackError } = await supabase
         .from("safety_acknowledgments")
         .insert({
           user_id: userId,
@@ -116,14 +162,25 @@ export function SafetyAcknowledgmentDialog({
           acknowledgment_text: acknowledgmentText,
         });
 
-      if (error) throw error;
+      if (ackError) throw ackError;
 
-      toast({
-        title: "Acknowledgment Recorded",
-        description: showResources 
-          ? "Thank you for acknowledging. Please use the provided resources to get help."
-          : "Thank you for your confirmation. Remember these resources are always available if needed.",
-      });
+      // Then, increment the safety concern counter
+      const { data: incrementResult, error: incrementError } = await supabase
+        .rpc('increment_safety_concern', {
+          user_id_param: userId,
+          concern_type: type.toUpperCase()
+        });
+
+      if (incrementError) throw incrementError;
+
+      // Get the warning count from the result
+      const warningCount = type === 'suicide' 
+        ? incrementResult.warningCount 
+        : incrementResult.warningCount;
+
+      // Show the appropriate warning toast
+      showWarningToast(warningCount, type);
+
       onOpenChange(false);
     } catch (error) {
       console.error("Error recording acknowledgment:", error);
