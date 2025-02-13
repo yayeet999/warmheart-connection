@@ -24,39 +24,56 @@ serve(async (req) => {
   }
 
   const startTime = performance.now();
+  let userId: string | undefined;
+  let message: string | undefined;
   
   try {
-    const { userId, message } = await req.json();
-    
-    if (!userId || !message) {
-      throw new Error('Missing required parameters');
+    // Safely parse the request body
+    try {
+      const body = await req.json();
+      userId = body.userId;
+      message = body.message;
+      
+      if (!userId || !message) {
+        throw new Error('Missing required parameters');
+      }
+    } catch (e) {
+      throw new Error(`Invalid request body: ${e.message}`);
     }
 
     console.log('Processing message for user:', userId);
 
-    // Get last 2 messages from Redis
+    // Get last 2 messages from Redis with error handling
     const key = `user:${userId}:messages`;
-    const recentMessages = await redis.lrange(key, 0, 1);
-    console.log('Retrieved recent messages:', recentMessages.length);
+    let recentMessages: any[] = [];
+    try {
+      recentMessages = await redis.lrange(key, 0, 1);
+      console.log('Retrieved recent messages count:', recentMessages.length);
+    } catch (e) {
+      console.error('Error retrieving messages from Redis:', e);
+      // Continue with empty context rather than failing
+    }
 
-    // Format the context from recent messages
+    // Safely format the context from recent messages
     const formattedContext = recentMessages
       .map(msg => {
+        if (!msg) return '';
         try {
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          return parsed.content;
+          return parsed?.content || '';
         } catch (e) {
           console.error('Error parsing message:', e);
           return '';
         }
       })
+      .filter(Boolean) // Remove empty strings
       .reverse();
 
+    // Pad with empty strings if needed
     while (formattedContext.length < 2) {
-      formattedContext.push(''); // Pad with empty strings if we don't have enough context
+      formattedContext.push('');
     }
 
-    // Construct the prompt for Llama
     const prompt = `You are a binary classifier analyzing chat messages.
 Task: Determine if this conversation moment needs an image response.
 Output ONLY "text" or "image". No other words or explanation.
@@ -69,7 +86,6 @@ Classify:`;
 
     console.log('Calling Llama model with prompt');
 
-    // Call Llama model via Groq
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -79,41 +95,51 @@ Classify:`;
       body: JSON.stringify({
         model: "llama2-3.1-8b-instant",
         messages: [
-          { role: 'system', content: 'You are a binary classifier that only outputs "text" or "image".' },
+          { 
+            role: 'system', 
+            content: 'You are a binary classifier that ONLY outputs "text" or "image". Never output anything else.' 
+          },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.1, // Low temperature for more consistent outputs
-        max_tokens: 2, // We only need one word
+        temperature: 0.1,
+        max_tokens: 2,
       }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to get model response');
+      throw new Error(`Failed to get model response: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log('Received response from model:', data);
+    console.log('Raw model response:', data.choices[0].message.content);
 
-    // Extract and validate the output type
+    // Strictly validate the output
     let outputType = data.choices[0].message.content.trim().toLowerCase();
-    
-    // Ensure we only get 'text' or 'image' as output
-    outputType = outputType === 'image' ? 'image' : 'text';
+    if (!['text', 'image'].includes(outputType)) {
+      console.log('Invalid model output, defaulting to text:', outputType);
+      outputType = 'text';
+    }
 
     const processingTime = Math.round(performance.now() - startTime);
 
     // Log the pre-checker result
-    const { error: logError } = await supabase
-      .from('pre_checker_logs')
-      .insert({
-        user_id: userId,
-        input_message: message,
-        output_type: outputType,
-        processing_time_ms: processingTime
-      });
+    try {
+      const { error: logError } = await supabase
+        .from('pre_checker_logs')
+        .insert({
+          user_id: userId,
+          input_message: message,
+          output_type: outputType,
+          processing_time_ms: processingTime,
+          raw_model_response: data.choices[0].message.content
+        });
 
-    if (logError) {
-      console.error('Error logging pre-checker result:', logError);
+      if (logError) {
+        console.error('Error logging pre-checker result:', logError);
+      }
+    } catch (e) {
+      console.error('Error inserting log:', e);
+      // Continue even if logging fails
     }
 
     return new Response(
@@ -131,10 +157,9 @@ Classify:`;
     
     const processingTime = Math.round(performance.now() - startTime);
 
-    // If we have userId and message, log the error
-    try {
-      const { userId, message } = await req.json();
-      if (userId && message) {
+    // Log the error if we have userId and message
+    if (userId && message) {
+      try {
         await supabase
           .from('pre_checker_logs')
           .insert({
@@ -144,21 +169,23 @@ Classify:`;
             processing_time_ms: processingTime,
             error: error.message
           });
+      } catch (e) {
+        console.error('Error logging failure:', e);
       }
-    } catch (e) {
-      console.error('Error logging failure:', e);
     }
 
+    // Always return a valid response, defaulting to text
     return new Response(
       JSON.stringify({ 
-        messageType: 'text', // Default to text on error
+        messageType: 'text',
         error: error.message,
         processingTime
       }),
       { 
-        status: 500,
+        status: error.message.includes('Invalid request') ? 400 : 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }
 });
+
