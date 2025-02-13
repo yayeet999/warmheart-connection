@@ -135,7 +135,7 @@ export type Database = {
           created_at: string
           embedding: string | null
           id: string
-          prompt_used: string
+          prompt_used: string | null
           storage_path: string
           tags: string[] | null
         }
@@ -144,7 +144,7 @@ export type Database = {
           created_at?: string
           embedding?: string | null
           id?: string
-          prompt_used: string
+          prompt_used?: string | null
           storage_path: string
           tags?: string[] | null
         }
@@ -153,7 +153,7 @@ export type Database = {
           created_at?: string
           embedding?: string | null
           id?: string
-          prompt_used?: string
+          prompt_used?: string | null
           storage_path?: string
           tags?: string[] | null
         }
