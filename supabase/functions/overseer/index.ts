@@ -54,14 +54,14 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be MAX 100 tokens and ONLY if a serious issue is detected.
+      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be MAX 50 tokens and ONLY if a serious issue is detected.
 
 ONLY analyze for these specific scenarios:
 
 1. EXPLICIT Suicidal Intent:
 - ONLY flag direct, clear statements of suicidal intent or plans
 - Must be current/immediate, not past experiences or hypotheticals
-- DO NOT flag casual expressions like "I want to die" or "FML"
+- DO NOT flag casual expressions like "I'm gonna die" or "FML"
 - When flagged, include: "${SUICIDE_HOTLINE}"
 
 2. CLEAR Racial Hate Speech:
@@ -77,7 +77,7 @@ ONLY analyze for these specific scenarios:
 - DO NOT flag past experiences or hypothetical scenarios
 
 IMPORTANT:
-- Return an empty string if there's ANY doubt about the severity
+- Return 'null' if there's ANY doubt about the severity
 - Ignore dark humor, sarcasm, song lyrics, or casual venting
 - Do not flag content unless it's absolutely clear and serious
 - When in doubt, do not flag
