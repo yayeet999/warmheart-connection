@@ -7,7 +7,6 @@ import { Index } from "npm:@upstash/vector";
 const vectorIndex = new Index({
   url: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_TOKEN')!,
-  namespace: "amorine-image"  // Add the namespace here
 });
 
 // Initialize Supabase client
@@ -189,4 +188,3 @@ serve(async (req) => {
     );
   }
 });
-
