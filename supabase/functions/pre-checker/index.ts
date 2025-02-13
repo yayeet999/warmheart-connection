@@ -83,7 +83,7 @@ Classify:`;
           { role: 'user', content: prompt }
         ],
         temperature: 0.1, // Low temperature for more consistent outputs
-        max_tokens: 1, // We only need one word
+        max_tokens: 2, // We only need one word
       }),
     });
 
