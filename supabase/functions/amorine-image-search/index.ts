@@ -7,6 +7,7 @@ import { Index } from "npm:@upstash/vector";
 const vectorIndex = new Index({
   url: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_TOKEN')!,
+  namespace: "amorine-image"
 });
 
 // Initialize Supabase client
@@ -112,11 +113,8 @@ serve(async (req) => {
 
     console.log('Vector search results:', JSON.stringify(searchResults));
 
-    // Extract IDs from search results
-    const imageIds = searchResults.map(result => result.id);
-
-    if (imageIds.length === 0) {
-      console.log('No matching images found');
+    if (searchResults.length === 0) {
+      console.log('No matching images found in vector search');
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -126,11 +124,15 @@ serve(async (req) => {
       );
     }
 
-    // Query Supabase for image details
+    // First, get all images that match the storage paths
+    const storagePaths = searchResults.map(result => result.id);
+    console.log('Storage paths from vector search:', storagePaths);
+
+    // Query Supabase to get the UUIDs for these storage paths
     const { data: images, error: dbError } = await supabase
       .from('pregenerated_images')
       .select('id, storage_path, tags')
-      .in('id', imageIds)
+      .in('storage_path', storagePaths)
       .eq('active', true);
 
     if (dbError) {
