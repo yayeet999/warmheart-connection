@@ -349,7 +349,7 @@ const ChatInterface = () => {
     setMessageCount(updatedCount);
 
     try {
-      // NEW: First call pre-checker to determine message type
+      // First check with pre-checker if special handling is needed
       const { data: preCheckData, error: preCheckError } = await supabase.functions.invoke('pre-checker', {
         body: { 
           userId: session.user.id,
@@ -359,12 +359,12 @@ const ChatInterface = () => {
 
       if (preCheckError) {
         console.error('Pre-checker error:', preCheckError);
-        // Continue with default text type if pre-checker fails
+        // Continue with normal flow if pre-checker fails
+      } else if (preCheckData?.messageType === 'image') {
+        // In the future, we'll handle image generation here
+        console.log('Image generation would be handled here');
+        // For now, continue with normal flow
       }
-
-      // Extract message type from pre-checker (defaults to 'text' if there was an error)
-      const messageType = preCheckData?.messageType || 'text';
-      console.log('Pre-checker determined message type:', messageType);
 
       // ------------------------------------------------
       // 1) Store the user message in Redis via chat-history
@@ -412,20 +412,19 @@ const ChatInterface = () => {
       }
 
       // ------------------------------------------------
-      // 3) Call chat function with message type from pre-checker
+      // 3) Call chat function as normal
       // ------------------------------------------------
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
-          userId: session.user.id,
-          messageType: messageType // Pass the determined message type to chat function
+          userId: session.user.id
         }
       });
 
       if (error) throw error;
 
       // ------------------------------------------------
-      // 4) For each chunk of AI message, add to chat 
+      // 4) Process AI responses as normal
       // ------------------------------------------------
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
@@ -463,7 +462,6 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
       setIsTyping(false);
-      // Ensure focus is maintained after async operations complete
       requestAnimationFrame(() => {
         textAreaRef.current?.focus();
       });
