@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -152,10 +153,10 @@ serve(async (req) => {
 
     // Generate public URLs for each image
     const imagesWithUrls = images.map(image => {
-      // Add .jpg extension if not present in storage_path
-      const storagePath = image.storage_path.endsWith('.jpg') 
+      // Add .webp extension if not present in storage_path
+      const storagePath = image.storage_path.endsWith('.webp') 
         ? image.storage_path 
-        : `${image.storage_path}.jpg`;
+        : `${image.storage_path}.webp`;
 
       const { data: { publicUrl } } = supabase
         .storage
@@ -170,6 +171,7 @@ serve(async (req) => {
     });
 
     console.log(`Successfully found ${imagesWithUrls.length} images`);
+    console.log('Image URLs:', imagesWithUrls.map(img => img.url));
 
     return new Response(
       JSON.stringify({
