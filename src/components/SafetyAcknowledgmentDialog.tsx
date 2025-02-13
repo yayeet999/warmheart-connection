@@ -159,7 +159,7 @@ export function SafetyAcknowledgmentDialog({
 
     setIsSubmitting(true);
     try {
-      // First, save the acknowledgment
+      // Save the acknowledgment only
       const { error: ackError } = await supabase
         .from("safety_acknowledgments")
         .insert({
@@ -171,32 +171,17 @@ export function SafetyAcknowledgmentDialog({
 
       if (ackError) throw ackError;
 
-      // Then, increment the safety concern counter and properly type the response
-      const { data, error: incrementError } = await supabase
-        .rpc('increment_safety_concern', {
-          user_id_param: userId,
-          concern_type: type.toUpperCase()
-        });
+      // Get the current warning count to show appropriate toast
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select(type === 'suicide' ? 'suicide_concern' : 'violence_concern')
+        .eq('id', userId)
+        .single();
 
-      if (incrementError) throw incrementError;
+      if (profileError) throw profileError;
 
-      // Safely type check and cast the response
-      if (data && 
-          typeof data === 'object' && 
-          'warningCount' in data && 
-          'accountDisabled' in data && 
-          'concernType' in data) {
-        const incrementResult = {
-          warningCount: Number(data.warningCount),
-          accountDisabled: Boolean(data.accountDisabled),
-          concernType: String(data.concernType)
-        } as IncrementSafetyConcernResponse;
-
-        // Show the appropriate warning toast
-        showWarningToast(incrementResult.warningCount, type);
-      } else {
-        throw new Error('Invalid response format from increment_safety_concern');
-      }
+      const warningCount = type === 'suicide' ? profile.suicide_concern : profile.violence_concern;
+      showWarningToast(warningCount, type);
 
       onOpenChange(false);
     } catch (error) {
