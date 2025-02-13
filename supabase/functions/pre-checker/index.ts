@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -74,15 +73,21 @@ serve(async (req) => {
       formattedContext.push('');
     }
 
-    const prompt = `You are a binary classifier analyzing chat messages.
-Task: Determine if this conversation moment needs an image response.
-Output ONLY "text" or "image". No other words or explanation.
+    const systemMessage = {
+      role: 'system',
+      content: 'You are a binary classifier that ONLY outputs "text" or "image". Never output anything else.'
+    };
 
-Previous message 2: ${formattedContext[0]}
-Previous message 1: ${formattedContext[1]}
-Current message: ${message}
-
-Classify:`;
+    const userMessages = [
+      ...formattedContext.map(msg => ({
+        role: 'user' as const,
+        content: msg
+      })),
+      {
+        role: 'user' as const,
+        content: typeof message === 'string' ? message : message.content || ''
+      }
+    ];
 
     console.log('Calling Groq API...');
 
@@ -94,15 +99,9 @@ Classify:`;
       },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a binary classifier that ONLY outputs "text" or "image". Never output anything else.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,  // Reduced temperature for more consistent responses
-        max_tokens: 2
+        messages: [systemMessage, ...userMessages],
+        temperature: 0.1,
+        max_tokens: 10
       })
     });
 
@@ -114,6 +113,14 @@ Classify:`;
     }
 
     const data = await response.json();
+    
+    // More robust error handling for Groq response
+    if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error('Invalid Groq response format:', data);
+      console.log('Defaulting to text response');
+      data.choices = [{ message: { content: 'text' } }];
+    }
+
     console.log('Raw model response:', data.choices[0].message.content);
 
     // Strictly validate the output
@@ -125,28 +132,9 @@ Classify:`;
 
     const processingTime = Math.round(performance.now() - startTime);
 
-    // Log the pre-checker result
-    try {
-      const { error: logError } = await supabase
-        .from('pre_checker_logs')
-        .insert({
-          user_id: userId,
-          input_message: message,
-          output_type: outputType,
-          processing_time_ms: processingTime,
-          raw_model_response: data.choices[0].message.content
-        });
-
-      if (logError) {
-        console.error('Error logging pre-checker result:', logError);
-      }
-    } catch (e) {
-      console.error('Error inserting log:', e);
-      // Continue even if logging fails
-    }
-
     return new Response(
       JSON.stringify({ 
+        success: true,
         messageType: outputType,
         processingTime 
       }),
@@ -160,26 +148,9 @@ Classify:`;
     
     const processingTime = Math.round(performance.now() - startTime);
 
-    // Log the error if we have userId and message
-    if (userId && message) {
-      try {
-        await supabase
-          .from('pre_checker_logs')
-          .insert({
-            user_id: userId,
-            input_message: message,
-            output_type: 'text', // Default to text on error
-            processing_time_ms: processingTime,
-            error: error.message
-          });
-      } catch (e) {
-        console.error('Error logging failure:', e);
-      }
-    }
-
-    // Always return a valid response, defaulting to text
     return new Response(
       JSON.stringify({ 
+        success: false,
         messageType: 'text',
         error: error.message,
         processingTime
