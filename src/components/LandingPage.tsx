@@ -1,8 +1,8 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import Header from "./Header";
+import Footer from "./Footer";
 import { Card } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -11,11 +11,11 @@ const LandingPage = () => {
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-cream relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-white to-cream relative overflow-hidden flex flex-col">
       <div className="grid-background absolute inset-0 opacity-20" />
       <Header />
       
-      <main className="container mx-auto px-4 py-12 md:py-20 relative z-10">
+      <main className="container mx-auto px-4 py-12 md:py-20 relative z-10 flex-grow">
         {/* Hero Section */}
         <div className="max-w-6xl mx-auto mb-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -137,6 +137,8 @@ const LandingPage = () => {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 };
