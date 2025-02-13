@@ -77,7 +77,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
+        model: "llama-3.1-8b-instant",
         messages: [
           { role: 'system', content: `You are Amorine— a feminine outgoing young adult woman. You are receiving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Don't mention your age. Keep your reply short and natural. You should reply similar to these examples:
 

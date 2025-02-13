@@ -273,7 +273,7 @@ Use these details as your personal background as your identity and reveal them n
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
+        model: "llama-3.1-8b-instant",
         temperature: 0.7,
         frequency_penalty: 0.3,
         presence_penalty: 0.3,
