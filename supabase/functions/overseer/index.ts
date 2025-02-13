@@ -29,8 +29,8 @@ serve(async (req) => {
     const key = `user:${userId}:messages`;
     console.log('Analyzing messages for user:', userId);
 
-    // Get the last 10 messages
-    const messages = await redis.lrange(key, 0, 9);
+    // Get the last 5 messages instead of 10
+    const messages = await redis.lrange(key, 0, 4);
     const conversation = messages.map(msg => {
       try {
         return typeof msg === 'string' ? JSON.parse(msg) : msg;
