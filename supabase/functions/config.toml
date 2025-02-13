@@ -1,3 +1,4 @@
+
 project_id = "medzxzfdadwzpuqimeih"
 
 [functions.chat]
@@ -35,3 +36,7 @@ verify_jwt = true
 
 [functions.image-context-analyzer]
 verify_jwt = true
+
+[functions.amorine-image-search]
+verify_jwt = true
+
