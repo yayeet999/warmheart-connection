@@ -109,21 +109,21 @@ IMPORTANT:
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
-      // First update extreme_content
-      await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          extreme_content: thoughts
-        })
-      });
+    // Always update extreme_content, either with the concern or null
+    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        extreme_content: thoughts === 'SUICIDE' || thoughts === 'VIOLENCE' ? thoughts : null
+      })
+    });
 
+    if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
       // Call the increment_safety_concern function
       const incrementResponse = await fetch(
         `${supabaseUrl}/rest/v1/rpc/increment_safety_concern`,
