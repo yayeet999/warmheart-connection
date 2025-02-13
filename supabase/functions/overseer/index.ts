@@ -156,9 +156,9 @@ IMPORTANT:
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // If no concerns, just return success
+      // If no concerns, return null
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify(null),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -174,4 +174,3 @@ IMPORTANT:
     );
   }
 });
-
