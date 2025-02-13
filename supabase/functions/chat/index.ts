@@ -293,8 +293,9 @@ Use these details as your personal background as your identity and reveal them n
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);
 
+    // Process each message to strip markdown image syntax if present
     const aiMessages = splitted.map((txt, index) => ({
-      content: txt,
+      content: txt.replace(/!\[Generated Image\]\((.*?)\)/g, '$1'),
       delay: index * 1500,
     }));
 
