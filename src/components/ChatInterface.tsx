@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import TypingIndicator from "./TypingIndicator";
-import PreventionDialog from "./PreventionDialog";
 
 const MESSAGE_LIMITS = {
   free: 50,
@@ -510,50 +510,8 @@ const ChatInterface = () => {
     });
   };
 
-  const [preventionType, setPreventionType] = useState<"SUICIDE" | "RACISM" | "VIOLENCE" | null>(null);
-
-  const { data: userProfile } = useQuery({
-    queryKey: ["user-profile"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error("No authenticated user");
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("extreme_content")
-        .eq("id", session.user.id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  useEffect(() => {
-    if (userProfile?.extreme_content) {
-      setPreventionType(userProfile.extreme_content as "SUICIDE" | "RACISM" | "VIOLENCE");
-    }
-  }, [userProfile?.extreme_content]);
-
-  const handlePreventionClose = async () => {
-    setPreventionType(null);
-    // Clear the extreme_content flag
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await supabase
-        .from("profiles")
-        .update({ extreme_content: null })
-        .eq("id", session.user.id);
-    }
-  };
-
   return (
     <>
-      <PreventionDialog
-        isOpen={preventionType !== null}
-        onClose={handlePreventionClose}
-        type={preventionType}
-      />
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
