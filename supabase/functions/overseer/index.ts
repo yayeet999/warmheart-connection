@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -25,10 +24,11 @@ serve(async (req) => {
     }
 
     const key = `user:${userId}:messages`;
-    console.log('Analyzing messages for user:', userId);
+    console.log('Overseer analyzing messages for user:', userId);
 
-    const messages = await redis.lrange(key, 0, 4);
-    console.log('Retrieved messages:', messages);
+    // Get the most recent 5 messages
+    const messages = await redis.lrange(key, 0, 4); 
+    console.log('Retrieved last 5 messages from Redis:', messages.length);
 
     if (!Array.isArray(messages) || messages.length === 0) {
       console.log('No messages found for analysis');
@@ -38,7 +38,8 @@ serve(async (req) => {
       );
     }
 
-    const conversation = messages.map(msg => {
+    // Parse each Redis item
+    const conversation = messages.map((msg) => {
       try {
         return typeof msg === 'string' ? JSON.parse(msg) : msg;
       } catch (e) {
@@ -47,48 +48,23 @@ serve(async (req) => {
       }
     }).filter(Boolean);
 
-    console.log('Parsed conversation:', conversation);
-
-    if (conversation.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No valid messages to analyze' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Format for the Groq classification
     const formattedConversation = conversation.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
     }));
 
-    console.log('Formatted conversation for Groq:', formattedConversation);
-
+    // Overly strict system prompt to only detect serious SUICIDE or VIOLENCE
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "VIOLENCE" or an empty string if no issues detected.
-
-ONLY analyze for these specific scenarios:
-
-1. EXPLICIT Suicidal Intent (return "SUICIDE"):
-- ONLY flag direct, clear statements of suicidal intent or plans
-- Must be current/immediate, not past experiences or hypotheticals
-- DO NOT flag casual expressions like "I'm gonna die" or "FML"
-
-2. EXPLICIT Violence (return "VIOLENCE"):
-- ONLY flag clear, specific threats or plans for violence
-- Must be direct and immediate, not metaphorical
-- DO NOT flag gaming references, movie quotes, or playful banter
-- DO NOT flag past experiences or hypothetical scenarios
-
-IMPORTANT:
-- Return an empty string if there's ANY doubt about the severity
-- Ignore dark humor, sarcasm, song lyrics, or casual venting
-- Do not flag content unless it's absolutely clear and serious
-- When in doubt, return an empty string
-- ONLY return one of these exact words: "SUICIDE", "VIOLENCE" or an empty string`
+      content: `You are a content moderator focusing ONLY on urgent, explicit signals of self-harm or violent threats. Return EXACTLY one of: "SUICIDE", "VIOLENCE", or "" (empty string). 
+Criteria:
+1) "SUICIDE" if there's a clear direct statement of suicidal intent/plans (not jokes or iffy language).
+2) "VIOLENCE" if there's a specific, immediate threat of harm to others (not joking or vague).
+3) Otherwise, return empty string.`
     };
 
-    console.log('Sending request to Groq API...');
+    // Send to Groq for classification
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -103,102 +79,100 @@ IMPORTANT:
       })
     });
 
-    console.log('Groq API status:', groqResponse.status);
-
     if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
       console.error('Groq API error response:', errorText);
-      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
+      throw new Error(`Groq classification error: ${groqResponse.status}`);
     }
 
     const groqData = await groqResponse.json();
-    console.log('Groq API full response:', JSON.stringify(groqData));
+    const classification = (groqData.choices?.[0]?.message?.content || '').trim();
+    console.log('Overseer classification result:', classification);
 
-    if (!groqData || !groqData.choices || !groqData.choices[0] || !groqData.choices[0].message) {
-      console.error('Invalid Groq API response structure:', JSON.stringify(groqData));
-      throw new Error('Invalid or missing response structure from Groq API');
-    }
-
-    const thoughts = (groqData.choices[0].message.content || '').trim();
-    console.log('Extracted thoughts:', thoughts);
-
-    // Update profile and check for account disable
+    // Next we check the existing extreme_content in profiles, so we don't increment repeatedly
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required Supabase configuration');
-    }
-
-    // Update extreme_content in profiles
-    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
-      method: 'PATCH',
+    // 1) Fetch user profile to see if the same classification is already set
+    const profileRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=extreme_content`, {
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        extreme_content: thoughts === 'SUICIDE' || thoughts === 'VIOLENCE' ? thoughts : null
-      })
+        'apikey': supabaseKey
+      }
     });
-
-    if (!updateResponse.ok) {
-      console.error('Error updating profile:', await updateResponse.text());
+    if (!profileRes.ok) {
+      throw new Error(`Could not fetch user profile. Status: ${profileRes.status}`);
     }
+    const [profile] = await profileRes.json();
+    const currentFlag = profile?.extreme_content || null;
+    console.log('Current extreme_content in DB:', currentFlag);
 
-    if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
-      console.log('Calling increment_safety_concern for:', thoughts);
-      
-      const incrementResponse = await fetch(
-        `${supabaseUrl}/rest/v1/rpc/increment_safety_concern`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'apikey': supabaseKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            user_id_param: userId,
-            concern_type: thoughts
-          })
-        }
-      );
+    // 2) Decide how to update
+    //    - If classification is "", remove any existing flag
+    //    - If classification is "SUICIDE" or "VIOLENCE" but matches the existing flag, do nothing
+    //    - If classification is "SUICIDE" or "VIOLENCE" AND is different from existing, increment concerns
+    let result: any = null;
 
-      if (!incrementResponse.ok) {
-        const incrementError = await incrementResponse.text();
-        console.error('Error from increment_safety_concern:', incrementError);
-        throw new Error(`Failed to update safety concerns: ${incrementError}`);
+    if (classification === "") {
+      console.log('No new issues -> clearing extreme_content if any');
+      // Clear the extreme_content in DB
+      const clearRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          extreme_content: null
+        })
+      });
+      if (!clearRes.ok) {
+        console.error('Error clearing extreme_content:', await clearRes.text());
       }
 
-      const data = await incrementResponse.json();
-      console.log('increment_safety_concern response:', data);
-      
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Return null to chat
+      result = null;
+    } else if (classification === currentFlag) {
+      console.log(`Classification matches existing flag (${currentFlag}), skipping increment.`);
+      // Return nothing new
+      result = null;
+    } else {
+      // We have a newly detected SUICIDE or VIOLENCE different from the old flag
+      console.log('New serious content detected -> increment_safety_concern');
+      const increment = await fetch(`${supabaseUrl}/rest/v1/rpc/increment_safety_concern`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          user_id_param: userId,
+          concern_type: classification
+        })
+      });
+      if (!increment.ok) {
+        const incErr = await increment.text();
+        throw new Error(`Failed to increment safety concern: ${incErr}`);
+      }
+      const incData = await increment.json();
+      console.log('increment_safety_concern returned:', incData);
+
+      // incData = { accountDisabled, warningCount, concernType }
+      result = incData;
     }
 
-    console.log('No concerns detected, returning null');
-    return new Response(
-      JSON.stringify(null),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
     console.error('Overseer error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Internal server error',
-        errorDetail: error.stack || 'No stack trace available'
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
