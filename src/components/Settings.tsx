@@ -1,9 +1,10 @@
+
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { UserCircle, CreditCard, Trash2 } from "lucide-react";
+import { UserCircle, CreditCard, Trash2, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ const Settings = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name')
+        .select('name, account_disabled, suicide_concern, violence_concern')
         .eq('id', session?.user.id)
         .single();
       
@@ -71,6 +72,21 @@ const Settings = () => {
       <h1 className="text-2xl md:text-3xl font-bold mb-6 text-charcoal text-center md:text-left">Settings</h1>
       
       <div className="space-y-4 max-w-2xl mx-auto">
+        {/* Account Status Alert */}
+        {profileData?.account_disabled && (
+          <Card className="border-red-200 bg-red-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xl text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                Account Disabled
+              </CardTitle>
+              <CardDescription className="text-red-600">
+                Your account has been disabled due to safety concerns. Please contact support at support@amorine.ai for assistance.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
         {/* Profile Section */}
         <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
           <CardHeader className="pb-3">
@@ -158,3 +174,4 @@ const Settings = () => {
 };
 
 export default Settings;
+

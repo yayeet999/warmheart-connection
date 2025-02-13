@@ -29,7 +29,6 @@ serve(async (req) => {
     const key = `user:${userId}:messages`;
     console.log('Analyzing messages for user:', userId);
 
-    // Get the last 5 messages instead of 10
     const messages = await redis.lrange(key, 0, 4);
     const conversation = messages.map(msg => {
       try {
@@ -46,7 +45,6 @@ serve(async (req) => {
       );
     }
 
-    // Prepare the conversation for analysis
     const formattedConversation = conversation.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
@@ -54,7 +52,7 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "RACISM", "VIOLENCE" or return an empty string if no issues detected.
+      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "VIOLENCE" or return an empty string if no issues detected.
 
 ONLY analyze for these specific scenarios:
 
@@ -63,13 +61,7 @@ ONLY analyze for these specific scenarios:
 - Must be current/immediate, not past experiences or hypotheticals
 - DO NOT flag casual expressions like "I'm gonna die" or "FML"
 
-2. CLEAR Racial Hate Speech (return "RACISM"):
-- ONLY flag explicitly racist statements with clear malicious intent
-- Must be direct attacks or clear hate speech
-- DO NOT flag discussions about race, jokes, or ambiguous statements
-- DO NOT flag casual slang or culturally accepted terms
-
-3. EXPLICIT Violence (return "VIOLENCE"):
+2. EXPLICIT Violence (return "VIOLENCE"):
 - ONLY flag clear, specific threats or plans for violence
 - Must be direct and immediate, not metaphorical
 - DO NOT flag gaming references, movie quotes, or playful banter
@@ -80,7 +72,7 @@ IMPORTANT:
 - Ignore dark humor, sarcasm, song lyrics, or casual venting
 - Do not flag content unless it's absolutely clear and serious
 - When in doubt, return an empty string
-- ONLY return one of these exact words: "SUICIDE", "RACISM", "VIOLENCE" or an empty string`
+- ONLY return one of these exact words: "SUICIDE", "VIOLENCE" or an empty string`
     };
 
     console.log('Sending request to Groq API...');
@@ -113,31 +105,63 @@ IMPORTANT:
 
     const thoughts = groqData.choices[0].message.content.trim();
 
-    // Update Supabase profile with analysis results
+    // Update profile and check for account disable
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        extreme_content: thoughts === '' ? null : thoughts
-      })
-    });
+    if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
+      // First update extreme_content
+      await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          extreme_content: thoughts
+        })
+      });
 
-    if (!updateResponse.ok) {
-      throw new Error('Failed to update profile with analysis');
+      // Call the increment_safety_concern function
+      const incrementResponse = await fetch(
+        `${supabaseUrl}/rest/v1/rpc/increment_safety_concern`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id_param: userId,
+            concern_type: thoughts
+          })
+        }
+      );
+
+      if (!incrementResponse.ok) {
+        throw new Error('Failed to update safety concerns');
+      }
+
+      const accountDisabled = await incrementResponse.json();
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          accountDisabled,
+          concernType: thoughts
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      // If no concerns, just return success
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('Overseer error:', error);
@@ -150,3 +174,4 @@ IMPORTANT:
     );
   }
 });
+
