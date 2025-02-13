@@ -13,8 +13,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SUICIDE_HOTLINE = "National Suicide Prevention Lifeline: 988 - Available 24/7";
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -30,17 +28,30 @@ serve(async (req) => {
     console.log('Analyzing messages for user:', userId);
 
     const messages = await redis.lrange(key, 0, 4);
+    console.log('Retrieved messages:', messages);
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      console.log('No messages found for analysis');
+      return new Response(
+        JSON.stringify({ success: false, error: 'No messages to analyze' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const conversation = messages.map(msg => {
       try {
         return typeof msg === 'string' ? JSON.parse(msg) : msg;
-      } catch {
+      } catch (e) {
+        console.error('Error parsing message:', e);
         return null;
       }
     }).filter(Boolean);
 
+    console.log('Parsed conversation:', conversation);
+
     if (conversation.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No messages to analyze' }),
+        JSON.stringify({ success: false, error: 'No valid messages to analyze' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -50,9 +61,11 @@ serve(async (req) => {
       content: msg.content
     }));
 
+    console.log('Formatted conversation for Groq:', formattedConversation);
+
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "VIOLENCE" or return an empty string if no issues detected.
+      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "VIOLENCE" or an empty string if no issues detected.
 
 ONLY analyze for these specific scenarios:
 
@@ -90,28 +103,35 @@ IMPORTANT:
       })
     });
 
+    console.log('Groq API status:', groqResponse.status);
+
     if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
-      console.error('Groq API error:', groqResponse.status, errorText);
+      console.error('Groq API error response:', errorText);
       throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
     }
 
     const groqData = await groqResponse.json();
-    console.log('Groq API response:', JSON.stringify(groqData));
+    console.log('Groq API full response:', JSON.stringify(groqData));
 
-    if (!groqData?.choices?.[0]?.message?.content) {
-      console.error('Invalid Groq API response format:', groqData);
-      throw new Error('Invalid response format from Groq API');
+    if (!groqData || !groqData.choices || !groqData.choices[0] || !groqData.choices[0].message) {
+      console.error('Invalid Groq API response structure:', JSON.stringify(groqData));
+      throw new Error('Invalid or missing response structure from Groq API');
     }
 
-    const thoughts = groqData.choices[0].message.content.trim();
+    const thoughts = (groqData.choices[0].message.content || '').trim();
+    console.log('Extracted thoughts:', thoughts);
 
     // Update profile and check for account disable
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Always update extreme_content, either with the concern or null
-    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing required Supabase configuration');
+    }
+
+    // Update extreme_content in profiles
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
@@ -124,8 +144,13 @@ IMPORTANT:
       })
     });
 
+    if (!updateResponse.ok) {
+      console.error('Error updating profile:', await updateResponse.text());
+    }
+
     if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
-      // Call the increment_safety_concern function
+      console.log('Calling increment_safety_concern for:', thoughts);
+      
       const incrementResponse = await fetch(
         `${supabaseUrl}/rest/v1/rpc/increment_safety_concern`,
         {
@@ -143,17 +168,21 @@ IMPORTANT:
       );
 
       if (!incrementResponse.ok) {
-        throw new Error('Failed to update safety concerns');
+        const incrementError = await incrementResponse.text();
+        console.error('Error from increment_safety_concern:', incrementError);
+        throw new Error(`Failed to update safety concerns: ${incrementError}`);
       }
 
       const data = await incrementResponse.json();
+      console.log('increment_safety_concern response:', data);
+      
       return new Response(
         JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // If no concerns, return null
+    console.log('No concerns detected, returning null');
     return new Response(
       JSON.stringify(null),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -162,7 +191,10 @@ IMPORTANT:
   } catch (error) {
     console.error('Overseer error:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        errorDetail: error.stack || 'No stack trace available'
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
