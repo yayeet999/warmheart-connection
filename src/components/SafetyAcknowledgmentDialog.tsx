@@ -21,6 +21,13 @@ interface SafetyAcknowledgmentDialogProps {
   userId: string;
 }
 
+// Add interface for RPC response
+interface IncrementSafetyConcernResponse {
+  warningCount: number;
+  accountDisabled: boolean;
+  concernType: string;
+}
+
 const SUICIDE_RESOURCES = `
 National Suicide Prevention Lifeline (24/7):
 1-800-273-8255
@@ -63,13 +70,13 @@ const WARNING_MESSAGES = {
     title: "Multiple Warnings",
     description: (type: string) => 
       `You have received multiple warnings about ${type} content. Please take this seriously.`,
-    variant: "warning" as const
+    variant: "default" as const // Changed from warning to default
   },
   3: {
     title: "Several Warnings",
     description: (type: string) => 
       `Warning: You have several flags for ${type} content. Few warnings remaining before account suspension.`,
-    variant: "warning" as const
+    variant: "default" as const // Changed from warning to default
   },
   4: {
     title: "Final Warning",
@@ -135,7 +142,7 @@ export function SafetyAcknowledgmentDialog({
       title: messageConfig.title,
       description: messageConfig.description(concernType.toLowerCase()),
       variant: messageConfig.variant,
-      duration: warningCount >= 4 ? 10000 : 5000, // Longer duration for severe warnings
+      duration: warningCount >= 4 ? 10000 : 5000,
     });
   };
 
@@ -165,7 +172,7 @@ export function SafetyAcknowledgmentDialog({
       if (ackError) throw ackError;
 
       // Then, increment the safety concern counter
-      const { data: incrementResult, error: incrementError } = await supabase
+      const { data, error: incrementError } = await supabase
         .rpc('increment_safety_concern', {
           user_id_param: userId,
           concern_type: type.toUpperCase()
@@ -173,13 +180,11 @@ export function SafetyAcknowledgmentDialog({
 
       if (incrementError) throw incrementError;
 
-      // Get the warning count from the result
-      const warningCount = type === 'suicide' 
-        ? incrementResult.warningCount 
-        : incrementResult.warningCount;
+      // Type assertion for the RPC response
+      const incrementResult = data as IncrementSafetyConcernResponse;
 
       // Show the appropriate warning toast
-      showWarningToast(warningCount, type);
+      showWarningToast(incrementResult.warningCount, type);
 
       onOpenChange(false);
     } catch (error) {
