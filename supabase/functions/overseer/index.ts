@@ -99,7 +99,8 @@ IMPORTANT:
     const groqData = await groqResponse.json();
     console.log('Groq API response:', JSON.stringify(groqData));
 
-    if (!groqData.choices?.[0]?.message?.content) {
+    if (!groqData?.choices?.[0]?.message?.content) {
+      console.error('Invalid Groq API response format:', groqData);
       throw new Error('Invalid response format from Groq API');
     }
 
@@ -145,23 +146,18 @@ IMPORTANT:
         throw new Error('Failed to update safety concerns');
       }
 
-      const accountDisabled = await incrementResponse.json();
-      
+      const data = await incrementResponse.json();
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          accountDisabled,
-          concernType: thoughts
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // If no concerns, return null
-      return new Response(
-        JSON.stringify(null),
+        JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // If no concerns, return null
+    return new Response(
+      JSON.stringify(null),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Overseer error:', error);
