@@ -529,6 +529,9 @@ const ChatInterface = () => {
       return data;
     },
     enabled: !!userData?.userId,
+    refetchInterval: 3000, // Poll every 3 seconds
+    refetchOnWindowFocus: true, // Ensure we refetch on window focus
+    refetchIntervalInBackground: true // Continue polling even when tab is not focused
   });
 
   useEffect(() => {
