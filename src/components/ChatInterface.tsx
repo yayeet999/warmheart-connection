@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -349,9 +348,7 @@ const ChatInterface = () => {
     setMessageCount(updatedCount);
 
     try {
-      // ------------------------------------------------
-      // 1) Store the user message in Redis via chat-history
-      // ------------------------------------------------
+      // Store the user message in Redis via chat-history
       const { error: storeError } = await supabase.functions.invoke('chat-history', {
         body: {
           userId: session.user.id,
@@ -369,11 +366,17 @@ const ChatInterface = () => {
         });
       }
 
-      // ------------------------------------------------
-      // 2) Trigger vector search if count >= 47
-      // ------------------------------------------------
-      // This calls the vector-search-context function with (userId, message).
-      // The function itself checks the total Redis length to confirm >= 47.
+      // Call Overseer to analyze the conversation
+      const { data: overseerData } = await supabase.functions.invoke('overseer', {
+        body: { userId: session.user.id }
+      });
+
+      // Handle any popup warnings from Overseer
+      if (overseerData?.popup) {
+        showContentWarning(overseerData.popup, toast);
+      }
+
+      // Vector search if needed
       try {
         if (updatedCount >= 47) {
           const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
@@ -393,12 +396,9 @@ const ChatInterface = () => {
         }
       } catch (vErr) {
         console.error('Error calling vector-search-context:', vErr);
-        // Not user-blocking, so just log it
       }
 
-      // ------------------------------------------------
-      // 3) Call your main chat function to get AI response
-      // ------------------------------------------------
+      // Call main chat function to get AI response
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
@@ -408,9 +408,7 @@ const ChatInterface = () => {
 
       if (error) throw error;
 
-      // ------------------------------------------------
-      // 4) For each chunk of AI message, add to chat 
-      // ------------------------------------------------
+      // For each chunk of AI message, add to chat
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
@@ -423,7 +421,7 @@ const ChatInterface = () => {
         const newAiCount = (count) => count + 1;
         setMessageCount(newAiCount);
 
-        // Also store the AI message in Redis
+        // Store the AI message in Redis
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -431,17 +429,9 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
-
-        // If we want to possibly trigger embed chunk after these AI messages,
-        // it will already happen automatically if the Redis list hits a multiple of 8
-        // (chat-history function does that logic).
         
         setIsTyping(index < data.messages.length - 1);
       }
-
-      // Optionally check if we should embed (again) after AI messages,
-      // but you already do that every 8 messages in chat-history,
-      // so we can skip it here.
 
     } catch (error) {
       console.error('Error:', error);
