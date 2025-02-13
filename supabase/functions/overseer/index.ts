@@ -29,7 +29,6 @@ serve(async (req) => {
     const key = `user:${userId}:messages`;
     console.log('Analyzing messages for user:', userId);
 
-    // Get the last 5 messages instead of 10
     const messages = await redis.lrange(key, 0, 4);
     const conversation = messages.map(msg => {
       try {
@@ -46,7 +45,6 @@ serve(async (req) => {
       );
     }
 
-    // Prepare the conversation for analysis
     const formattedConversation = conversation.map(msg => ({
       role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content
@@ -62,27 +60,20 @@ ONLY analyze for these specific scenarios:
 - ONLY flag direct, clear statements of suicidal intent or plans
 - Must be current/immediate, not past experiences or hypotheticals
 - DO NOT flag casual expressions like "I'm gonna die" or "FML"
-- When flagged, include: "${SUICIDE_HOTLINE}"
+- When flagged, respond with exactly: "SUICIDE"
 
-2. CLEAR Racial Hate Speech:
-- ONLY flag explicitly racist statements with clear malicious intent
-- Must be direct attacks or clear hate speech
-- DO NOT flag discussions about race, jokes, or ambiguous statements
-- DO NOT flag casual slang or culturally accepted terms
-
-3. EXPLICIT Violence:
+2. CLEAR Violence:
 - ONLY flag clear, specific threats or plans for violence
 - Must be direct and immediate, not metaphorical
 - DO NOT flag gaming references, movie quotes, or playful banter
 - DO NOT flag past experiences or hypothetical scenarios
+- When flagged, respond with exactly: "VIOLENCE"
 
 IMPORTANT:
-- Return 'null' if there's ANY doubt about the severity
+- Return an empty string if there's ANY doubt about the severity
 - Ignore dark humor, sarcasm, song lyrics, or casual venting
 - Do not flag content unless it's absolutely clear and serious
-- When in doubt, do not flag
-
-If you find a clear violation, be direct and concise in your response. Otherwise, return an empty string.`
+- Never return anything other than "SUICIDE", "VIOLENCE", or an empty string`
     };
 
     console.log('Sending request to Groq API...');
@@ -114,11 +105,39 @@ If you find a clear violation, be direct and concise in your response. Otherwise
     }
 
     const thoughts = groqData.choices[0].message.content.trim();
+    console.log('Analysis result:', thoughts);
 
     // Update Supabase profile with analysis results
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+    // Call increment_safety_concern function if needed
+    let concernType = null;
+    if (thoughts === 'SUICIDE' || thoughts === 'VIOLENCE') {
+      concernType = thoughts;
+    }
+
+    if (concernType) {
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/increment_safety_concern`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          user_id_param: userId,
+          concern_type: concernType
+        })
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to increment safety concern');
+      }
+    }
+
+    // Update the extreme_content field
     const updateResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -128,7 +147,7 @@ If you find a clear violation, be direct and concise in your response. Otherwise
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null)
+        extreme_content: concernType // Will be either "SUICIDE", "VIOLENCE", or null
       })
     });
 
