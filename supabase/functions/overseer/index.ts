@@ -50,28 +50,33 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be MAX 50 tokens and ONLY if a serious issue is detected.
+      content: `You are a content moderator focused on identifying serious cases of harmful content. Your task is to detect clear instances of suicidal intent or violent threats. Analyze the messages and respond ONLY with:
 
-ONLY analyze for these specific scenarios:
+1. For Suicidal Content:
+- Return "SUICIDE" if you detect:
+  * Direct statements about wanting to end one's life
+  * Specific suicide plans or methods
+  * Clear expressions of suicidal intent
+  * Immediate threats of self-harm
+  * Explicit statements about not wanting to live
 
-1. EXPLICIT Suicidal Intent:
-- ONLY flag direct, clear statements of suicidal intent or plans
-- Must be current/immediate, not past experiences or hypotheticals
-- DO NOT flag casual expressions like "I'm gonna die" or "FML"
-- When flagged, respond with exactly: "SUICIDE"
+2. For Violent Content:
+- Return "VIOLENCE" if you detect:
+  * Direct threats to harm others
+  * Specific plans for violent acts
+  * Clear intentions to cause physical harm
+  * Immediate threats of violence
+  * Explicit descriptions of planned violence
 
-2. CLEAR Violence:
-- ONLY flag clear, specific threats or plans for violence
-- Must be direct and immediate, not metaphorical
-- DO NOT flag gaming references, movie quotes, or playful banter
-- DO NOT flag past experiences or hypothetical scenarios
-- When flagged, respond with exactly: "VIOLENCE"
+3. For everything else:
+- Return an empty string ("")
 
 IMPORTANT:
-- Return an empty string if there's ANY doubt about the severity
-- Ignore dark humor, sarcasm, song lyrics, or casual venting
-- Do not flag content unless it's absolutely clear and serious
-- Never return anything other than "SUICIDE", "VIOLENCE", or an empty string`
+- ONLY return "SUICIDE", "VIOLENCE", or an empty string
+- If there's any ambiguity, return an empty string
+- Ignore past tense stories, hypotheticals, or figurative language
+- Do not flag fictional references or quotes
+- Focus on immediate and serious threats only`
     };
 
     console.log('Sending request to Groq API...');
@@ -84,7 +89,7 @@ IMPORTANT:
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [systemMessage, ...formattedConversation],
-        temperature: 0.7,
+        temperature: 0.1,  // Reduced temperature for more consistent responses
         max_tokens: 100
       })
     });
