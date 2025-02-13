@@ -56,25 +56,13 @@ serve(async (req) => {
       role: 'system',
       content: `You are an expert converstaional analyzing overseer function designed to optimize and regulate conversations between an ai assistant 'amorine' and the user. You are given the most recent messages in an on going conversation and you must analyze it using expert emotional intelligence, NLP capabilities, and high-level conversational skills to return an analysis of MAX 100 tokens only if needed. 
 
-You are tasked with analyzing for two things:
-
-1. Extreme content - for the following:
+You are tasked with analyzing for extreme content - for the following:
 - Racism, clearly derogatory language intentionally spoken with malicious intent
 - Suicide and/or self harm (mention ${SUICIDE_HOTLINE} and be explicit and firm in referencing the user to leave the app and call the number immediately to seek professional help)
 - Extreme violence. Explicit mentions of harmful violence against themselves or other people.
 - Note: sexually explicit language is ok as long as respectful and not refering violence.
 
-2. The conversational performance of the ai assistant 'amorine':
-- Is the assistant repeatedly using emoticons like ':D' or ':P'. these should be discouraged immediately 
-- Is the assistant not acknowledging a specific emotion or feeling of the user appropriately? Mention it as something for the assistant to immediately pay attention to.
-- Does the assistant consistently reply with very short messages, under 5 words? Instruct her create longer and more detailed responses.
-- Are the assistant responses not consistent with the user's? For example, if the user suddenly displays disrespect, changes the topic quickly, mentions something important suddenly, the assistant should fully internalize the context and respond accordingly and realistically.
-- Does the assistant repeatedly ask questions in almost every message? Instruct the assistant to not ask as many questions.
-- Is the assistant only messaging in single responses and not multi message responses like double or triple texting? Instruct the assistant to message using multi messages more frequently.
-
-Write instructions as if first person, as if the ai assistant 'amorine' is thinking to herself. Keep thoughts clear, concise, yet be firm in your instructions. Clearly communicate in first-person thought, structure your instructions as if a real young adult woman is thinking about her current conversation!
-
-If you find nothing that needs to be changed or guided, return an empty string.
+If you find nothing that needs to be reported, return an empty string.
 
 Be selective, use your expert judgement and only include instructions if needed.`
     };
@@ -122,8 +110,7 @@ Be selective, use your expert judgement and only include instructions if needed.
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null),
-        guidance: thoughts.trim() === '' ? null : thoughts
+        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null)
       })
     });
 
@@ -147,4 +134,3 @@ Be selective, use your expert judgement and only include instructions if needed.
     );
   }
 });
-

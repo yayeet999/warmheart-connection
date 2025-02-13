@@ -135,7 +135,6 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           extreme_content: string | null
-          guidance: string | null
           id: string
           name: string | null
           pronouns: string | null
@@ -147,7 +146,6 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           extreme_content?: string | null
-          guidance?: string | null
           id: string
           name?: string | null
           pronouns?: string | null
@@ -159,7 +157,6 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           extreme_content?: string | null
-          guidance?: string | null
           id?: string
           name?: string | null
           pronouns?: string | null

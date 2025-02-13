@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -104,7 +105,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content,guidance`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content`,
       {
         headers: {
           Authorization: `Bearer ${supabaseKey}`,
@@ -149,14 +150,6 @@ serve(async (req) => {
       overseerExtremeContentMessage = {
         role: "system" as const,
         content: `Overseer Alert: ${profile.extreme_content}. Keep this in mind and respond carefully.`,
-      };
-    }
-
-    let overseerGuidanceMessage;
-    if (profile?.guidance && profile.guidance.trim() !== "") {
-      overseerGuidanceMessage = {
-        role: "system" as const,
-        content: `Overseer Guidance: ${profile.guidance}. Adjust your style/approach accordingly.`,
       };
     }
 
@@ -270,7 +263,6 @@ Use these details as your personal background as your identity and reveal them n
       userContextMessage,
       ...(vectorLongTermMessage ? [vectorLongTermMessage] : []),
       ...(overseerExtremeContentMessage ? [overseerExtremeContentMessage] : []),
-      ...(overseerGuidanceMessage ? [overseerGuidanceMessage] : []),
       ...conversationHistory,
       { role: "user", content: message },
     ];
