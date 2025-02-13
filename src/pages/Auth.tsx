@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -191,6 +192,16 @@ const Auth = () => {
               </svg>
               Google
             </Button>
+            <p className="text-center text-sm text-gray-600 mt-2">
+              By signing up, you agree to our{" "}
+              <Link to="/terms-of-service" className="underline text-coral hover:text-plum transition-colors">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy-policy" className="underline text-coral hover:text-plum transition-colors">
+                Privacy Policy
+              </Link>
+            </p>
           </CardFooter>
         </Card>
       </div>
