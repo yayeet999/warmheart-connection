@@ -96,6 +96,45 @@ export type Database = {
         }
         Relationships: []
       }
+      image_library: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          description: string | null
+          embedding: string | null
+          full_url: string
+          id: string
+          metadata: Json | null
+          storage_path: string
+          tags: string[] | null
+          title: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          embedding?: string | null
+          full_url: string
+          id?: string
+          metadata?: Json | null
+          storage_path: string
+          tags?: string[] | null
+          title?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          embedding?: string | null
+          full_url?: string
+          id?: string
+          metadata?: Json | null
+          storage_path?: string
+          tags?: string[] | null
+          title?: string | null
+        }
+        Relationships: []
+      }
       message_counts: {
         Row: {
           chunk_message_count: number

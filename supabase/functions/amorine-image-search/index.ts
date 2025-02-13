@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -124,14 +123,14 @@ serve(async (req) => {
       );
     }
 
-    // First, get all images that match the storage paths
+    // Get all images that match the storage paths
     const storagePaths = searchResults.map(result => result.id);
     console.log('Storage paths from vector search:', storagePaths);
 
-    // Query Supabase to get the UUIDs for these storage paths
+    // Query the new image_library table
     const { data: images, error: dbError } = await supabase
-      .from('pregenerated_images')
-      .select('id, storage_path, tags')
+      .from('image_library')
+      .select('id, full_url, tags, title, description')
       .in('storage_path', storagePaths)
       .eq('active', true);
 
@@ -151,32 +150,22 @@ serve(async (req) => {
       );
     }
 
-    // Generate public URLs for each image
-    const imagesWithUrls = images.map(image => {
-      // Add .webp extension if not present in storage_path
-      const storagePath = image.storage_path.endsWith('.webp') 
-        ? image.storage_path 
-        : `${image.storage_path}.webp`;
+    // Map the results - now using the full_url directly
+    const processedImages = images.map(image => ({
+      id: image.id,
+      url: image.full_url,
+      tags: image.tags,
+      title: image.title,
+      description: image.description
+    }));
 
-      const { data: { publicUrl } } = supabase
-        .storage
-        .from('pregenerated-images')
-        .getPublicUrl(storagePath);
-
-      return {
-        id: image.id,
-        url: publicUrl,
-        tags: image.tags
-      };
-    });
-
-    console.log(`Successfully found ${imagesWithUrls.length} images`);
-    console.log('Image URLs:', imagesWithUrls.map(img => img.url));
+    console.log(`Successfully found ${processedImages.length} images`);
+    console.log('Image URLs:', processedImages.map(img => img.url));
 
     return new Response(
       JSON.stringify({
         success: true,
-        images: imagesWithUrls,
+        images: processedImages,
         searchQuery
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
