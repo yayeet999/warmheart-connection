@@ -174,7 +174,7 @@ export function SafetyAcknowledgmentDialog({
       // Get the current warning count to show appropriate toast
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select(type === 'suicide' ? 'suicide_concern' : 'violence_concern')
+        .select('suicide_concern, violence_concern')
         .eq('id', userId)
         .single();
 
