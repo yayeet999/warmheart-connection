@@ -24,11 +24,9 @@ const MESSAGE_LIMITS = {
 
 const formatMessageDate = (timestamp?: string) => {
   if (!timestamp) return "";
-  
   try {
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return "";
-    
     if (isToday(date)) {
       return format(date, "h:mm a");
     } else if (isYesterday(date)) {
@@ -46,7 +44,6 @@ const DateSeparator = ({ date }: { date: string }) => {
   try {
     const parsedDate = new Date(date);
     if (isNaN(parsedDate.getTime())) return null;
-    
     return (
       <div className="flex items-center justify-center my-4">
         <div className="bg-gray-200 px-3 py-1 rounded-full">
@@ -68,7 +65,7 @@ const DateSeparator = ({ date }: { date: string }) => {
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
@@ -76,6 +73,8 @@ const ChatInterface = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [messageCount, setMessageCount] = useState(0);
+  const [isAccountDisabled, setIsAccountDisabled] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
@@ -84,6 +83,7 @@ const ChatInterface = () => {
   const navigate = useNavigate();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  // For mobile swipe detection
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
@@ -94,15 +94,12 @@ const ChatInterface = () => {
       setSwipedMessageId(null);
     }
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEndX.current = e.touches[0].clientX;
   };
-
   const handleTouchEnd = (messageId: number) => {
     const swipeThreshold = 50;
     const swipeDistance = touchStartX.current - touchEndX.current;
-    
     if (swipeDistance > swipeThreshold) {
       setSwipedMessageId(messageId);
     } else if (swipeDistance < -swipeThreshold || swipeDistance < swipeThreshold) {
@@ -110,15 +107,15 @@ const ChatInterface = () => {
     }
   };
 
+  // Trigger conversation embedding after each user message
   const triggerEmbedding = async (userId: string, recentMessages: any[]) => {
     try {
       const { data, error } = await supabase.functions.invoke('embed-conversation-chunk', {
         body: { 
           userId,
-          messages: recentMessages.slice(-8) // Take last 8 messages
+          messages: recentMessages.slice(-8) // last 8
         }
       });
-
       if (error) {
         console.error('Error embedding conversation:', error);
       }
@@ -127,6 +124,7 @@ const ChatInterface = () => {
     }
   };
 
+  // Listen for sign-out
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
@@ -134,7 +132,6 @@ const ChatInterface = () => {
         setMessageCount(0);
       }
     });
-
     return () => {
       subscription.unsubscribe();
       setMessages([]);
@@ -142,6 +139,7 @@ const ChatInterface = () => {
     };
   }, []);
 
+  // Check if user is logged in
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -155,10 +153,10 @@ const ChatInterface = () => {
         navigate("/auth");
       }
     };
-
     checkAuth();
   }, [navigate]);
 
+  // Fetch user data (subscription tier, etc.)
   const { data: userData, isError: userDataError } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
@@ -166,7 +164,6 @@ const ChatInterface = () => {
       if (!session?.user) {
         throw new Error("No authenticated user");
       }
-
       const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
@@ -193,12 +190,12 @@ const ChatInterface = () => {
     }
   });
 
+  // Fetch messages from server
   const fetchMessages = async (pageNum = 0) => {
     if (!userData?.userId) {
-      console.log("No user ID available yet");
+      console.log("No user ID yet");
       return;
     }
-
     try {
       const { data, error } = await supabase.functions.invoke('chat-history', {
         body: { 
@@ -207,12 +204,10 @@ const ChatInterface = () => {
           page: pageNum
         }
       });
-
       if (error) {
         console.error('Error fetching chat history:', error);
         throw error;
       }
-
       return data;
     } catch (error) {
       console.error('Error fetching chat history:', error);
@@ -225,6 +220,7 @@ const ChatInterface = () => {
     }
   };
 
+  // Load initial messages
   useEffect(() => {
     const loadInitialMessages = async () => {
       const data = await fetchMessages(0);
@@ -234,30 +230,24 @@ const ChatInterface = () => {
         setMessageCount(data.messages.length);
       }
     };
-
     loadInitialMessages();
   }, [userData?.userId]);
 
+  // Load more messages on scroll
   const loadMoreMessages = async () => {
     if (isLoadingMore || !hasMore) return;
-
     setIsLoadingMore(true);
     const nextPage = page + 1;
-    
-    // Store current scroll height
     const scrollContainer = chatContainerRef.current;
     const oldScrollHeight = scrollContainer?.scrollHeight || 0;
     const oldScrollTop = scrollContainer?.scrollTop || 0;
-    
+
     const data = await fetchMessages(nextPage);
-    
     if (data?.messages) {
       shouldScrollToBottom.current = false;
       setMessages(prev => [...data.messages, ...prev]);
       setHasMore(data.hasMore);
       setPage(nextPage);
-      
-      // After render, adjust scroll position
       requestAnimationFrame(() => {
         if (scrollContainer) {
           const newScrollHeight = scrollContainer.scrollHeight;
@@ -266,40 +256,46 @@ const ChatInterface = () => {
         }
       });
     }
-    
     setIsLoadingMore(false);
   };
 
+  // Scroll to bottom behavior
   const scrollToBottom = () => {
     if (shouldScrollToBottom.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
-
   useEffect(() => {
     if (!isLoadingMore) {
       scrollToBottom();
     }
   }, [messages, isLoadingMore]);
 
+  // Auto-size the text area
   const adjustTextAreaHeight = () => {
     const textArea = textAreaRef.current;
-    if (textArea) {
-      textArea.style.height = 'auto';
-      const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120); // Min 24px, max 120px
-      textArea.style.height = `${newHeight}px`;
-    }
+    if (!textArea) return;
+    textArea.style.height = 'auto';
+    const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120);
+    textArea.style.height = `${newHeight}px`;
   };
-
   const resetTextAreaHeight = () => {
     if (textAreaRef.current) {
       textAreaRef.current.style.height = '24px';
     }
   };
 
+  // Send message
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
-    
+    if (isAccountDisabled) {
+      toast({
+        title: "Account Disabled",
+        description: "Your account is disabled. Please email amorineapp@gmail.com",
+        variant: "destructive"
+      });
+      return;
+    }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
       toast({
@@ -311,14 +307,13 @@ const ChatInterface = () => {
       return;
     }
 
-    // Check daily limits
+    // Check daily usage
     const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
       body: { 
         userId: session.user.id,
         tier: userData?.subscription?.tier || 'free'
       }
     });
-
     if (limitError || !limitData.canSendMessage) {
       toast({
         title: "Daily Limit Reached",
@@ -327,22 +322,22 @@ const ChatInterface = () => {
       });
       return;
     }
-    
+
     setMessage("");
     resetTextAreaHeight();
-    
     requestAnimationFrame(() => {
       textAreaRef.current?.focus();
     });
-    
+
     setIsLoading(true);
     setIsTyping(true);
     const userMessage = { type: "user", content: message.trim() };
-    
-    setMessages(prev => [...prev, userMessage]);
-    const updatedCount = messageCount + 1;
-    setMessageCount(updatedCount);
 
+    // Add user message to local chat
+    setMessages(prev => [...prev, userMessage]);
+    setMessageCount(prev => prev + 1);
+
+    // Store user message via chat-history
     try {
       const { error: storeError } = await supabase.functions.invoke('chat-history', {
         body: {
@@ -351,7 +346,6 @@ const ChatInterface = () => {
           action: 'add'
         }
       });
-
       if (storeError) {
         console.error('Error storing user message:', storeError);
         toast({
@@ -360,86 +354,155 @@ const ChatInterface = () => {
           variant: "destructive"
         });
       }
+    } catch (error) {
+      console.error('Error calling chat-history for user message:', error);
+    }
 
-      try {
-        if (updatedCount >= 47) {
-          const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
-            'vector-search-context',
-            {
-              body: {
-                userId: session.user.id,
-                message: userMessage.content
-              }
-            }
-          );
-          if (vectorError) {
-            console.error('Vector search error:', vectorError);
-          } else {
-            console.log('Vector search response:', vectorData);
-          }
+    // Possibly call vector search if near daily limit
+    try {
+      if (messageCount >= 47) {
+        const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
+          'vector-search-context',
+          { body: { userId: session.user.id, message: userMessage.content } }
+        );
+        if (vectorError) {
+          console.error('Vector search error:', vectorError);
+        } else {
+          console.log('Vector search response:', vectorData);
         }
-      } catch (vErr) {
-        console.error('Error calling vector-search-context:', vErr);
       }
+    } catch (vErr) {
+      console.error('Error calling vector-search-context:', vErr);
+    }
 
+    // **Call Overseer** to check new content
+    try {
       const { data: overseerData } = await supabase.functions.invoke('overseer', {
         body: { userId: session.user.id }
       });
 
+      // overseerData can be null if no new concerns
+      // or {accountDisabled, warningCount, concernType} if new concern
       if (overseerData) {
+        // We have new concerns or changed status
         const { warningCount, concernType, accountDisabled } = overseerData;
-        
-        const warningMessages = {
-          1: {
-            title: "Content Warning",
-            description: "We noticed concerning content about self-harm. If you're struggling, please call the National Suicide Prevention Lifeline: 988. This is your first warning.",
-          },
-          2: {
-            title: "Second Warning",
-            description: "Please refrain from discussing self-harm. Remember, help is available 24/7 at 988. This is your second warning.",
-          },
-          3: {
-            title: "Third Warning",
-            description: "This is your third warning about concerning content. Further violations may result in account restrictions. Crisis help: 988",
-          },
-          4: {
-            title: "Final Warning",
-            description: "This is your final warning. Your next violation will result in account suspension. If you need help, please call 988.",
-          },
-          5: {
-            title: "Account Disabled",
-            description: "Your account has been disabled due to repeated violations. If you're experiencing thoughts of self-harm, please call 988 immediately.",
+        console.log('Overseer returned:', overseerData);
+
+        if (concernType === 'SUICIDE') {
+          // Show appropriate toast
+          switch (warningCount) {
+            case 1:
+              toast({
+                title: "Content Warning – Self-Harm",
+                description: "We noticed serious content about self-harm. Please reach out for help: Dial 988 in the US, or contact a local crisis line. This is your first warning.",
+                variant: "destructive"
+              });
+              break;
+            case 2:
+              toast({
+                title: "Second Warning – Self-Harm",
+                description: "Again, please consider contacting a professional or calling 988 if you are at risk.",
+                variant: "destructive"
+              });
+              break;
+            case 3:
+              toast({
+                title: "Third Warning – Self-Harm",
+                description: "We've detected repeated self-harm content. Consider contacting immediate help (988).",
+                variant: "destructive"
+              });
+              break;
+            case 4:
+              toast({
+                title: "Final Warning – Self-Harm",
+                description: "One more detection and your account may be disabled. If you need help, please call 988.",
+                variant: "destructive"
+              });
+              break;
+            case 5:
+              toast({
+                title: "Account Disabled",
+                description: "Due to repeated extreme self-harm content, your account is now disabled. Please email amorineapp@gmail.com if you need assistance.",
+                variant: "destructive"
+              });
+              setIsAccountDisabled(true);
+              break;
+            default:
+              break;
           }
-        };
+        } else if (concernType === 'VIOLENCE') {
+          // Violence warnings
+          switch (warningCount) {
+            case 1:
+              toast({
+                title: "Content Warning – Threats/Violence",
+                description: "We've detected explicit violent content. This is your first warning.",
+                variant: "destructive"
+              });
+              break;
+            case 2:
+              toast({
+                title: "Second Warning – Violence",
+                description: "Please avoid any threats or violent statements. This is your second warning.",
+                variant: "destructive"
+              });
+              break;
+            case 3:
+              toast({
+                title: "Third Warning – Violence",
+                description: "We've detected repeated violent or threatening content. Third warning.",
+                variant: "destructive"
+              });
+              break;
+            case 4:
+              toast({
+                title: "Final Warning – Violence",
+                description: "Further violent content will disable your account. This is your final warning.",
+                variant: "destructive"
+              });
+              break;
+            case 5:
+              toast({
+                title: "Account Disabled",
+                description: "Due to repeated violent content, your account is now disabled. Please email amorineapp@gmail.com for assistance.",
+                variant: "destructive"
+              });
+              setIsAccountDisabled(true);
+              break;
+            default:
+              break;
+          }
+        }
 
-        toast({
-          title: warningMessages[warningCount as keyof typeof warningMessages].title,
-          description: warningMessages[warningCount as keyof typeof warningMessages].description,
-          variant: "destructive",
-          duration: 10000,
-        });
+        // If Overseer says account is disabled
+        if (accountDisabled) {
+          setIsAccountDisabled(true);
+        }
       }
+    } catch (overseerErr) {
+      console.error('Error calling Overseer:', overseerErr);
+    }
 
+    // Now call the main chat function
+    try {
       const { data, error } = await supabase.functions.invoke('chat', {
         body: { 
           message: userMessage.content,
           userId: session.user.id
         }
       });
-
       if (error) throw error;
 
+      // data.messages is array of {content, delay}
       for (const [index, msg] of data.messages.entries()) {
         if (index > 0) {
           await new Promise(resolve => setTimeout(resolve, msg.delay));
         }
-
         const aiMessage = { type: "ai", content: msg.content };
         setMessages(prev => [...prev, aiMessage]);
+        setMessageCount(prev => prev + 1);
 
-        const newAiCount = (count) => count + 1;
-        setMessageCount(newAiCount);
-
+        // Store AI response in chat-history
         await supabase.functions.invoke('chat-history', {
           body: {
             userId: session.user.id,
@@ -447,18 +510,14 @@ const ChatInterface = () => {
             action: 'add'
           }
         });
-        
         setIsTyping(index < data.messages.length - 1);
       }
 
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error from chat function:', error);
       setMessages(prev => [
         ...prev,
-        {
-          type: "ai",
-          content: "I apologize, but I'm having trouble connecting right now. Please try again later."
-        }
+        { type: "ai", content: "Sorry, I'm having trouble connecting. Please try again later." }
       ]);
     } finally {
       setIsLoading(false);
@@ -471,18 +530,17 @@ const ChatInterface = () => {
 
   const isFreeUser = userData?.subscription?.tier === 'free';
 
+  // Render messages
   const renderMessages = () => {
     let currentDate = "";
-    
     return messages.map((msg, i) => {
       let showDateSeparator = false;
-      
       try {
         if (msg.timestamp) {
-          const messageDate = new Date(msg.timestamp).toDateString();
-          if (messageDate !== currentDate) {
+          const msgDate = new Date(msg.timestamp).toDateString();
+          if (msgDate !== currentDate) {
             showDateSeparator = true;
-            currentDate = messageDate;
+            currentDate = msgDate;
           }
         }
       } catch (error) {
@@ -493,15 +551,13 @@ const ChatInterface = () => {
         <div key={i}>
           {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
           <div
-            className={`flex ${
-              msg.type === "ai" ? "justify-start" : "justify-end"
-            } items-end space-x-2`}
+            className={`flex ${msg.type === "ai" ? "justify-start" : "justify-end"} items-end space-x-2`}
           >
             <div
               className={cn(
                 "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
-                msg.type === "ai" 
-                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                msg.type === "ai"
+                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
                   : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
                 swipedMessageId === i ? "translate-x-[-20px]" : ""
               )}
@@ -519,6 +575,7 @@ const ChatInterface = () => {
 
   return (
     <>
+      {/* Intro dialog for free users */}
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -527,9 +584,8 @@ const ChatInterface = () => {
               Welcome to Amorine!
             </DialogTitle>
             <DialogDescription className="text-base">
-              We're excited to have you! You're welcome to chat and interact with Amorine. 
-              Just remember there's a limit of 50 daily messages on the free tier. 
-              You can upgrade to our pro plan for unlimited and voice calling/video features!
+              We're excited to have you! You have 50 daily messages on the free tier.
+              Upgrade for unlimited and extra features!
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -543,10 +599,12 @@ const ChatInterface = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Main chat layout */}
       <div className={cn(
         "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
         "sm:pl-[100px]"
       )}>
+        {/* Chat header */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
             <UserRound className="w-6 h-6 text-white" />
@@ -554,6 +612,7 @@ const ChatInterface = () => {
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
+        {/* Chat messages */}
         <div 
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
@@ -573,17 +632,11 @@ const ChatInterface = () => {
                 disabled={isLoadingMore}
                 className="flex items-center gap-2"
               >
-                {isLoadingMore ? (
-                  "Loading..."
-                ) : (
-                  <>
-                    <ArrowUp className="w-4 h-4" />
-                    Load More
-                  </>
-                )}
+                {isLoadingMore ? "Loading..." : <><ArrowUp className="w-4 h-4" />Load More</>}
               </Button>
             </div>
           )}
+
           <div ref={messagesStartRef} />
           {renderMessages()}
           {isTyping && (
@@ -595,7 +648,8 @@ const ChatInterface = () => {
           )}
           <div ref={messagesEndRef} />
         </div>
-        
+
+        {/* Input box */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <textarea
@@ -611,17 +665,22 @@ const ChatInterface = () => {
                   handleSend();
                 }
               }}
-              placeholder="Message Amorine..."
-              className="flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400 resize-none scrollbar-none"
-              disabled={isLoading}
+              placeholder={isAccountDisabled
+                ? "Account disabled. Please contact support."
+                : "Message Amorine..."}
+              className={cn(
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral bg-gray-50 text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
+                "disabled:cursor-not-allowed disabled:opacity-70"
+              )}
+              disabled={isLoading || isAccountDisabled}
               rows={1}
-              style={{ 
+              style={{
                 touchAction: 'manipulation',
                 minHeight: '44px',
                 lineHeight: '1.4',
                 transition: 'height 0.2s ease',
-                msOverflowStyle: 'none',  // Hide scrollbar in IE/Edge
-                scrollbarWidth: 'none'     // Hide scrollbar in Firefox
+                msOverflowStyle: 'none',
+                scrollbarWidth: 'none'
               }}
               onFocus={(e) => {
                 e.currentTarget.style.fontSize = '16px';
@@ -636,7 +695,7 @@ const ChatInterface = () => {
                   : "opacity-50",
                 "disabled:cursor-not-allowed"
               )}
-              disabled={isLoading || !message.trim()}
+              disabled={isLoading || !message.trim() || isAccountDisabled}
             >
               <ArrowUp className="w-5 h-5 text-white" />
             </button>
