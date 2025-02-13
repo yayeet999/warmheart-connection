@@ -404,24 +404,41 @@ const ChatInterface = () => {
             throw new Error('Failed to store image request');
           }
 
-          // Show typing indicator for image generation
+          // Show typing indicator for image search
           setIsTyping(true);
 
-          // Temporary response until image generation is implemented
-          const mockImageResponse = {
+          // Call the image search function
+          const { data: imageSearchResult, error: searchError } = await supabase.functions.invoke(
+            'amorine-image-search',
+            {
+              body: { analysis: imageContext.analysis }
+            }
+          );
+
+          if (searchError) {
+            throw new Error('Image search failed');
+          }
+
+          if (!imageSearchResult.success) {
+            throw new Error(imageSearchResult.error || 'No matching images found');
+          }
+
+          // Create AI response with the images
+          const aiResponse = {
             type: "ai",
-            content: "I would show you an image here based on our conversation, but image generation isn't implemented yet. Let me describe it instead: " +
-              `A ${imageContext.analysis.image_requirements.style} image showing ${imageContext.analysis.image_requirements.subject_matter} with a ${imageContext.analysis.image_requirements.mood} mood.`
+            content: imageSearchResult.images.map(img => 
+              `![Generated Image](${img.url})`
+            ).join('\n')
           };
 
           // Add the response to messages
-          setMessages(prev => [...prev, mockImageResponse]);
+          setMessages(prev => [...prev, aiResponse]);
 
           // Store the AI response
           await supabase.functions.invoke('chat-history', {
             body: {
               userId: session.user.id,
-              message: mockImageResponse,
+              message: aiResponse,
               action: 'add'
             }
           });
@@ -431,36 +448,8 @@ const ChatInterface = () => {
 
         } catch (error) {
           console.error('Error in image generation flow:', error);
-          // Fallback to normal text flow
-          const { data, error: chatError } = await supabase.functions.invoke('chat', {
-            body: { 
-              message: userMessage.content,
-              userId: session.user.id
-            }
-          });
-
-          if (chatError) throw chatError;
-
-          // Process the text responses
-          for (const [index, msg] of data.messages.entries()) {
-            if (index > 0) {
-              await new Promise(resolve => setTimeout(resolve, msg.delay));
-            }
-
-            const aiMessage = { type: "ai", content: msg.content };
-            setMessages(prev => [...prev, aiMessage]);
-            setMessageCount(prev => prev + 1);
-
-            await supabase.functions.invoke('chat-history', {
-              body: {
-                userId: session.user.id,
-                message: aiMessage,
-                action: 'add'
-              }
-            });
-            
-            setIsTyping(index < data.messages.length - 1);
-          }
+          // Let the error bubble up to be handled by the main error handler
+          throw error;
         } finally {
           setIsTyping(false);
         }
