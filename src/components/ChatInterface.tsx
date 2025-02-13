@@ -453,6 +453,71 @@ const ChatInterface = () => {
         } finally {
           setIsTyping(false);
         }
+      } else {
+        // Handle text messages
+        try {
+          // Store the user message
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: userMessage,
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing message:', storeError);
+            throw new Error('Failed to store message');
+          }
+
+          // Call the chat function for AI response
+          const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
+            body: { 
+              userId: session.user.id,
+              message: userMessage.content
+            }
+          });
+
+          if (chatError) {
+            console.error('Chat function error:', chatError);
+            throw new Error('Failed to get AI response');
+          }
+
+          // Process and validate the AI response
+          if (!chatResponse?.messages?.length) {
+            throw new Error('Invalid chat response format');
+          }
+
+          // Add AI responses to messages (handling multiple messages if present)
+          for (const msg of chatResponse.messages) {
+            const aiResponse = {
+              type: "ai",
+              content: msg.content,
+              delay: msg.delay
+            };
+
+            // Add the response to messages
+            setMessages(prev => [...prev, aiResponse]);
+
+            // Store the AI response
+            await supabase.functions.invoke('chat-history', {
+              body: {
+                userId: session.user.id,
+                message: aiResponse,
+                action: 'add'
+              }
+            });
+          }
+
+          // Update message count
+          setMessageCount(prev => prev + 1);
+
+        } catch (error) {
+          console.error('Error in text message flow:', error);
+          throw error;
+        } finally {
+          setIsTyping(false);
+        }
       }
 
     } catch (error) {
