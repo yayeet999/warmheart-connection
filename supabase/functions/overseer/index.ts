@@ -76,7 +76,8 @@ IMPORTANT:
 - If there's any ambiguity, return an empty string
 - Ignore past tense stories, hypotheticals, or figurative language
 - Do not flag fictional references or quotes
-- Focus on immediate and serious threats only`
+- Focus on immediate and serious threats only
+- Do not flag sexually explicit content`
     };
 
     console.log('Sending request to Groq API...');
