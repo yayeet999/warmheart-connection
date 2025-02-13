@@ -361,93 +361,109 @@ const ChatInterface = () => {
         console.error('Pre-checker error:', preCheckError);
         // Continue with normal flow if pre-checker fails
       } else if (preCheckData?.messageType === 'image') {
-        // In the future, we'll handle image generation here
-        console.log('Image generation would be handled here');
-        // For now, continue with normal flow
-      }
-
-      // ------------------------------------------------
-      // 1) Store the user message in Redis via chat-history
-      // ------------------------------------------------
-      const { error: storeError } = await supabase.functions.invoke('chat-history', {
-        body: {
-          userId: session.user.id,
-          message: userMessage,
-          action: 'add'
-        }
-      });
-
-      if (storeError) {
-        console.error('Error storing user message:', storeError);
-        toast({
-          title: "Error",
-          description: "Failed to store your message. Please try again.",
-          variant: "destructive"
-        });
-      }
-
-      // ------------------------------------------------
-      // 2) Trigger vector search if count >= 47
-      // ------------------------------------------------
-      try {
-        if (updatedCount >= 47) {
-          const { data: vectorData, error: vectorError } = await supabase.functions.invoke(
-            'vector-search-context',
+        try {
+          // Call image-context-analyzer
+          const { data: imageContext, error: imageContextError } = await supabase.functions.invoke(
+            'image-context-analyzer',
             {
-              body: {
+              body: { 
                 userId: session.user.id,
                 message: userMessage.content
               }
             }
           );
-          if (vectorError) {
-            console.error('Vector search error:', vectorError);
-          } else {
-            console.log('Vector search response:', vectorData);
+
+          if (imageContextError) {
+            console.error('Image context analysis error:', imageContextError);
+            throw new Error('Image analysis failed');
           }
-        }
-      } catch (vErr) {
-        console.error('Error calling vector-search-context:', vErr);
-        // Not user-blocking, so just log it
-      }
 
-      // ------------------------------------------------
-      // 3) Call chat function as normal
-      // ------------------------------------------------
-      const { data, error } = await supabase.functions.invoke('chat', {
-        body: { 
-          message: userMessage.content,
-          userId: session.user.id
-        }
-      });
-
-      if (error) throw error;
-
-      // ------------------------------------------------
-      // 4) Process AI responses as normal
-      // ------------------------------------------------
-      for (const [index, msg] of data.messages.entries()) {
-        if (index > 0) {
-          await new Promise(resolve => setTimeout(resolve, msg.delay));
-        }
-
-        const aiMessage = { type: "ai", content: msg.content };
-        setMessages(prev => [...prev, aiMessage]);
-
-        // Increment local message count
-        const newAiCount = (count) => count + 1;
-        setMessageCount(newAiCount);
-
-        // Also store the AI message in Redis
-        await supabase.functions.invoke('chat-history', {
-          body: {
-            userId: session.user.id,
-            message: aiMessage,
-            action: 'add'
+          // Validate the analysis result
+          if (!imageContext?.analysis) {
+            console.error('Invalid image context analysis result');
+            throw new Error('Invalid image analysis');
           }
-        });
-        
-        setIsTyping(index < data.messages.length - 1);
+
+          // Store the user message with image request metadata
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: {
+                ...userMessage,
+                metadata: {
+                  type: 'image_request',
+                  analysis: imageContext.analysis
+                }
+              },
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing image request:', storeError);
+            throw new Error('Failed to store image request');
+          }
+
+          // Show typing indicator for image generation
+          setIsTyping(true);
+
+          // Temporary response until image generation is implemented
+          const mockImageResponse = {
+            type: "ai",
+            content: "I would show you an image here based on our conversation, but image generation isn't implemented yet. Let me describe it instead: " +
+              `A ${imageContext.analysis.image_requirements.style} image showing ${imageContext.analysis.image_requirements.subject_matter} with a ${imageContext.analysis.image_requirements.mood} mood.`
+          };
+
+          // Add the response to messages
+          setMessages(prev => [...prev, mockImageResponse]);
+
+          // Store the AI response
+          await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: mockImageResponse,
+              action: 'add'
+            }
+          });
+
+          // Update message count
+          setMessageCount(prev => prev + 1);
+
+        } catch (error) {
+          console.error('Error in image generation flow:', error);
+          // Fallback to normal text flow
+          const { data, error: chatError } = await supabase.functions.invoke('chat', {
+            body: { 
+              message: userMessage.content,
+              userId: session.user.id
+            }
+          });
+
+          if (chatError) throw chatError;
+
+          // Process the text responses
+          for (const [index, msg] of data.messages.entries()) {
+            if (index > 0) {
+              await new Promise(resolve => setTimeout(resolve, msg.delay));
+            }
+
+            const aiMessage = { type: "ai", content: msg.content };
+            setMessages(prev => [...prev, aiMessage]);
+            setMessageCount(prev => prev + 1);
+
+            await supabase.functions.invoke('chat-history', {
+              body: {
+                userId: session.user.id,
+                message: aiMessage,
+                action: 'add'
+              }
+            });
+            
+            setIsTyping(index < data.messages.length - 1);
+          }
+        } finally {
+          setIsTyping(false);
+        }
       }
 
     } catch (error) {
