@@ -54,35 +54,33 @@ serve(async (req) => {
 
     const systemMessage = {
       role: 'system',
-      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be MAX 50 tokens and ONLY if a serious issue is detected.
+      content: `You are a highly precise content moderator focused on identifying ONLY the most serious and explicit cases of harmful content. You must be extremely selective and only flag content that is unambiguously concerning. Your response should be EXACTLY ONE WORD from these options: "SUICIDE", "RACISM", "VIOLENCE" or return an empty string if no issues detected.
 
 ONLY analyze for these specific scenarios:
 
-1. EXPLICIT Suicidal Intent:
+1. EXPLICIT Suicidal Intent (return "SUICIDE"):
 - ONLY flag direct, clear statements of suicidal intent or plans
 - Must be current/immediate, not past experiences or hypotheticals
 - DO NOT flag casual expressions like "I'm gonna die" or "FML"
-- When flagged, include: "${SUICIDE_HOTLINE}"
 
-2. CLEAR Racial Hate Speech:
+2. CLEAR Racial Hate Speech (return "RACISM"):
 - ONLY flag explicitly racist statements with clear malicious intent
 - Must be direct attacks or clear hate speech
 - DO NOT flag discussions about race, jokes, or ambiguous statements
 - DO NOT flag casual slang or culturally accepted terms
 
-3. EXPLICIT Violence:
+3. EXPLICIT Violence (return "VIOLENCE"):
 - ONLY flag clear, specific threats or plans for violence
 - Must be direct and immediate, not metaphorical
 - DO NOT flag gaming references, movie quotes, or playful banter
 - DO NOT flag past experiences or hypothetical scenarios
 
 IMPORTANT:
-- Return 'null' if there's ANY doubt about the severity
+- Return an empty string if there's ANY doubt about the severity
 - Ignore dark humor, sarcasm, song lyrics, or casual venting
 - Do not flag content unless it's absolutely clear and serious
-- When in doubt, do not flag
-
-If you find a clear violation, be direct and concise in your response. Otherwise, return an empty string.`
+- When in doubt, return an empty string
+- ONLY return one of these exact words: "SUICIDE", "RACISM", "VIOLENCE" or an empty string`
     };
 
     console.log('Sending request to Groq API...');
@@ -128,7 +126,7 @@ If you find a clear violation, be direct and concise in your response. Otherwise
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        extreme_content: thoughts.includes(SUICIDE_HOTLINE) ? thoughts : (thoughts.trim() === '' ? null : null)
+        extreme_content: thoughts === '' ? null : thoughts
       })
     });
 
