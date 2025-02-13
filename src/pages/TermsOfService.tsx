@@ -1,4 +1,3 @@
-
 import Header from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,7 +22,7 @@ const TermsOfService = () => {
               </div>
 
               <div className="text-lg text-charcoal/80 mb-8">
-                <strong>Welcome to Amorine!</strong> These Terms of Service ("<strong>Terms</strong>") govern your access to and use of <strong>Amorine</strong>, an AI conversational companion application operated by Nevaubi LLC ("<strong>Nevaubi</strong>," "<strong>we</strong>," or "<strong>us</strong>"). By creating an account or using the Amorine app or services (collectively, the "<strong>Service</strong>"), you agree to be bound by these Terms and our <Link to="/privacy-policy" className="text-coral hover:text-plum transition-colors">Privacy Policy</Link> (collectively referred to as the "<strong>Agreement</strong>"). If you do not agree with these Terms or the Privacy Policy, you must not use the Service.
+                <strong>Welcome to Amorine!</strong> These Terms of Service ("<strong>Terms</strong>") govern your access to and use of <strong>Amorine</strong>, an AI conversational companion application operated by Nevaubi LLC ("<strong>Nevaubi</strong>" "<strong>we</strong>," or "<strong>us</strong>"). By creating an account or using the Amorine app or services (collectively, the "<strong>Service</strong>"), you agree to be bound by these Terms and our <Link to="/privacy-policy" className="text-coral hover:text-plum transition-colors">Privacy Policy</Link> (collectively referred to as the "<strong>Agreement</strong>"). If you do not agree with these Terms or the Privacy Policy, you must not use the Service.
               </div>
 
               <div className="text-lg text-charcoal/80 mb-8">
@@ -296,9 +295,6 @@ const TermsOfService = () => {
                   <a href="mailto:amorineapp@gmail.com" className="text-coral hover:text-plum transition-colors">
                     amorineapp@gmail.com
                   </a>
-                  <div className="text-charcoal/80 mt-2">
-                    1234 Example Street, Evanston, IL 60201, USA
-                  </div>
                 </div>
               </section>
             </div>
