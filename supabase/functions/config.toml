@@ -28,3 +28,6 @@ verify_jwt = true
 [functions.amorine_updater]
 verify_jwt = true
 
+[functions.pre-checker]
+verify_jwt = true
+
