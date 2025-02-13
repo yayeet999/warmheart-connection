@@ -86,19 +86,14 @@ Classify:`;
 
     console.log('Calling Groq API...');
 
-    // Log API key presence (not the actual key)
-    const groqApiKey = Deno.env.get('GROQ_API_KEY');
-    console.log('GROQ_API_KEY present:', !!groqApiKey);
-
-    const response = await fetch('https://api.groq.com/v1/chat/completions', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama2-70b-4096",
+        model: 'llama-3.1-8b-instant',
         messages: [
           { 
             role: 'system', 
@@ -106,19 +101,16 @@ Classify:`;
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.1,
-        max_tokens: 2,
-      }),
+        temperature: 0.1,  // Reduced temperature for more consistent responses
+        max_tokens: 2
+      })
     });
 
     if (!response.ok) {
+      console.error('Groq API error status:', response.status);
       const errorText = await response.text();
-      console.error('Groq API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      throw new Error(`Failed to get model response: ${response.status} ${response.statusText} - ${errorText}`);
+      console.error('Groq API error text:', errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
