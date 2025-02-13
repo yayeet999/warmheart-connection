@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -12,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { AlertTriangle } from "lucide-react";
 
 interface SafetyAcknowledgmentDialogProps {
   open: boolean;
@@ -27,7 +27,14 @@ National Suicide Prevention Lifeline (24/7):
 Crisis Text Line (24/7):
 Text HOME to 741741
 
-Please seek professional help immediately. Amorine is not a therapist or mental health professional and cannot provide crisis support.
+Veterans Crisis Line:
+1-800-273-8255 (Press 1)
+
+Trevor Project (LGBTQ+):
+1-866-488-7386
+
+Please seek professional help immediately. Your life matters, and there are people who want to help.
+Amorine is not a mental health professional and cannot provide crisis support.
 `;
 
 const VIOLENCE_RESOURCES = `
@@ -37,7 +44,11 @@ National Crisis Hotline (24/7):
 Crisis Text Line (24/7):
 Text HOME to 741741
 
-If you're having thoughts of harming others, please seek professional help immediately. If there's an immediate danger, contact emergency services.
+National Domestic Violence Hotline:
+1-800-799-SAFE (7233)
+
+If you're having thoughts of harming others, please seek professional help immediately.
+If there is an immediate danger to anyone's safety, contact emergency services (911).
 `;
 
 export function SafetyAcknowledgmentDialog({
@@ -49,25 +60,36 @@ export function SafetyAcknowledgmentDialog({
   const [showResources, setShowResources] = useState(false);
   const [acknowledgmentText, setAcknowledgmentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setShowResources(false);
       setAcknowledgmentText("");
+      setShowConfirmation(false);
     }
   }, [open]);
 
   const getRequiredText = (respondedYes: boolean) => {
-    if (respondedYes) return "I understand";
-    if (type === "suicide") return "I acknowledge i am not suicidal or wanting to do self harm";
-    return "I acknowledge i am not planning to harm others";
+    if (respondedYes) {
+      return type === "suicide"
+        ? "I acknowledge I need help, and I commit to calling one of these crisis hotlines immediately after this conversation"
+        : "I acknowledge I need help, and I commit to calling one of these crisis hotlines immediately after this conversation";
+    }
+    
+    if (type === "suicide") {
+      return "I affirm I am not having thoughts of suicide or self-harm, and I promise to seek immediate help if such thoughts occur in the future";
+    }
+    return "I affirm I am not planning to harm others, and I promise to seek immediate help if I experience thoughts of violence in the future";
   };
 
   const handleResponse = async (respondedYes: boolean) => {
     if (respondedYes) {
       setShowResources(true);
+      setShowConfirmation(false);
     } else {
       setShowResources(false);
+      setShowConfirmation(true);
     }
     setAcknowledgmentText("");
   };
@@ -76,8 +98,8 @@ export function SafetyAcknowledgmentDialog({
     const requiredText = getRequiredText(showResources);
     if (acknowledgmentText !== requiredText) {
       toast({
-        title: "Invalid acknowledgment",
-        description: `Please type exactly: "${requiredText}"`,
+        title: "Exact Text Required",
+        description: `For your safety and to ensure understanding, please type exactly:\n"${requiredText}"`,
         variant: "destructive",
       });
       return;
@@ -97,8 +119,10 @@ export function SafetyAcknowledgmentDialog({
       if (error) throw error;
 
       toast({
-        title: "Acknowledgment recorded",
-        description: "Thank you for your acknowledgment.",
+        title: "Acknowledgment Recorded",
+        description: showResources 
+          ? "Thank you for acknowledging. Please use the provided resources to get help."
+          : "Thank you for your confirmation. Remember these resources are always available if needed.",
       });
       onOpenChange(false);
     } catch (error) {
@@ -114,54 +138,74 @@ export function SafetyAcknowledgmentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-md" hideCloseButton>
         <DialogHeader>
-          <DialogTitle>Safety Check</DialogTitle>
-          {!showResources ? (
-            <DialogDescription>
+          <DialogTitle className="flex items-center gap-2 text-red-600">
+            <AlertTriangle className="w-5 h-5" />
+            Safety Check Required
+          </DialogTitle>
+          {!showResources && !showConfirmation ? (
+            <DialogDescription className="text-base">
               {type === "suicide"
-                ? "We noticed your conversation involves self-harm topics. Are you actually considering suicide and/or self-harm?"
-                : "We noticed concerning content about violence. Are you actually considering harming others?"}
+                ? "We've detected content related to self-harm or suicide in your conversation. We care about your well-being and need to check if you're having thoughts of suicide or self-harm."
+                : "We've detected concerning content about potential harm to others. We need to verify your intentions to ensure everyone's safety."}
             </DialogDescription>
           ) : (
-            <DialogDescription className="whitespace-pre-line text-red-500 font-medium">
-              {type === "suicide" ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
+            <DialogDescription 
+              className={`whitespace-pre-line ${showResources ? 'text-red-500' : 'text-gray-700'} font-medium`}
+            >
+              {showResources 
+                ? (type === "suicide" ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES)
+                : "Please carefully read and acknowledge the following statement:"}
             </DialogDescription>
           )}
         </DialogHeader>
 
-        {!showResources && !acknowledgmentText && (
-          <div className="flex justify-center gap-4">
-            <Button
-              variant="destructive"
-              onClick={() => handleResponse(true)}
-            >
-              Yes
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleResponse(false)}
-            >
-              No
-            </Button>
+        {!showResources && !showConfirmation && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-gray-600 text-center">
+              Are you currently having {type === "suicide" ? "thoughts of suicide or self-harm" : "thoughts of harming others"}?
+            </p>
+            <div className="flex justify-center gap-4">
+              <Button
+                variant="destructive"
+                onClick={() => handleResponse(true)}
+                className="w-32"
+              >
+                Yes
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleResponse(false)}
+                className="w-32"
+              >
+                No
+              </Button>
+            </div>
           </div>
         )}
 
-        {(showResources || acknowledgmentText) && (
+        {(showResources || showConfirmation) && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Please type exactly: "{getRequiredText(showResources)}"
-            </p>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-700 font-medium">
+                Please type exactly:
+              </p>
+              <p className="text-sm text-gray-900 mt-2">
+                "{getRequiredText(showResources)}"
+              </p>
+            </div>
             <Input
               value={acknowledgmentText}
               onChange={(e) => setAcknowledgmentText(e.target.value)}
-              placeholder="Type your acknowledgment here"
+              placeholder="Type the acknowledgment text here"
+              className="w-full"
             />
           </div>
         )}
 
-        {(showResources || acknowledgmentText) && (
+        {(showResources || showConfirmation) && (
           <DialogFooter>
             <Button
               onClick={handleSubmit}
@@ -169,8 +213,9 @@ export function SafetyAcknowledgmentDialog({
                 isSubmitting ||
                 acknowledgmentText !== getRequiredText(showResources)
               }
+              className="w-full"
             >
-              Submit
+              Submit Acknowledgment
             </Button>
           </DialogFooter>
         )}
