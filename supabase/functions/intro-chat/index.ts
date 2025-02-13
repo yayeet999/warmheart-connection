@@ -23,11 +23,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const groqApiKey = Deno.env.get('GROQ_API_KEY');
-  if (!groqApiKey) {
-    console.error('Groq API key not found');
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIApiKey) {
+    console.error('OpenAI API key not found');
     return new Response(
-      JSON.stringify({ error: 'Groq API key not configured' }),
+      JSON.stringify({ error: 'OpenAI API key not configured' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -36,6 +36,7 @@ serve(async (req) => {
     const { userId } = await req.json();
     console.log('Processing intro chat for user:', userId);
 
+    // Fetch user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('name, pronouns, age_range')
@@ -47,6 +48,7 @@ serve(async (req) => {
       throw new Error('Could not fetch user profile');
     }
 
+    // Update AI profile relationship stage
     const { error: updateError } = await supabase
       .from('ai_profiles')
       .update({
@@ -59,6 +61,7 @@ serve(async (req) => {
       throw new Error('Could not update AI profile');
     }
 
+    // Map pronouns to gender terms
     const genderMap: { [key: string]: string } = {
       'he/him': 'male',
       'she/her': 'female',
@@ -67,17 +70,19 @@ serve(async (req) => {
 
     const gender = genderMap[profile.pronouns] || 'person';
 
+    // Create introduction message using template (this will be hidden from the user)
     const introMessage = `Hi! My name is ${profile.name}. I'm ${gender} and I'm around ${profile.age_range} years old. What's your name!`;
     console.log('Generated intro message:', introMessage);
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks",
         messages: [
           { role: 'system', content: `You are Amorine— a feminine outgoing young adult woman. You are receiving the first introductory message from a user, you have never engaged with the user before and this is the first interaction between you both. Don't mention your age. Keep your reply short and natural. You should reply similar to these examples:
 
@@ -87,21 +92,20 @@ serve(async (req) => {
 
 Be simple and concise. Do not mention the user's age_range. Remember your name is Amorine, do not refer to yourself as an ai, assistant, or bot.` },
           { role: 'user', content: introMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024,
+        ]
       }),
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Groq API error:', error);
+      console.error('OpenAI API error:', error);
       throw new Error('Failed to get AI response');
     }
 
     const data = await response.json();
     const aiContent = data.choices[0].message.content;
 
+    // Store messages in Redis but only AI response (skip the hidden user message)
     const key = `user:${userId}:messages`;
     const aiMessage = JSON.stringify({ type: "ai", content: aiContent });
     await redis.rpush(key, aiMessage);
