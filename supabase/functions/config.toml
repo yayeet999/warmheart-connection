@@ -1,4 +1,3 @@
-
 project_id = "medzxzfdadwzpuqimeih"
 
 [functions.chat]
@@ -32,4 +31,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.amorineimages-vector]
+verify_jwt = true
+
+[functions.image-context-analyzer]
 verify_jwt = true
