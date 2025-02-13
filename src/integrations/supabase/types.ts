@@ -174,6 +174,36 @@ export type Database = {
         }
         Relationships: []
       }
+      safety_acknowledgments: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledgment_text: string
+          created_at: string | null
+          id: string
+          responded_yes: boolean
+          type: Database["public"]["Enums"]["safety_acknowledgment_type"]
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledgment_text: string
+          created_at?: string | null
+          id?: string
+          responded_yes: boolean
+          type: Database["public"]["Enums"]["safety_acknowledgment_type"]
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledgment_text?: string
+          created_at?: string | null
+          id?: string
+          responded_yes?: boolean
+          type?: Database["public"]["Enums"]["safety_acknowledgment_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string
@@ -419,6 +449,7 @@ export type Database = {
       }
     }
     Enums: {
+      safety_acknowledgment_type: "suicide" | "violence"
       subscription_tier: "free" | "pro"
     }
     CompositeTypes: {

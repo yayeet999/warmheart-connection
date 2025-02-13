@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import TypingIndicator from "./TypingIndicator";
+import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
 const MESSAGE_LIMITS = {
   free: 50,
@@ -510,6 +510,36 @@ const ChatInterface = () => {
     });
   };
 
+  const [safetyDialog, setSafetyDialog] = useState<{
+    open: boolean;
+    type: "suicide" | "violence" | null;
+  }>({ open: false, type: null });
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile", userData?.userId],
+    queryFn: async () => {
+      if (!userData?.userId) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("suicide_concern, violence_concern, extreme_content")
+        .eq("id", userData.userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userData?.userId,
+  });
+
+  useEffect(() => {
+    if (profile?.extreme_content) {
+      setSafetyDialog({
+        open: true,
+        type: profile.extreme_content.toLowerCase() as "suicide" | "violence",
+      });
+    }
+  }, [profile?.extreme_content]);
+
   return (
     <>
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
@@ -636,6 +666,15 @@ const ChatInterface = () => {
           </div>
         </div>
       </div>
+
+      {userData?.userId && safetyDialog.type && (
+        <SafetyAcknowledgmentDialog
+          open={safetyDialog.open}
+          onOpenChange={(open) => setSafetyDialog(prev => ({ ...prev, open }))}
+          type={safetyDialog.type}
+          userId={userData.userId}
+        />
+      )}
     </>
   );
 };
