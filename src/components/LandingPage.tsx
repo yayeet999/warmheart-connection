@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -11,7 +12,7 @@ const LandingPage = () => {
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-cream relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-white to-cream flex flex-col">
       <div className="grid-background absolute inset-0 opacity-20" />
       <Header />
       
