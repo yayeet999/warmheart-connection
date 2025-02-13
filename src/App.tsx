@@ -22,6 +22,8 @@ import TermsOfService from "./pages/TermsOfService";
 const queryClient = new QueryClient();
 
 const App = () => {
+  console.log("App component rendering");  // Debug log
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -31,7 +33,15 @@ const App = () => {
           <AuthProvider>
             <div className="min-h-screen bg-softgray">
               <Routes>
-                <Route path="/" element={<LandingPage />} />
+                <Route 
+                  path="/" 
+                  element={
+                    <div>
+                      {console.log("Landing page route hit")} {/* Debug log */}
+                      <LandingPage />
+                    </div>
+                  } 
+                />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
