@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -20,7 +21,10 @@ serve(async (req) => {
   try {
     const { userId } = await req.json();
     if (!userId) {
-      throw new Error('User ID is required');
+      return new Response(
+        JSON.stringify({ success: false, error: 'User ID is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const key = `user:${userId}:messages`;
@@ -33,7 +37,7 @@ serve(async (req) => {
     if (!Array.isArray(messages) || messages.length === 0) {
       console.log('No messages found for analysis');
       return new Response(
-        JSON.stringify({ success: false, error: 'No messages to analyze' }),
+        JSON.stringify({ success: false, error: 'No messages to analyze', warningCount: 0, concernType: null, accountDisabled: false }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -111,7 +115,7 @@ Criteria:
     //    - If classification is "", remove any existing flag
     //    - If classification is "SUICIDE" or "VIOLENCE" but matches the existing flag, do nothing
     //    - If classification is "SUICIDE" or "VIOLENCE" AND is different from existing, increment concerns
-    let result: any = null;
+    let result = null;
 
     if (classification === "") {
       console.log('No new issues -> clearing extreme_content if any');
@@ -132,12 +136,12 @@ Criteria:
         console.error('Error clearing extreme_content:', await clearRes.text());
       }
 
-      // Return null to chat
-      result = null;
+      // Return base response
+      result = { success: true, warningCount: 0, concernType: null, accountDisabled: false };
     } else if (classification === currentFlag) {
       console.log(`Classification matches existing flag (${currentFlag}), skipping increment.`);
-      // Return nothing new
-      result = null;
+      // Return current state without incrementing
+      result = { success: true, warningCount: 0, concernType: currentFlag, accountDisabled: false };
     } else {
       // We have a newly detected SUICIDE or VIOLENCE different from the old flag
       console.log('New serious content detected -> increment_safety_concern');
@@ -160,8 +164,13 @@ Criteria:
       const incData = await increment.json();
       console.log('increment_safety_concern returned:', incData);
 
-      // incData = { accountDisabled, warningCount, concernType }
-      result = incData;
+      // Format the response
+      result = {
+        success: true,
+        warningCount: incData.warningCount,
+        concernType: incData.concernType,
+        accountDisabled: incData.accountDisabled
+      };
     }
 
     return new Response(JSON.stringify(result), {
@@ -171,8 +180,15 @@ Criteria:
   } catch (error) {
     console.error('Overseer error:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        success: false, 
+        error: error.message || 'Internal server error',
+        warningCount: 0,
+        concernType: null,
+        accountDisabled: false
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+

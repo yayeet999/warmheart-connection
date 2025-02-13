@@ -381,10 +381,8 @@ const ChatInterface = () => {
         body: { userId: session.user.id }
       });
 
-      // overseerData can be null if no new concerns
-      // or {accountDisabled, warningCount, concernType} if new concern
-      if (overseerData) {
-        // We have new concerns or changed status
+      // Only process if we have a successful response with actual concerns
+      if (overseerData?.success && overseerData.warningCount > 0) {
         const { warningCount, concernType, accountDisabled } = overseerData;
         console.log('Overseer returned:', overseerData);
 
