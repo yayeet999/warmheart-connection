@@ -371,6 +371,7 @@ const ChatInterface = () => {
     setMessage("");
     resetTextAreaHeight();
     
+    // Ensure focus is set before any async operations
     requestAnimationFrame(() => {
       textAreaRef.current?.focus();
     });
@@ -381,11 +382,13 @@ const ChatInterface = () => {
     
     // Add the user message locally
     setMessages(prev => [...prev, userMessage]);
-    setMessageCount(prev => prev + 1);
+
+    // We'll track the new count in a local variable
+    const updatedCount = messageCount + 1;
+    setMessageCount(updatedCount);
 
     try {
-      // First check with pre-checker
-      console.log('Calling pre-checker...');
+      // First check with pre-checker if special handling is needed
       const { data: preCheckData, error: preCheckError } = await supabase.functions.invoke('pre-checker', {
         body: { 
           userId: session.user.id,
@@ -395,28 +398,10 @@ const ChatInterface = () => {
 
       if (preCheckError) {
         console.error('Pre-checker error:', preCheckError);
-        throw new Error('Failed to process message type');
-      }
-
-      console.log('Pre-checker response:', preCheckData);
-
-      // Store the user message
-      const { error: storeError } = await supabase.functions.invoke('chat-history', {
-        body: {
-          userId: session.user.id,
-          message: userMessage,
-          action: 'add'
-        }
-      });
-
-      if (storeError) {
-        console.error('Error storing message:', storeError);
-        throw new Error('Failed to store message');
-      }
-
-      if (preCheckData.messageType === 'image') {
-        // Handle image generation
+        // Continue with normal flow if pre-checker fails
+      } else if (preCheckData?.messageType === 'image') {
         try {
+          // Call image-context-analyzer
           const { data: imageContext, error: imageContextError } = await supabase.functions.invoke(
             'image-context-analyzer',
             {
@@ -427,8 +412,41 @@ const ChatInterface = () => {
             }
           );
 
-          if (imageContextError) throw new Error('Image analysis failed');
+          if (imageContextError) {
+            console.error('Image context analysis error:', imageContextError);
+            throw new Error('Image analysis failed');
+          }
 
+          // Validate the analysis result
+          if (!imageContext?.analysis) {
+            console.error('Invalid image context analysis result');
+            throw new Error('Invalid image analysis');
+          }
+
+          // Store the user message with image request metadata
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: {
+                ...userMessage,
+                metadata: {
+                  type: 'image_request',
+                  analysis: imageContext.analysis
+                }
+              },
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing image request:', storeError);
+            throw new Error('Failed to store image request');
+          }
+
+          // Show typing indicator for image search
+          setIsTyping(true);
+
+          // Call the image search function
           const { data: imageSearchResult, error: searchError } = await supabase.functions.invoke(
             'amorine-image-search',
             {
@@ -436,18 +454,24 @@ const ChatInterface = () => {
             }
           );
 
-          if (searchError) throw new Error('Image search failed');
+          if (searchError) {
+            throw new Error('Image search failed');
+          }
+
+          if (!imageSearchResult.success) {
+            throw new Error(imageSearchResult.error || 'No matching images found');
+          }
 
           // Create AI response with the images
           const aiResponse = {
             type: "ai",
-            content: imageSearchResult.images.map((img: { url: string }) => 
+            content: imageSearchResult.images.map(img => 
               `![Generated Image](${img.url})`
             ).join('\n')
           };
 
+          // Add the response to messages
           setMessages(prev => [...prev, aiResponse]);
-          setMessageCount(prev => prev + 1);
 
           // Store the AI response
           await supabase.functions.invoke('chat-history', {
@@ -458,17 +482,38 @@ const ChatInterface = () => {
             }
           });
 
+          // Update message count
+          setMessageCount(prev => prev + 1);
+
         } catch (error) {
           console.error('Error in image generation flow:', error);
+          // Let the error bubble up to be handled by the main error handler
           throw error;
+        } finally {
+          setIsTyping(false);
         }
       } else {
-        // Handle text response with memory context
+        // Handle text messages
         try {
+          // Store the user message
+          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+            body: {
+              userId: session.user.id,
+              message: userMessage,
+              action: 'add'
+            }
+          });
+
+          if (storeError) {
+            console.error('Error storing message:', storeError);
+            throw new Error('Failed to store message');
+          }
+
+          // Call the chat function for AI response
           const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
             body: { 
               userId: session.user.id,
-              message: userMessage
+              message: userMessage.content
             }
           });
 
@@ -482,7 +527,7 @@ const ChatInterface = () => {
             throw new Error('Invalid chat response format');
           }
 
-          // Add AI responses to messages
+          // Add AI responses to messages (handling multiple messages if present)
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -490,6 +535,7 @@ const ChatInterface = () => {
               delay: msg.delay
             };
 
+            // Add the response to messages
             setMessages(prev => [...prev, aiResponse]);
 
             // Store the AI response
@@ -502,11 +548,14 @@ const ChatInterface = () => {
             });
           }
 
+          // Update message count
           setMessageCount(prev => prev + 1);
 
         } catch (error) {
           console.error('Error in text message flow:', error);
           throw error;
+        } finally {
+          setIsTyping(false);
         }
       }
 

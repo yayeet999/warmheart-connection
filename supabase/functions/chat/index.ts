@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -99,41 +100,16 @@ serve(async (req) => {
 
   try {
     const { message, userId } = await req.json();
-    console.log('Processing chat request for user:', userId);
 
-    // First, call vector-search-context to get memory context
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    console.log('Calling vector-search-context...');
-    const vectorSearchResponse = await fetch(
-      `${supabaseUrl}/functions/v1/vector-search-context`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': req.headers.get('Authorization') ?? '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          message: message.content
-        }),
-      }
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!vectorSearchResponse.ok) {
-      console.error('Vector search error:', await vectorSearchResponse.text());
-      // Continue without memory context rather than failing
-    }
-
-    const vectorSearchResult = vectorSearchResponse.ok ? await vectorSearchResponse.json() : null;
-    console.log('Vector search result:', vectorSearchResult);
-
-    // Get user profile and other context
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,extreme_content`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content`,
       {
         headers: {
-          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
         },
       }
     );
@@ -181,8 +157,8 @@ serve(async (req) => {
       `${supabaseUrl}/rest/v1/ai_profiles?user_id=eq.${userId}&select=*`,
       {
         headers: {
-          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
         },
       }
     );
@@ -291,14 +267,6 @@ Use these details as your personal background as your identity and reveal them n
       { role: "user", content: message },
     ];
 
-    // Add memory context to the messages if available
-    if (vectorSearchResult?.processedMemory) {
-      messages.push({
-        role: "system",
-        content: `Recent memory context: ${vectorSearchResult.processedMemory}`,
-      });
-    }
-
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -321,7 +289,6 @@ Use these details as your personal background as your identity and reveal them n
     }
 
     const data = await response.json();
-    console.log('Got OpenAI response');
 
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);

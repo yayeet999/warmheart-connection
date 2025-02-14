@@ -66,7 +66,7 @@ serve(async (req) => {
           return '';
         }
       })
-      .filter(Boolean)
+      .filter(Boolean) // Remove empty strings
       .reverse();
 
     // Pad with empty strings if needed
@@ -125,9 +125,6 @@ Classify:`;
 
     const processingTime = Math.round(performance.now() - startTime);
 
-    // Log the final decision
-    console.log(`Pre-checker decision: ${outputType}`);
-
     return new Response(
       JSON.stringify({ 
         messageType: outputType,
@@ -145,7 +142,7 @@ Classify:`;
 
     return new Response(
       JSON.stringify({ 
-        messageType: 'text', // Default to text on error
+        messageType: 'text',
         error: error.message,
         processingTime
       }),
