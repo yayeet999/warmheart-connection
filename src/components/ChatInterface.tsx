@@ -363,10 +363,10 @@ const ChatInterface = () => {
 
     if (limitError || !limitData.canSendMessage) {
       toast({
-        title: "Daily Limit Reached",
-        description: `You've reached your daily limit of ${
+        title: "Message Limit Reached",
+        description: `You've reached your total limit of ${
           MESSAGE_LIMITS[userData?.subscription?.tier || "free"]
-        } messages. Please try again tomorrow or upgrade your plan.`,
+        } messages. To continue chatting with Amorine, please upgrade your plan.`,
         variant: "destructive",
       });
       return;
