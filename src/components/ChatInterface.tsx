@@ -20,16 +20,14 @@ import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
 const MESSAGE_LIMITS = {
   free: 50,
-  pro: 500
+  pro: 500,
 };
 
 const formatMessageDate = (timestamp?: string) => {
   if (!timestamp) return "";
-  
   try {
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return "";
-    
     if (isToday(date)) {
       return format(date, "h:mm a");
     } else if (isYesterday(date)) {
@@ -47,7 +45,7 @@ const DateSeparator = ({ date }: { date: string }) => {
   try {
     const parsedDate = new Date(date);
     if (isNaN(parsedDate.getTime())) return null;
-    
+
     return (
       <div className="flex items-center justify-center my-4">
         <div className="bg-gray-200 px-3 py-1 rounded-full">
@@ -82,9 +80,9 @@ const ImageMessage = ({ src }: { src: string }) => {
   return (
     <div className="relative w-full max-w-[300px] my-1">
       {!isLoaded && (
-        <div 
-          className="absolute inset-0 image-skeleton rounded-2xl" 
-          style={{ aspectRatio: '9/16' }}
+        <div
+          className="absolute inset-0 image-skeleton rounded-2xl"
+          style={{ aspectRatio: "9/16" }}
         />
       )}
       <img
@@ -94,7 +92,7 @@ const ImageMessage = ({ src }: { src: string }) => {
           "w-full rounded-2xl transition-all duration-300",
           isLoaded ? "loaded" : "opacity-0"
         )}
-        style={{ aspectRatio: '9/16' }}
+        style={{ aspectRatio: "9/16" }}
         loading="lazy"
         onLoad={() => setIsLoaded(true)}
         onError={() => {
@@ -142,7 +140,7 @@ const ChatInterface = () => {
   const handleTouchEnd = (messageId: number) => {
     const swipeThreshold = 50;
     const swipeDistance = touchStartX.current - touchEndX.current;
-    
+
     if (swipeDistance > swipeThreshold) {
       setSwipedMessageId(messageId);
     } else if (swipeDistance < -swipeThreshold || swipeDistance < swipeThreshold) {
@@ -152,24 +150,28 @@ const ChatInterface = () => {
 
   const triggerEmbedding = async (userId: string, recentMessages: any[]) => {
     try {
-      const { data, error } = await supabase.functions.invoke('embed-conversation-chunk', {
-        body: { 
-          userId,
-          messages: recentMessages.slice(-8) // Take last 8 messages
+      const { data, error } = await supabase.functions.invoke(
+        "embed-conversation-chunk",
+        {
+          body: {
+            userId,
+            messages: recentMessages.slice(-8), // Take last 8 messages
+          },
         }
-      });
-
+      );
       if (error) {
-        console.error('Error embedding conversation:', error);
+        console.error("Error embedding conversation:", error);
       }
     } catch (error) {
-      console.error('Error calling embed function:', error);
+      console.error("Error calling embed function:", error);
     }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
         setMessages([]);
         setMessageCount(0);
       }
@@ -184,13 +186,15 @@ const ChatInterface = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         setMessages([]);
         toast({
           title: "Authentication Required",
           description: "Please log in to access the chat.",
-          variant: "destructive"
+          variant: "destructive",
         });
         navigate("/auth");
       }
@@ -202,7 +206,9 @@ const ChatInterface = () => {
   const { data: userData, isError: userDataError } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.user) {
         throw new Error("No authenticated user");
       }
@@ -216,8 +222,8 @@ const ChatInterface = () => {
       ]);
 
       return {
-        subscription: subscription || { tier: 'free' },
-        userId: session.user.id
+        subscription: subscription || { tier: "free" },
+        userId: session.user.id,
       };
     },
     retry: false,
@@ -226,11 +232,11 @@ const ChatInterface = () => {
         toast({
           title: "Error",
           description: "Failed to load user data. Please try logging in again.",
-          variant: "destructive"
+          variant: "destructive",
         });
         navigate("/auth");
-      }
-    }
+      },
+    },
   });
 
   const fetchMessages = async (pageNum = 0) => {
@@ -238,28 +244,25 @@ const ChatInterface = () => {
       console.log("No user ID available yet");
       return;
     }
-
     try {
-      const { data, error } = await supabase.functions.invoke('chat-history', {
-        body: { 
+      const { data, error } = await supabase.functions.invoke("chat-history", {
+        body: {
           userId: userData.userId,
-          action: 'get',
-          page: pageNum
-        }
+          action: "get",
+          page: pageNum,
+        },
       });
-
       if (error) {
-        console.error('Error fetching chat history:', error);
+        console.error("Error fetching chat history:", error);
         throw error;
       }
-
       return data;
     } catch (error) {
-      console.error('Error fetching chat history:', error);
+      console.error("Error fetching chat history:", error);
       toast({
         title: "Error",
         description: "Failed to load chat history",
-        variant: "destructive"
+        variant: "destructive",
       });
       return null;
     }
@@ -274,30 +277,25 @@ const ChatInterface = () => {
         setMessageCount(data.messages.length);
       }
     };
-
     loadInitialMessages();
   }, [userData?.userId]);
 
   const loadMoreMessages = async () => {
     if (isLoadingMore || !hasMore) return;
-
     setIsLoadingMore(true);
     const nextPage = page + 1;
-    
-    // Store current scroll height
+
     const scrollContainer = chatContainerRef.current;
     const oldScrollHeight = scrollContainer?.scrollHeight || 0;
     const oldScrollTop = scrollContainer?.scrollTop || 0;
-    
+
     const data = await fetchMessages(nextPage);
-    
     if (data?.messages) {
       shouldScrollToBottom.current = false;
-      setMessages(prev => [...data.messages, ...prev]);
+      setMessages((prev) => [...data.messages, ...prev]);
       setHasMore(data.hasMore);
       setPage(nextPage);
-      
-      // After render, adjust scroll position
+
       requestAnimationFrame(() => {
         if (scrollContainer) {
           const newScrollHeight = scrollContainer.scrollHeight;
@@ -306,7 +304,6 @@ const ChatInterface = () => {
         }
       });
     }
-    
     setIsLoadingMore(false);
   };
 
@@ -325,248 +322,272 @@ const ChatInterface = () => {
   const adjustTextAreaHeight = () => {
     const textArea = textAreaRef.current;
     if (textArea) {
-      textArea.style.height = 'auto';
-      const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120); // Min 24px, max 120px
+      textArea.style.height = "auto";
+      const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120);
       textArea.style.height = `${newHeight}px`;
     }
   };
 
   const resetTextAreaHeight = () => {
     if (textAreaRef.current) {
-      textAreaRef.current.style.height = '24px';
+      textAreaRef.current.style.height = "24px";
     }
   };
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
-    
-    const { data: { session } } = await supabase.auth.getSession();
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) {
       toast({
         title: "Error",
         description: "Please log in to send messages.",
-        variant: "destructive"
+        variant: "destructive",
       });
       navigate("/auth");
       return;
     }
 
     // Check daily limits
-    const { data: limitData, error: limitError } = await supabase.functions.invoke('check-message-limits', {
-      body: { 
-        userId: session.user.id,
-        tier: userData?.subscription?.tier || 'free'
+    const { data: limitData, error: limitError } = await supabase.functions.invoke(
+      "check-message-limits",
+      {
+        body: {
+          userId: session.user.id,
+          tier: userData?.subscription?.tier || "free",
+        },
       }
-    });
+    );
 
     if (limitError || !limitData.canSendMessage) {
       toast({
         title: "Daily Limit Reached",
-        description: `You've reached your daily limit of ${MESSAGE_LIMITS[userData?.subscription?.tier || 'free']} messages. Please try again tomorrow or upgrade your plan.`,
-        variant: "destructive"
+        description: `You've reached your daily limit of ${
+          MESSAGE_LIMITS[userData?.subscription?.tier || "free"]
+        } messages. Please try again tomorrow or upgrade your plan.`,
+        variant: "destructive",
       });
       return;
     }
-    
+
     setMessage("");
     resetTextAreaHeight();
-    
-    // Ensure focus is set before any async operations
+
     requestAnimationFrame(() => {
       textAreaRef.current?.focus();
     });
-    
+
     setIsLoading(true);
     setIsTyping(true);
-    const userMessage = { type: "user", content: message.trim() };
-    
-    // Add the user message locally
-    setMessages(prev => [...prev, userMessage]);
 
-    // We'll track the new count in a local variable
+    const userMessage = { type: "user", content: message.trim() };
+    setMessages((prev) => [...prev, userMessage]);
     const updatedCount = messageCount + 1;
     setMessageCount(updatedCount);
 
     try {
-      // First check with pre-checker if special handling is needed
-      const { data: preCheckData, error: preCheckError } = await supabase.functions.invoke('pre-checker', {
-        body: { 
-          userId: session.user.id,
-          message: userMessage.content
-        }
-      });
-
+      // 1) Pre-check for 'image' vs. 'text'
+      const { data: preCheckData, error: preCheckError } =
+        await supabase.functions.invoke("pre-checker", {
+          body: {
+            userId: session.user.id,
+            message: userMessage.content,
+          },
+        });
       if (preCheckError) {
-        console.error('Pre-checker error:', preCheckError);
-        // Continue with normal flow if pre-checker fails
-      } else if (preCheckData?.messageType === 'image') {
+        console.error("Pre-checker error:", preCheckError);
+        // fallback to text if there's an error
+      }
+
+      if (preCheckData?.messageType === "image") {
+        // 2) Image flow
         try {
-          // Call image-context-analyzer
-          const { data: imageContext, error: imageContextError } = await supabase.functions.invoke(
-            'image-context-analyzer',
-            {
-              body: { 
+          // call image-context-analyzer
+          const { data: imageContext, error: imageContextError } =
+            await supabase.functions.invoke("image-context-analyzer", {
+              body: {
                 userId: session.user.id,
-                message: userMessage.content
-              }
+                message: userMessage.content,
+              },
+            });
+          if (imageContextError) {
+            console.error("Image context analysis error:", imageContextError);
+            throw new Error("Image analysis failed");
+          }
+
+          if (!imageContext?.analysis) {
+            console.error("Invalid image context analysis result");
+            throw new Error("Invalid image analysis");
+          }
+
+          // store user message w/ metadata
+          const { error: storeError } = await supabase.functions.invoke(
+            "chat-history",
+            {
+              body: {
+                userId: session.user.id,
+                message: {
+                  ...userMessage,
+                  metadata: {
+                    type: "image_request",
+                    analysis: imageContext.analysis,
+                  },
+                },
+                action: "add",
+              },
             }
           );
-
-          if (imageContextError) {
-            console.error('Image context analysis error:', imageContextError);
-            throw new Error('Image analysis failed');
-          }
-
-          // Validate the analysis result
-          if (!imageContext?.analysis) {
-            console.error('Invalid image context analysis result');
-            throw new Error('Invalid image analysis');
-          }
-
-          // Store the user message with image request metadata
-          const { error: storeError } = await supabase.functions.invoke('chat-history', {
-            body: {
-              userId: session.user.id,
-              message: {
-                ...userMessage,
-                metadata: {
-                  type: 'image_request',
-                  analysis: imageContext.analysis
-                }
-              },
-              action: 'add'
-            }
-          });
-
           if (storeError) {
-            console.error('Error storing image request:', storeError);
-            throw new Error('Failed to store image request');
+            console.error("Error storing image request:", storeError);
+            throw new Error("Failed to store image request");
           }
 
-          // Show typing indicator for image search
           setIsTyping(true);
 
-          // Call the image search function
-          const { data: imageSearchResult, error: searchError } = await supabase.functions.invoke(
-            'amorine-image-search',
-            {
-              body: { analysis: imageContext.analysis }
-            }
-          );
-
+          // call amorine-image-search
+          const { data: imageSearchResult, error: searchError } =
+            await supabase.functions.invoke("amorine-image-search", {
+              body: { analysis: imageContext.analysis },
+            });
           if (searchError) {
-            throw new Error('Image search failed');
+            throw new Error("Image search failed");
           }
-
           if (!imageSearchResult.success) {
-            throw new Error(imageSearchResult.error || 'No matching images found');
+            throw new Error(
+              imageSearchResult.error || "No matching images found"
+            );
           }
 
-          // Create AI response with the images
+          // create AI response w/ image markdown
           const aiResponse = {
             type: "ai",
-            content: imageSearchResult.images.map(img => 
-              `![Generated Image](${img.url})`
-            ).join('\n')
+            content: imageSearchResult.images
+              .map((img) => `![Generated Image](${img.url})`)
+              .join("\n"),
           };
+          setMessages((prev) => [...prev, aiResponse]);
 
-          // Add the response to messages
-          setMessages(prev => [...prev, aiResponse]);
-
-          // Store the AI response
-          await supabase.functions.invoke('chat-history', {
+          await supabase.functions.invoke("chat-history", {
             body: {
               userId: session.user.id,
               message: aiResponse,
-              action: 'add'
-            }
+              action: "add",
+            },
           });
-
-          // Update message count
-          setMessageCount(prev => prev + 1);
-
+          setMessageCount((prev) => prev + 1);
         } catch (error) {
-          console.error('Error in image generation flow:', error);
-          // Let the error bubble up to be handled by the main error handler
-          throw error;
+          console.error("Error in image generation flow:", error);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "ai",
+              content:
+                "I apologize, but I'm having trouble connecting right now. Please try again later.",
+            },
+          ]);
         } finally {
           setIsTyping(false);
         }
       } else {
-        // Handle text messages
-        try {
-          // Store the user message
-          const { error: storeError } = await supabase.functions.invoke('chat-history', {
+        // 2) Text flow
+
+        // store the user message
+        const { error: storeError } = await supabase.functions.invoke(
+          "chat-history",
+          {
             body: {
               userId: session.user.id,
               message: userMessage,
-              action: 'add'
-            }
-          });
-
-          if (storeError) {
-            console.error('Error storing message:', storeError);
-            throw new Error('Failed to store message');
+              action: "add",
+            },
           }
+        );
+        if (storeError) {
+          console.error("Error storing message:", storeError);
+          throw new Error("Failed to store message");
+        }
 
-          // Call the chat function for AI response
-          const { data: chatResponse, error: chatError } = await supabase.functions.invoke('chat', {
-            body: { 
-              userId: session.user.id,
-              message: userMessage.content
-            }
-          });
+        // -- (A) Attempt a vector search + middle-thoughts step for "text" messages
+        try {
+          const { data: vectorData, error: vectorError } =
+            await supabase.functions.invoke("vector-search-context", {
+              body: {
+                userId: session.user.id,
+                message: userMessage.content,
+              },
+            });
+          if (vectorError) {
+            console.error("Vector search error:", vectorError);
+          } else if (vectorData?.success) {
+            console.log("Vector search memory retrieval:", vectorData);
+          } else {
+            console.log("Vector search skipped or no relevant memories.");
+          }
+        } catch (err) {
+          console.error("Error calling vector-search-context:", err);
+        }
 
+        // -- (B) Now call the chat function for AI response
+        try {
+          const { data: chatResponse, error: chatError } =
+            await supabase.functions.invoke("chat", {
+              body: {
+                userId: session.user.id,
+                message: userMessage.content,
+              },
+            });
           if (chatError) {
-            console.error('Chat function error:', chatError);
-            throw new Error('Failed to get AI response');
+            console.error("Chat function error:", chatError);
+            throw new Error("Failed to get AI response");
           }
 
-          // Process and validate the AI response
           if (!chatResponse?.messages?.length) {
-            throw new Error('Invalid chat response format');
+            throw new Error("Invalid chat response format");
           }
 
-          // Add AI responses to messages (handling multiple messages if present)
+          // add AI messages
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
               content: msg.content,
-              delay: msg.delay
+              delay: msg.delay,
             };
+            setMessages((prev) => [...prev, aiResponse]);
 
-            // Add the response to messages
-            setMessages(prev => [...prev, aiResponse]);
-
-            // Store the AI response
-            await supabase.functions.invoke('chat-history', {
+            await supabase.functions.invoke("chat-history", {
               body: {
                 userId: session.user.id,
                 message: aiResponse,
-                action: 'add'
-              }
+                action: "add",
+              },
             });
           }
-
-          // Update message count
-          setMessageCount(prev => prev + 1);
-
+          setMessageCount((prev) => prev + 1);
         } catch (error) {
-          console.error('Error in text message flow:', error);
-          throw error;
+          console.error("Error in text message flow:", error);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "ai",
+              content:
+                "I apologize, but I'm having trouble connecting right now. Please try again later.",
+            },
+          ]);
         } finally {
           setIsTyping(false);
         }
       }
-
     } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [
+      console.error("Error:", error);
+      setMessages((prev) => [
         ...prev,
         {
           type: "ai",
-          content: "I apologize, but I'm having trouble connecting right now. Please try again later."
-        }
+          content:
+            "I apologize, but I'm having trouble connecting right now. Please try again later.",
+        },
       ]);
     } finally {
       setIsLoading(false);
@@ -577,27 +598,25 @@ const ChatInterface = () => {
     }
   };
 
-  const isFreeUser = userData?.subscription?.tier === 'free';
+  const isFreeUser = userData?.subscription?.tier === "free";
 
   const renderMessageContent = (content: string) => {
-    // Check if the content contains image markdown
+    // check for any image markdown
     const imageMatches = content.match(/!\[Generated Image\]\((.*?)\)/g);
-    
     if (!imageMatches) {
-      // If no images, render as regular text
       return <p className="text-[15px] leading-relaxed">{content}</p>;
     }
-
-    // If we have images, split content and render each part
     const parts = content.split(/!\[Generated Image\]\((.*?)\)/g);
-    
     return (
       <div className="flex flex-col gap-2">
         {parts.map((part, index) => {
-          // Even indices are text, odd indices are image URLs
           if (index % 2 === 0) {
             if (part.trim()) {
-              return <p key={index} className="text-[15px] leading-relaxed">{part}</p>;
+              return (
+                <p key={index} className="text-[15px] leading-relaxed">
+                  {part}
+                </p>
+              );
             }
             return null;
           } else {
@@ -610,10 +629,8 @@ const ChatInterface = () => {
 
   const renderMessages = () => {
     let currentDate = "";
-    
     return messages.map((msg, i) => {
       let showDateSeparator = false;
-      
       try {
         if (msg.timestamp) {
           const messageDate = new Date(msg.timestamp).toDateString();
@@ -625,10 +642,11 @@ const ChatInterface = () => {
       } catch (error) {
         console.error("Error processing message date:", error);
       }
-
       return (
         <div key={i}>
-          {showDateSeparator && msg.timestamp && <DateSeparator date={msg.timestamp} />}
+          {showDateSeparator && msg.timestamp && (
+            <DateSeparator date={msg.timestamp} />
+          )}
           <div
             className={`flex ${
               msg.type === "ai" ? "justify-start" : "justify-end"
@@ -637,8 +655,8 @@ const ChatInterface = () => {
             <div
               className={cn(
                 "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
-                msg.type === "ai" 
-                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+                msg.type === "ai"
+                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
                   : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
                 swipedMessageId === i ? "translate-x-[-20px]" : ""
               )}
@@ -668,14 +686,13 @@ const ChatInterface = () => {
         .select("suicide_concern, violence_concern, extreme_content")
         .eq("id", userData.userId)
         .single();
-
       if (error) throw error;
       return data;
     },
     enabled: !!userData?.userId,
     refetchInterval: 1000,
     staleTime: 0,
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -731,13 +748,13 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               Welcome to Amorine!
             </DialogTitle>
             <DialogDescription className="text-base">
-              We're excited to have you! You're welcome to chat and interact with Amorine. 
-              Just remember there's a limit of 50 daily messages on the free tier. 
+              We're excited to have you! You're welcome to chat and interact with Amorine.
+              Just remember there's a limit of 50 daily messages on the free tier.
               You can upgrade to our pro plan for unlimited and voice calling/video features!
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button 
+            <Button
               onClick={() => setShowWelcomeDialog(false)}
               className="w-full sm:w-auto"
             >
@@ -750,15 +767,16 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
-            <DialogTitle className="text-red-600">
-              Account Suspended
-            </DialogTitle>
+            <DialogTitle className="text-red-600">Account Suspended</DialogTitle>
             <DialogDescription className="space-y-4">
-              <p className="font-medium">Your account has been suspended due to multiple safety violations.</p>
+              <p className="font-medium">
+                Your account has been suspended due to multiple safety violations.
+              </p>
               <p>Please email amorineapp@gmail.com for support.</p>
-              
               <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
-                {profile?.suicide_concern === 5 ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
+                {profile?.suicide_concern === 5
+                  ? SUICIDE_RESOURCES
+                  : VIOLENCE_RESOURCES}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -770,10 +788,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      <div className={cn(
-        "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
-        "sm:pl-[100px]"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
+          "sm:pl-[100px]"
+        )}
+      >
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
             <UserRound className="w-6 h-6 text-white" />
@@ -781,7 +801,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
-        <div 
+        <div
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
           onScroll={(e) => {
@@ -800,14 +820,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 disabled={isLoadingMore}
                 className="flex items-center gap-2"
               >
-                {isLoadingMore ? (
-                  "Loading..."
-                ) : (
-                  <>
-                    <ArrowUp className="w-4 h-4" />
-                    Load More
-                  </>
-                )}
+                {isLoadingMore ? "Loading..." : <><ArrowUp className="w-4 h-4" />Load More</>}
               </Button>
             </div>
           )}
@@ -822,7 +835,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           )}
           <div ref={messagesEndRef} />
         </div>
-        
+
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <textarea
@@ -838,29 +851,33 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   handleSend();
                 }
               }}
-              disabled={isLoading || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
+              disabled={
+                isLoading ||
+                profile?.suicide_concern === 5 ||
+                profile?.violence_concern === 5
+              }
               placeholder={
-                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
-                  ? "Account suspended" 
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5
+                  ? "Account suspended"
                   : "Message Amorine..."
               }
               className={cn(
                 "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
-                profile?.suicide_concern === 5 || profile?.violence_concern === 5 
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-50"
               )}
               rows={1}
-              style={{ 
-                touchAction: 'manipulation',
-                minHeight: '44px',
-                lineHeight: '1.4',
-                transition: 'height 0.2s ease',
-                msOverflowStyle: 'none',  // Hide scrollbar in IE/Edge
-                scrollbarWidth: 'none'     // Hide scrollbar in Firefox
+              style={{
+                touchAction: "manipulation",
+                minHeight: "44px",
+                lineHeight: "1.4",
+                transition: "height 0.2s ease",
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
               onFocus={(e) => {
-                e.currentTarget.style.fontSize = '16px';
+                e.currentTarget.style.fontSize = "16px";
               }}
             />
             <Button
@@ -870,7 +887,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 "bg-gradient-primary hover:bg-gradient-primary/90 rounded-full w-10 h-10 flex items-center justify-center shrink-0",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}
-              disabled={isLoading || !message.trim() || profile?.suicide_concern === 5 || profile?.violence_concern === 5}
+              disabled={
+                isLoading ||
+                !message.trim() ||
+                profile?.suicide_concern === 5 ||
+                profile?.violence_concern === 5
+              }
             >
               <ArrowUp className="w-5 h-5 text-white" />
             </Button>
@@ -881,7 +903,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       {userData?.userId && safetyDialog.type && (
         <SafetyAcknowledgmentDialog
           open={safetyDialog.open}
-          onOpenChange={(open) => setSafetyDialog(prev => ({ ...prev, open }))}
+          onOpenChange={(open) => setSafetyDialog((prev) => ({ ...prev, open }))}
           type={safetyDialog.type}
           userId={userData.userId}
         />
