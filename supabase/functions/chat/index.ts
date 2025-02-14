@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -100,6 +99,12 @@ serve(async (req) => {
 
   try {
     const { message, userId } = await req.json();
+    
+    console.log('Received chat request:', {
+      userId,
+      message,
+      timestamp: new Date().toISOString()
+    });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -119,6 +124,13 @@ serve(async (req) => {
     }
 
     const [profile] = await profileResponse.json();
+    console.log('Retrieved user profile:', {
+      name: profile?.name,
+      age_range: profile?.age_range,
+      pronouns: profile?.pronouns,
+      has_vector_long_term: !!profile?.vector_long_term,
+      has_extreme_content: !!profile?.extreme_content
+    });
 
     const userContextMessage = {
       role: "system" as const,
@@ -168,6 +180,10 @@ serve(async (req) => {
     }
 
     const [aiProfile] = await aiProfileResponse.json() || [{}];
+    console.log('Retrieved AI profile:', {
+      name: aiProfile?.name,
+      relationship_stage: aiProfile?.relationship_stage?.substring(0, 50) + '...' // Log first 50 chars of relationship stage
+    });
 
     let aiProfileMessage = {
       role: "system" as const,
@@ -239,7 +255,11 @@ Use these details as your personal background as your identity and reveal them n
 
     const key = `user:${userId}:messages`;
     const redisMessages = await redis.lrange(key, 0, 29);
-    console.log("Fetched recent messages from Redis:", redisMessages.length);
+    console.log("Fetched recent messages from Redis:", {
+      count: redisMessages.length,
+      oldestMessageTime: redisMessages[redisMessages.length - 1]?.timestamp || 'N/A',
+      newestMessageTime: redisMessages[0]?.timestamp || 'N/A'
+    });
 
     const conversationHistory = redisMessages
       .map((msg) => {
@@ -267,6 +287,15 @@ Use these details as your personal background as your identity and reveal them n
       { role: "user", content: message },
     ];
 
+    console.log('Sending request to OpenAI:', {
+      model: "ft:gpt-4o-mini-2024-07-18:practice:nopunc:B0eV2ISu",
+      messageCount: messages.length,
+      systemPromptLength: COMPANION_SYSTEM_PROMPT.length,
+      aiProfileLength: aiProfileMessage.content.length,
+      conversationHistoryLength: conversationHistory.length,
+      lastUserMessage: message
+    });
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -289,6 +318,11 @@ Use these details as your personal background as your identity and reveal them n
     }
 
     const data = await response.json();
+    console.log('Received OpenAI response:', {
+      responseLength: data.choices[0].message?.content.length,
+      firstFewWords: data.choices[0].message?.content.substring(0, 50) + '...',
+      totalTokens: data.usage?.total_tokens
+    });
 
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);
@@ -298,6 +332,11 @@ Use these details as your personal background as your identity and reveal them n
       content: txt.replace(/!\[Generated Image\]\((.*?)\)/g, '$1'),
       delay: index * 1500,
     }));
+
+    console.log('Processed response:', {
+      messageCount: aiMessages.length,
+      totalDelay: aiMessages.length * 1500
+    });
 
     return new Response(JSON.stringify({ messages: aiMessages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
