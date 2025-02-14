@@ -38,7 +38,7 @@ serve(async (req) => {
     console.log('Processing message for user:', userId);
 
     const prompt = `You are a binary classifier analyzing chat messages.
-Task: Determine if this conversation moment needs an image response.
+Task: Determine if this conversation moment needs an image response. Only consider an image response if this conversation moment uses clear language such as 'send me a pic' or 'let me see you' or 'show me what you look like' etc and similar
 Output ONLY "text" or "image". No other words or explanation.
 
 Current message: ${message}
