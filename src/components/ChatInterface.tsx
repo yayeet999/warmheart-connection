@@ -67,6 +67,45 @@ const DateSeparator = ({ date }: { date: string }) => {
   }
 };
 
+const ImageMessage = ({ src }: { src: string }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="relative w-full max-w-[300px] rounded-2xl bg-gray-50/80 backdrop-blur-sm p-4 text-sm text-gray-500 text-center">
+        Unable to load image
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full max-w-[300px] my-1">
+      {!isLoaded && (
+        <div 
+          className="absolute inset-0 image-skeleton rounded-2xl" 
+          style={{ aspectRatio: '9/16' }}
+        />
+      )}
+      <img
+        src={src}
+        alt="Generated"
+        className={cn(
+          "w-full rounded-2xl transition-all duration-300",
+          isLoaded ? "loaded" : "opacity-0"
+        )}
+        style={{ aspectRatio: '9/16' }}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => {
+          setHasError(true);
+          setIsLoaded(true);
+        }}
+      />
+    </div>
+  );
+};
+
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -540,6 +579,35 @@ const ChatInterface = () => {
 
   const isFreeUser = userData?.subscription?.tier === 'free';
 
+  const renderMessageContent = (content: string) => {
+    // Check if the content contains image markdown
+    const imageMatches = content.match(/!\[Generated Image\]\((.*?)\)/g);
+    
+    if (!imageMatches) {
+      // If no images, render as regular text
+      return <p className="text-[15px] leading-relaxed">{content}</p>;
+    }
+
+    // If we have images, split content and render each part
+    const parts = content.split(/!\[Generated Image\]\((.*?)\)/g);
+    
+    return (
+      <div className="flex flex-col gap-2">
+        {parts.map((part, index) => {
+          // Even indices are text, odd indices are image URLs
+          if (index % 2 === 0) {
+            if (part.trim()) {
+              return <p key={index} className="text-[15px] leading-relaxed">{part}</p>;
+            }
+            return null;
+          } else {
+            return <ImageMessage key={index} src={part} />;
+          }
+        })}
+      </div>
+    );
+  };
+
   const renderMessages = () => {
     let currentDate = "";
     
@@ -557,9 +625,6 @@ const ChatInterface = () => {
       } catch (error) {
         console.error("Error processing message date:", error);
       }
-
-      // Parse the message content to handle both regular text and image URLs
-      const content = msg.content.replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
 
       return (
         <div key={i}>
@@ -581,7 +646,7 @@ const ChatInterface = () => {
               onTouchMove={handleTouchMove}
               onTouchEnd={() => handleTouchEnd(i)}
             >
-              <p className="text-[15px] leading-relaxed">{content}</p>
+              {renderMessageContent(msg.content)}
             </div>
           </div>
         </div>
