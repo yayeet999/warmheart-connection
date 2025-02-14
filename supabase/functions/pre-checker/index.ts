@@ -38,7 +38,7 @@ serve(async (req) => {
     console.log('Processing message for user:', userId);
 
     const prompt = `You are a binary classifier analyzing chat messages.
-Task: Determine if this conversation moment needs an image response. Only consider an image response if this conversation moment uses clear language such as 'send me a pic' or 'let me see you' or 'show me what you look like' etc and similar
+Task: Determine if this conversation moment needs an image response. Only consider an image response if this conversation moment uses clear language such as 'send me a pic' or 'let me see you' or 'show me what you look like' etc. There has to be a clear command or desire to see an image. Simply having the word 'image' or 'pic' is NOT enough. There must be a clearly phrased question or clear desire to see an image or a picture.
 Output ONLY "text" or "image". No other words or explanation.
 
 Current message: ${message}
