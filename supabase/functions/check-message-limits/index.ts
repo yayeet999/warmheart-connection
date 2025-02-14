@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -5,9 +6,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DAILY_LIMITS = {
-  free: 50,  // 50 messages per day for free tier
-  pro: 500   // 500 messages per day for pro tier
+const LIMITS = {
+  free: {
+    total: 200,  // 200 total messages for free tier
+  },
+  pro: {
+    total: Infinity  // No limit for pro tier
+  }
 };
 
 serve(async (req) => {
@@ -26,48 +31,39 @@ serve(async (req) => {
       throw new Error('Redis configuration missing');
     }
 
-    // Build a Redis key based on user + current date
-    const key = `user:${userId}:daily:${new Date().toISOString().split('T')[0]}`;
+    // Build Redis key for total messages
+    const totalKey = `user:${userId}:total`;
 
-    // 1) Fetch current daily message count
-    const getCountResponse = await fetch(`${UPSTASH_REDIS_REST_URL}/get/${key}`, {
+    // 1) Fetch current total message count
+    const getTotalResponse = await fetch(`${UPSTASH_REDIS_REST_URL}/get/${totalKey}`, {
       headers: {
         Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
       },
     });
 
-    const countData = await getCountResponse.json();
-    const currentCount = countData.result ? parseInt(countData.result) : 0;
+    const totalData = await getTotalResponse.json();
+    const currentTotal = totalData.result ? parseInt(totalData.result) : 0;
 
-    // 2) Compare vs. daily limit
-    const dailyLimit = DAILY_LIMITS[tier as keyof typeof DAILY_LIMITS] || DAILY_LIMITS.free;
-    const canSendMessage = currentCount < dailyLimit;
+    // 2) Compare vs. total limit
+    const totalLimit = LIMITS[tier as keyof typeof LIMITS].total;
+    const canSendMessage = tier === 'pro' || currentTotal < totalLimit;
 
     if (canSendMessage) {
-      // 3) If still under the limit, increment the count
-      await fetch(`${UPSTASH_REDIS_REST_URL}/incr/${key}`, {
-        headers: {
-          Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
-        },
-      });
-
-      // 4) Ensure the key expires at end-of-day (if not already)
-      const now = new Date();
-      const ttl = 86400 - (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
-      await fetch(`${UPSTASH_REDIS_REST_URL}/expire/${key}/${ttl}`, {
+      // 3) If allowed to send, increment the total count (for both free and pro users)
+      await fetch(`${UPSTASH_REDIS_REST_URL}/incr/${totalKey}`, {
         headers: {
           Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
         },
       });
     }
 
-    // 5) Return result
+    // 4) Return result
     return new Response(
       JSON.stringify({
         canSendMessage,
-        currentCount,
-        dailyLimit,
-        remainingMessages: dailyLimit - currentCount
+        currentTotal,
+        totalLimit: tier === 'pro' ? null : totalLimit,
+        remainingMessages: tier === 'pro' ? null : totalLimit - currentTotal
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
