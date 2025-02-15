@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -45,12 +46,12 @@ const LandingPage = () => {
           <div className="absolute inset-x-0 bottom-0 h-[15%] backdrop-blur-[2px] bg-gradient-to-t from-dark-200/80 to-transparent z-10" />
           <div className="absolute inset-x-0 bottom-0 h-[10%] backdrop-blur-[1px] bg-gradient-to-t from-dark-200/60 to-transparent z-10" />
           
-          {/* Hero Image - Clearer and More Prominent */}
+          {/* Hero Image - Modified for smaller mobile size */}
           <div className="absolute inset-0 group bg-dark-200">
             <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-20" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-20" />
             <div className="absolute inset-0 bg-dark-200" />
-            <div className="absolute inset-[4%] overflow-hidden">
+            <div className="absolute inset-[8%] sm:inset-[4%] overflow-hidden">
               <video
                 autoPlay
                 loop
