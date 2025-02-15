@@ -6,11 +6,13 @@ import Footer from "./Footer";
 import { Card } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,6 +23,22 @@ const LandingPage = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const getVideoUrl = async () => {
+      const { data } = supabase
+        .storage
+        .from('media')
+        .getPublicUrl('amorine_hero.webm');
+      
+      if (data) {
+        setVideoUrl(data.publicUrl);
+        console.log("Video URL loaded:", data.publicUrl);
+      }
+    };
+
+    getVideoUrl();
   }, []);
 
   return (
@@ -49,21 +67,23 @@ const LandingPage = () => {
           <div className="absolute inset-0 group">
             <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-20" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-20" />
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover object-[center_15%] transition-all duration-700"
-              style={{ 
-                filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
-                transform: "scale(1.05)",
-                transition: "all 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)"
-              }}
-            >
-              <source src="/lovable-uploads/amorine_hero.webm" type="video/webm" />
-            </video>
+            {videoUrl && (
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover object-[center_15%] transition-all duration-700"
+                style={{ 
+                  filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
+                  transform: "scale(1.05)",
+                  transition: "all 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)"
+                }}
+              >
+                <source src={videoUrl} type="video/webm" />
+              </video>
+            )}
           </div>
 
           {/* Subtle Floating Elements - Adjusted for new fade */}
@@ -229,26 +249,28 @@ const LandingPage = () => {
                   <div className="absolute inset-0 border border-white/5 rounded-[48px] z-20" />
                   <div className="absolute -inset-1 bg-gradient-to-b from-white/5 to-transparent rounded-[48px] z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-700 backdrop-blur-sm" />
                   
-                  <video
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover object-[center_25%] transition-all duration-700"
-                    style={{ 
-                      filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
-                      transform: "translate3d(0, 0, 0)",
-                      backfaceVisibility: "hidden",
-                      perspective: "1000px",
-                      WebkitTransform: "translate3d(0, 0, 0)",
-                      WebkitBackfaceVisibility: "hidden",
-                      WebkitPerspective: "1000px",
-                      transformOrigin: "center 25%",
-                      boxShadow: "inset 0 0 100px rgba(0,0,0,0.15)"
-                    }}
-                  >
-                    <source src="/lovable-uploads/amorine_hero.webm" type="video/webm" />
-                  </video>
+                  {videoUrl && (
+                    <video
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover object-[center_25%] transition-all duration-700"
+                      style={{ 
+                        filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
+                        transform: "translate3d(0, 0, 0)",
+                        backfaceVisibility: "hidden",
+                        perspective: "1000px",
+                        WebkitTransform: "translate3d(0, 0, 0)",
+                        WebkitBackfaceVisibility: "hidden",
+                        WebkitPerspective: "1000px",
+                        transformOrigin: "center 25%",
+                        boxShadow: "inset 0 0 100px rgba(0,0,0,0.15)"
+                      }}
+                    >
+                      <source src={videoUrl} type="video/webm" />
+                    </video>
+                  )}
                   
                   {/* Enhanced Floating Elements - Optimized */}
                   <div className="absolute -top-4 -right-4 w-32 h-32 bg-gradient-conic from-coral-400/40 via-plum-400/30 to-coral-400/40 rounded-full blur-2xl animate-spin-slow opacity-75 group-hover:opacity-100 transition-opacity duration-700 will-change-opacity" />
