@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Info, ArrowUp, UserRound } from "lucide-react";
+import { Send, Info, ArrowUp, UserRound, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -17,11 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
-
-const MESSAGE_LIMITS = {
-  free: 50,
-  pro: 500,
-};
 
 const formatMessageDate = (timestamp?: string) => {
   if (!timestamp) return "";
@@ -109,6 +104,7 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
+  const [showLimitReachedDialog, setShowLimitReachedDialog] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -362,13 +358,7 @@ const ChatInterface = () => {
     );
 
     if (limitError || !limitData.canSendMessage) {
-      toast({
-        title: "Message Limit Reached",
-        description: `You've reached your total limit of ${
-          MESSAGE_LIMITS[userData?.subscription?.tier || "free"]
-        } messages. To continue chatting with Amorine, please upgrade your plan.`,
-        variant: "destructive",
-      });
+      setShowLimitReachedDialog(true);
       return;
     }
 
@@ -629,8 +619,28 @@ const ChatInterface = () => {
 
   const renderMessages = () => {
     let currentDate = "";
+    let lastMessageTime = "";
+    let lastMessageType = "";
+    
+    const shouldShowInitialTimestamp = (msg: any, index: number) => {
+      if (!msg.timestamp) return false;
+      
+      // First message of the day
+      const messageDate = new Date(msg.timestamp).toDateString();
+      if (messageDate !== currentDate) return true;
+      
+      // Check for 15+ minute gap
+      const currentTime = new Date(msg.timestamp).getTime();
+      const lastTime = lastMessageTime ? new Date(lastMessageTime).getTime() : 0;
+      const timeDiff = currentTime - lastTime;
+      
+      return timeDiff > 15 * 60 * 1000; // 15 minutes in milliseconds
+    };
+    
     return messages.map((msg, i) => {
       let showDateSeparator = false;
+      let showInitialTimestamp = false;
+      
       try {
         if (msg.timestamp) {
           const messageDate = new Date(msg.timestamp).toDateString();
@@ -638,33 +648,57 @@ const ChatInterface = () => {
             showDateSeparator = true;
             currentDate = messageDate;
           }
+          
+          showInitialTimestamp = shouldShowInitialTimestamp(msg, i);
+          lastMessageTime = msg.timestamp;
+          lastMessageType = msg.type;
         }
       } catch (error) {
-        console.error("Error processing message date:", error);
+        console.error("Error processing date:", error);
       }
+
       return (
         <div key={i}>
           {showDateSeparator && msg.timestamp && (
             <DateSeparator date={msg.timestamp} />
           )}
-          <div
-            className={`flex ${
-              msg.type === "ai" ? "justify-start" : "justify-end"
-            } items-end space-x-2`}
+          <div 
+            className="group flex flex-col"
+            role="button"
+            tabIndex={0}
           >
             <div
-              className={cn(
-                "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
-                msg.type === "ai"
-                  ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
-                  : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
-                swipedMessageId === i ? "translate-x-[-20px]" : ""
-              )}
-              onTouchStart={(e) => handleTouchStart(e, i)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={() => handleTouchEnd(i)}
+              className={`flex ${
+                msg.type === "ai" ? "justify-start" : "justify-end"
+              } items-end space-x-2 mb-1`}
             >
-              {renderMessageContent(msg.content)}
+              <div
+                className={cn(
+                  "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                  msg.type === "ai"
+                    ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
+                    : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                  swipedMessageId === i ? "translate-x-[-20px]" : ""
+                )}
+                onTouchStart={(e) => handleTouchStart(e, i)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => handleTouchEnd(i)}
+              >
+                {renderMessageContent(msg.content)}
+              </div>
+            </div>
+            <div 
+              className={cn(
+                "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                showInitialTimestamp ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+              )}
+              style={{
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent"
+              }}
+            >
+              {formatMessageDate(msg.timestamp)}
             </div>
           </div>
         </div>
@@ -738,29 +772,101 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   }, [profile]);
 
+  const handleSubscribe = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { userId: userData?.userId }
+      });
+
+      if (error) throw error;
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: "Could not initiate checkout. Please try again later.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <>
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="w-5 h-5 text-coral" />
-              Welcome to Amorine!
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              We're excited to have you! You're welcome to chat and interact with Amorine.
-              Just remember there's a limit of 50 daily messages on the free tier.
-              You can upgrade to our pro plan for unlimited and voice calling/video features!
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              onClick={() => setShowWelcomeDialog(false)}
-              className="w-full sm:w-auto"
-            >
-              Got it!
-            </Button>
-          </DialogFooter>
+        <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
+          <div className="grid grid-cols-1 md:grid-cols-2 h-full">
+            {/* Left Column - Image */}
+            <div className="relative hidden md:block h-full">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-l-[32px] blur-3xl" />
+              <img
+                src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
+                alt="Amorine AI Companion"
+                className="w-full h-full object-cover object-center rounded-l-[32px]"
+                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+              />
+            </div>
+
+            {/* Right Column - Content */}
+            <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
+                  Unlock Amorine PRO
+                </DialogTitle>
+                <DialogDescription className="text-base md:text-lg text-gray-600">
+                  Unlock more messaging, long-term memory, images, voice and more.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-grow mt-4 md:mt-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Unlimited daily messages</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Enhanced long-term memory and context</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Image sharing and generation</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Voice messages and calls</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Priority support and updates</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto pt-4 md:pt-6">
+                <Button
+                  onClick={handleSubscribe}
+                  className="w-full bg-gradient-primary hover:bg-gradient-primary/90 text-white py-6 text-lg"
+                >
+                  Upgrade to PRO
+                </Button>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Secure payment powered by Stripe
+                </p>
+              </div>
+
+              <DialogFooter className="mt-4 md:mt-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowWelcomeDialog(false)}
+                  className="w-full sm:w-auto"
+                >
+                  Continue with Free Plan
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -785,6 +891,86 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               Return to Home
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={showLimitReachedDialog} 
+        onOpenChange={() => {}}
+        modal={true}
+      >
+        <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
+          <div className="grid grid-cols-1 md:grid-cols-2 h-full">
+            {/* Left Column - Image */}
+            <div className="relative hidden md:block h-full">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-l-[32px] blur-3xl" />
+              <img
+                src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
+                alt="Amorine AI Companion"
+                className="w-full h-full object-cover object-center rounded-l-[32px]"
+                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+              />
+            </div>
+
+            {/* Right Column - Content */}
+            <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
+                  Ready to Continue Our Chat?
+                </DialogTitle>
+                <DialogDescription className="text-base md:text-lg text-gray-600">
+                  You've reached the free tier limit of 200 messages. Upgrade to PRO for unlimited conversations with Amorine!
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-grow mt-4 md:mt-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Unlimited messages - chat as much as you want</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Enhanced long-term memory and context</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Image sharing and generation</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Voice messages and calls</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Priority support and updates</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto pt-4 md:pt-6">
+                <Button
+                  onClick={handleSubscribe}
+                  className="w-full bg-gradient-primary hover:bg-gradient-primary/90 text-white py-6 text-lg"
+                >
+                  Upgrade to PRO
+                </Button>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Secure payment powered by Stripe
+                </p>
+              </div>
+
+              <DialogFooter className="mt-4 md:mt-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowLimitReachedDialog(false)}
+                  className="w-full sm:w-auto"
+                >
+                  Maybe Later
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
