@@ -50,7 +50,7 @@ const LandingPage = () => {
             <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-20" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-20" />
             <div className="absolute inset-0 bg-dark-200" />
-            <div className="absolute inset-[2%] overflow-hidden">
+            <div className="absolute inset-[4%] overflow-hidden">
               <video
                 autoPlay
                 loop
