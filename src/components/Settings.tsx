@@ -1,10 +1,10 @@
-
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { UserCircle, CreditCard, Trash2 } from "lucide-react";
+import { UserCircle, CreditCard, Trash2, Coins } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -15,20 +15,21 @@ const Settings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch subscription data
-  const { data: subscriptionData } = useQuery({
+  // Fetch subscription and token data
+  const { data: subscriptionData, refetch: refetchSubscription } = useQuery({
     queryKey: ['subscription'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('subscriptions')
-        .select('tier')
+        .select('subscription_tier, token_balance')
         .eq('user_id', session?.user.id)
         .single();
       
       if (error) throw error;
       return data;
     },
-    enabled: !!session?.user.id
+    enabled: !!session?.user.id,
+    refetchInterval: 3000 // 3-second refresh
   });
 
   // Fetch profile data
@@ -112,6 +113,38 @@ const Settings = () => {
           </CardContent>
         </Card>
 
+        {/* Token Balance Section (PRO users only) */}
+        {subscriptionData?.subscription_tier === 'pro' && (
+          <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Coins className="h-5 w-5 text-coral" />
+                Token Balance
+              </CardTitle>
+              <CardDescription>
+                Your remaining tokens for messages and images
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-500">Available Tokens</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {subscriptionData.token_balance?.toFixed(3) || '0.000'}
+                  </span>
+                </div>
+                <Progress 
+                  value={(subscriptionData.token_balance / 100) * 100} 
+                  className="h-2"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Messages: 0.025 tokens each • Images: 1 token each
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Subscription Section */}
         <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
           <CardHeader className="pb-3">
@@ -123,9 +156,9 @@ const Settings = () => {
           <CardContent>
             <div>
               <p className="text-sm font-medium text-gray-500">Current Plan</p>
-              <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
+              <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.subscription_tier || 'Free'}</p>
             </div>
-            {subscriptionData?.tier === 'free' && (
+            {subscriptionData?.subscription_tier === 'free' && (
               <Button
                 onClick={handleSubscribe}
                 className="mt-4 bg-gradient-primary hover:bg-gradient-primary/90"
