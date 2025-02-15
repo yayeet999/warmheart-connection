@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,6 +64,26 @@ const Settings = () => {
     }
   };
 
+  const handleSubscribe = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { userId: session?.user.id }
+      });
+
+      if (error) throw error;
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: "Could not initiate checkout. Please try again later.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className={cn(
       "min-h-screen bg-gray-50/80",
@@ -104,6 +125,14 @@ const Settings = () => {
               <p className="text-sm font-medium text-gray-500">Current Plan</p>
               <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
             </div>
+            {subscriptionData?.tier === 'free' && (
+              <Button
+                onClick={handleSubscribe}
+                className="mt-4 bg-gradient-primary hover:bg-gradient-primary/90"
+              >
+                Upgrade to Pro
+              </Button>
+            )}
           </CardContent>
         </Card>
 
