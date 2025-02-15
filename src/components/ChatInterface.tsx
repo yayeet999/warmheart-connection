@@ -1079,8 +1079,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       >
         {/* Sticky top bar */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
-          <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
-            <UserRound className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
+            <img 
+              src="/lovable-uploads/amprofile.webp"
+              alt="Amorine"
+              className="w-full h-full object-cover"
+            />
           </div>
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
