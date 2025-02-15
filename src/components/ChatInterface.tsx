@@ -212,13 +212,13 @@ const ChatInterface = () => {
       const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
-          .select("tier")
+          .select("subscription_tier")
           .eq("user_id", session.user.id)
           .maybeSingle(),
       ]);
 
       return {
-        subscription: subscription || { tier: "free" },
+        subscription: subscription || { subscription_tier: "free" },
         userId: session.user.id,
       };
     },
@@ -330,8 +330,27 @@ const ChatInterface = () => {
     }
   };
 
+  const [showTokenDepletedDialog, setShowTokenDepletedDialog] = useState(false);
+
+  const { data: tokenData } = useQuery({
+    queryKey: ['token-balance', userData?.userId],
+    queryFn: async () => {
+      if (!userData?.userId) return null;
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('token_balance')
+        .eq('user_id', userData.userId)
+        .single();
+      return data;
+    },
+    enabled: !!userData?.userId && userData?.subscription?.subscription_tier === 'pro',
+    refetchInterval: 3000
+  });
+
+  const isTokenDepleted = userData?.subscription?.subscription_tier === 'pro' && tokenData?.token_balance < 1;
+
   const handleSend = async () => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading || isTokenDepleted) return;
 
     const {
       data: { session },
@@ -352,7 +371,7 @@ const ChatInterface = () => {
       {
         body: {
           userId: session.user.id,
-          tier: userData?.subscription?.tier || "free",
+          tier: userData?.subscription?.subscription_tier || "free",
         },
       }
     );
@@ -588,7 +607,7 @@ const ChatInterface = () => {
     }
   };
 
-  const isFreeUser = userData?.subscription?.tier === "free";
+  const isFreeUser = userData?.subscription?.subscription_tier === "free";
 
   const renderMessageContent = (content: string) => {
     // check for any image markdown
@@ -974,6 +993,73 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      <Dialog 
+        open={showTokenDepletedDialog} 
+        onOpenChange={setShowTokenDepletedDialog}
+        modal={true}
+      >
+        <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
+          <div className="grid grid-cols-1 md:grid-cols-2 h-full">
+            <div className="relative hidden md:block h-full">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-l-[32px] blur-3xl" />
+              <img
+                src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
+                alt="Amorine AI Companion"
+                className="w-full h-full object-cover object-center rounded-l-[32px]"
+                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+              />
+            </div>
+
+            <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
+                  Token Balance Depleted
+                </DialogTitle>
+                <DialogDescription className="text-base md:text-lg text-gray-600">
+                  You've used all your tokens. Your balance will refresh on your next billing cycle.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-grow mt-4 md:mt-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Tokens refresh monthly</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Messages: 0.025 tokens each</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Images: 1 token each</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto pt-4 md:pt-6">
+                <Button
+                  disabled
+                  className="w-full bg-gradient-primary hover:bg-gradient-primary/90 text-white py-6 text-lg opacity-50 cursor-not-allowed"
+                >
+                  Upgrade Options (Coming Soon)
+                </Button>
+              </div>
+
+              <DialogFooter className="mt-4 md:pt-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowTokenDepletedDialog(false)}
+                  className="w-full sm:w-auto"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
@@ -1040,16 +1126,19 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               disabled={
                 isLoading ||
                 profile?.suicide_concern === 5 ||
-                profile?.violence_concern === 5
+                profile?.violence_concern === 5 ||
+                isTokenDepleted
               }
               placeholder={
                 profile?.suicide_concern === 5 || profile?.violence_concern === 5
                   ? "Account suspended"
+                  : isTokenDepleted
+                  ? "Token balance depleted"
                   : "Message Amorine..."
               }
               className={cn(
                 "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
-                profile?.suicide_concern === 5 || profile?.violence_concern === 5
+                (profile?.suicide_concern === 5 || profile?.violence_concern === 5 || isTokenDepleted)
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-50"
               )}
@@ -1077,7 +1166,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 isLoading ||
                 !message.trim() ||
                 profile?.suicide_concern === 5 ||
-                profile?.violence_concern === 5
+                profile?.violence_concern === 5 ||
+                isTokenDepleted
               }
             >
               <ArrowUp className="w-5 h-5 text-white" />
