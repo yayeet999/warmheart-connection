@@ -273,24 +273,51 @@ export type Database = {
         }
         Relationships: []
       }
-      subscriptions: {
+      stripe_customers: {
         Row: {
           created_at: string
           id: string
+          stripe_customer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          stripe_customer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          stripe_customer_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string
+          current_period_end: string | null
+          id: string
+          stripe_subscription_id: string | null
           tier: Database["public"]["Enums"]["subscription_tier"]
           updated_at: string
           user_id: string
         }
         Insert: {
+          cancel_at_period_end?: boolean | null
           created_at?: string
+          current_period_end?: string | null
           id?: string
+          stripe_subscription_id?: string | null
           tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
           user_id: string
         }
         Update: {
+          cancel_at_period_end?: boolean | null
           created_at?: string
+          current_period_end?: string | null
           id?: string
+          stripe_subscription_id?: string | null
           tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
           user_id?: string
