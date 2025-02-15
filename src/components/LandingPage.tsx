@@ -49,22 +49,26 @@ const LandingPage = () => {
           <div className="absolute inset-0 group bg-dark-200">
             <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-20" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-20" />
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              webkit-playsinline="true"
-              className="w-full h-full object-cover object-[center_15%] transition-all duration-700 bg-dark-200"
-              style={{ 
-                filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
-                transform: "scale(1.05)",
-                transition: "all 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)"
-              }}
-            >
-              <source src="/lovable-uploads/amorine_hero.webm" type="video/webm" />
-            </video>
+            <div className="absolute inset-0 bg-dark-200" />
+            <div className="absolute inset-[2%] overflow-hidden">
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                webkit-playsinline="true"
+                className="w-full h-full object-cover object-[center_15%] transition-all duration-700"
+                style={{ 
+                  filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
+                  transform: "scale(1.05)",
+                  transition: "all 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)",
+                  backgroundColor: "#18181C"
+                }}
+              >
+                <source src="/lovable-uploads/amorine_hero.webm" type="video/webm" />
+              </video>
+            </div>
           </div>
 
           {/* Subtle Floating Elements - Adjusted for new fade */}
