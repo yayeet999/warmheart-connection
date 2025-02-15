@@ -1157,7 +1157,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   : "Message Amorine..."
               }
               className={cn(
-                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[16px] leading-[1.3] tracking-[-0.24px] placeholder:text-gray-400 resize-none scrollbar-none",
                 (profile?.suicide_concern === 5 ||
                   profile?.violence_concern === 5 ||
                   isTokenDepleted)
@@ -1168,7 +1168,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               style={{
                 touchAction: "manipulation",
                 minHeight: "44px",
-                lineHeight: "1.4",
+                lineHeight: "1.3",
                 transition: "height 0.2s ease",
                 msOverflowStyle: "none",
                 scrollbarWidth: "none",
