@@ -103,21 +103,29 @@ const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // For dialogs/popups
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [showLimitReachedDialog, setShowLimitReachedDialog] = useState(false);
+  const [showTokenDepletedDialog, setShowTokenDepletedDialog] = useState(false);
+
   const [isTyping, setIsTyping] = useState(false);
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [messageCount, setMessageCount] = useState(0);
+
+  // Refs for scrolling & focusing
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottom = useRef(true);
-  const navigate = useNavigate();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  const navigate = useNavigate();
+
+  // Swipe detection
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
@@ -139,30 +147,15 @@ const ChatInterface = () => {
 
     if (swipeDistance > swipeThreshold) {
       setSwipedMessageId(messageId);
-    } else if (swipeDistance < -swipeThreshold || swipeDistance < swipeThreshold) {
+    } else if (
+      swipeDistance < -swipeThreshold ||
+      swipeDistance < swipeThreshold
+    ) {
       setSwipedMessageId(null);
     }
   };
 
-  const triggerEmbedding = async (userId: string, recentMessages: any[]) => {
-    try {
-      const { data, error } = await supabase.functions.invoke(
-        "embed-conversation-chunk",
-        {
-          body: {
-            userId,
-            messages: recentMessages.slice(-8), // Take last 8 messages
-          },
-        }
-      );
-      if (error) {
-        console.error("Error embedding conversation:", error);
-      }
-    } catch (error) {
-      console.error("Error calling embed function:", error);
-    }
-  };
-
+  // Clears messages on sign-out
   useEffect(() => {
     const {
       data: { subscription },
@@ -180,6 +173,7 @@ const ChatInterface = () => {
     };
   }, []);
 
+  // Check if user is logged in
   useEffect(() => {
     const checkAuth = async () => {
       const {
@@ -195,11 +189,11 @@ const ChatInterface = () => {
         navigate("/auth");
       }
     };
-
     checkAuth();
   }, [navigate]);
 
-  const { data: userData, isError: userDataError } = useQuery({
+  // Grab subscription tier, userId
+  const { data: userData } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
       const {
@@ -208,7 +202,6 @@ const ChatInterface = () => {
       if (!session?.user) {
         throw new Error("No authenticated user");
       }
-
       const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
@@ -216,7 +209,6 @@ const ChatInterface = () => {
           .eq("user_id", session.user.id)
           .maybeSingle(),
       ]);
-
       return {
         subscription: subscription || { tier: "free" },
         userId: session.user.id,
@@ -235,6 +227,93 @@ const ChatInterface = () => {
     },
   });
 
+  // Token-balance checks (for "pro" tier)
+  const { data: tokenData } = useQuery({
+    queryKey: ["token-balance", userData?.userId],
+    queryFn: async () => {
+      if (!userData?.userId) return null;
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("token_balance")
+        .eq("user_id", userData.userId)
+        .single();
+      return data;
+    },
+    enabled: !!userData?.userId && userData?.subscription?.tier === "pro",
+    refetchInterval: 3000,
+  });
+  const isTokenDepleted =
+    userData?.subscription?.tier === "pro" && tokenData?.token_balance < 1;
+
+  // Safety concerns, extreme content checks
+  const { data: profile } = useQuery({
+    queryKey: ["profile", userData?.userId],
+    queryFn: async () => {
+      if (!userData?.userId) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("suicide_concern, violence_concern, extreme_content")
+        .eq("id", userData.userId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userData?.userId,
+    refetchInterval: 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+
+  const [safetyDialog, setSafetyDialog] = useState<{
+    open: boolean;
+    type: "suicide" | "violence" | null;
+  }>({ open: false, type: null });
+
+  useEffect(() => {
+    if (profile?.extreme_content) {
+      setSafetyDialog({
+        open: true,
+        type: profile.extreme_content.toLowerCase() as "suicide" | "violence",
+      });
+    }
+  }, [profile?.extreme_content]);
+
+  const [showSuspensionDialog, setShowSuspensionDialog] = useState(false);
+
+  useEffect(() => {
+    if (profile?.suicide_concern === 5 || profile?.violence_concern === 5) {
+      setShowSuspensionDialog(true);
+    }
+  }, [profile]);
+
+  // Safety resources
+  const SUICIDE_RESOURCES = `National Suicide Prevention Lifeline (24/7):
+1-800-273-8255
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+Veterans Crisis Line:
+1-800-273-8255 (Press 1)
+
+Trevor Project (LGBTQ+):
+1-866-488-7386
+
+Please seek professional help immediately. Your life matters, and there are people who want to help.`;
+
+  const VIOLENCE_RESOURCES = `National Crisis Hotline (24/7):
+1-800-662-4357
+
+Crisis Text Line (24/7):
+Text HOME to 741741
+
+National Domestic Violence Hotline:
+1-800-799-SAFE (7233)
+
+If you're having thoughts of harming others, please seek professional help immediately.
+If there is an immediate danger to anyone's safety, contact emergency services (911).`;
+
+  // Retrieve Chat History
   const fetchMessages = async (pageNum = 0) => {
     if (!userData?.userId) {
       console.log("No user ID available yet");
@@ -276,6 +355,7 @@ const ChatInterface = () => {
     loadInitialMessages();
   }, [userData?.userId]);
 
+  // Infinity Scroll (Load More)
   const loadMoreMessages = async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
@@ -303,6 +383,7 @@ const ChatInterface = () => {
     setIsLoadingMore(false);
   };
 
+  // Auto-scroll logic
   const scrollToBottom = () => {
     if (shouldScrollToBottom.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -315,6 +396,7 @@ const ChatInterface = () => {
     }
   }, [messages, isLoadingMore]);
 
+  // Textarea resizing
   const adjustTextAreaHeight = () => {
     const textArea = textAreaRef.current;
     if (textArea) {
@@ -323,32 +405,16 @@ const ChatInterface = () => {
       textArea.style.height = `${newHeight}px`;
     }
   };
-
   const resetTextAreaHeight = () => {
     if (textAreaRef.current) {
       textAreaRef.current.style.height = "24px";
     }
   };
 
-  const [showTokenDepletedDialog, setShowTokenDepletedDialog] = useState(false);
+  // We show a "Welcome to Amorine" if isFreeUser
+  const isFreeUser = userData?.subscription?.tier === "free";
 
-  const { data: tokenData } = useQuery({
-    queryKey: ['token-balance', userData?.userId],
-    queryFn: async () => {
-      if (!userData?.userId) return null;
-      const { data } = await supabase
-        .from('subscriptions')
-        .select('token_balance')
-        .eq('user_id', userData.userId)
-        .single();
-      return data;
-    },
-    enabled: !!userData?.userId && userData?.subscription?.tier === 'pro',
-    refetchInterval: 3000
-  });
-
-  const isTokenDepleted = userData?.subscription?.tier === 'pro' && tokenData?.token_balance < 1;
-
+  // The daily message-limits + pro-limits checks
   const handleSend = async () => {
     if (!message.trim() || isLoading || isTokenDepleted) return;
 
@@ -375,12 +441,12 @@ const ChatInterface = () => {
         },
       }
     );
-
     if (limitError || !limitData.canSendMessage) {
       setShowLimitReachedDialog(true);
       return;
     }
 
+    // send the message
     setMessage("");
     resetTextAreaHeight();
 
@@ -407,13 +473,12 @@ const ChatInterface = () => {
         });
       if (preCheckError) {
         console.error("Pre-checker error:", preCheckError);
-        // fallback to text if there's an error
+        // fallback to text if error
       }
 
       if (preCheckData?.messageType === "image") {
-        // 2) Image flow
+        // == IMAGE FLOW ==
         try {
-          // call image-context-analyzer
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
@@ -425,7 +490,6 @@ const ChatInterface = () => {
             console.error("Image context analysis error:", imageContextError);
             throw new Error("Image analysis failed");
           }
-
           if (!imageContext?.analysis) {
             console.error("Invalid image context analysis result");
             throw new Error("Invalid image analysis");
@@ -464,9 +528,7 @@ const ChatInterface = () => {
             throw new Error("Image search failed");
           }
           if (!imageSearchResult.success) {
-            throw new Error(
-              imageSearchResult.error || "No matching images found"
-            );
+            throw new Error(imageSearchResult.error || "No matching images found");
           }
 
           // create AI response w/ image markdown
@@ -500,8 +562,7 @@ const ChatInterface = () => {
           setIsTyping(false);
         }
       } else {
-        // 2) Text flow
-
+        // == TEXT FLOW ==
         // store the user message
         const { error: storeError } = await supabase.functions.invoke(
           "chat-history",
@@ -518,7 +579,7 @@ const ChatInterface = () => {
           throw new Error("Failed to store message");
         }
 
-        // -- (A) Attempt a vector search + middle-thoughts step for "text" messages
+        // Attempt vector-search to retrieve memories
         try {
           const { data: vectorData, error: vectorError } =
             await supabase.functions.invoke("vector-search-context", {
@@ -538,7 +599,7 @@ const ChatInterface = () => {
           console.error("Error calling vector-search-context:", err);
         }
 
-        // -- (B) Now call the chat function for AI response
+        // Then call chat
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
@@ -556,7 +617,6 @@ const ChatInterface = () => {
             throw new Error("Invalid chat response format");
           }
 
-          // add AI messages
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -607,10 +667,8 @@ const ChatInterface = () => {
     }
   };
 
-  const isFreeUser = userData?.subscription?.tier === "free";
-
+  // Render logic for messages
   const renderMessageContent = (content: string) => {
-    // check for any image markdown
     const imageMatches = content.match(/!\[Generated Image\]\((.*?)\)/g);
     if (!imageMatches) {
       return <p className="text-[15px] leading-relaxed">{content}</p>;
@@ -639,27 +697,21 @@ const ChatInterface = () => {
   const renderMessages = () => {
     let currentDate = "";
     let lastMessageTime = "";
-    let lastMessageType = "";
-    
+
+    // We'll show a timestamp if 15+ minute gap or new day
     const shouldShowInitialTimestamp = (msg: any, index: number) => {
       if (!msg.timestamp) return false;
-      
-      // First message of the day
       const messageDate = new Date(msg.timestamp).toDateString();
       if (messageDate !== currentDate) return true;
-      
-      // Check for 15+ minute gap
       const currentTime = new Date(msg.timestamp).getTime();
       const lastTime = lastMessageTime ? new Date(lastMessageTime).getTime() : 0;
-      const timeDiff = currentTime - lastTime;
-      
-      return timeDiff > 15 * 60 * 1000; // 15 minutes in milliseconds
+      return currentTime - lastTime > 15 * 60 * 1000;
     };
-    
+
     return messages.map((msg, i) => {
       let showDateSeparator = false;
       let showInitialTimestamp = false;
-      
+
       try {
         if (msg.timestamp) {
           const messageDate = new Date(msg.timestamp).toDateString();
@@ -667,10 +719,8 @@ const ChatInterface = () => {
             showDateSeparator = true;
             currentDate = messageDate;
           }
-          
           showInitialTimestamp = shouldShowInitialTimestamp(msg, i);
           lastMessageTime = msg.timestamp;
-          lastMessageType = msg.type;
         }
       } catch (error) {
         console.error("Error processing date:", error);
@@ -681,11 +731,7 @@ const ChatInterface = () => {
           {showDateSeparator && msg.timestamp && (
             <DateSeparator date={msg.timestamp} />
           )}
-          <div 
-            className="group flex flex-col"
-            role="button"
-            tabIndex={0}
-          >
+          <div className="group flex flex-col" role="button" tabIndex={0}>
             <div
               className={`flex ${
                 msg.type === "ai" ? "justify-start" : "justify-end"
@@ -706,15 +752,17 @@ const ChatInterface = () => {
                 {renderMessageContent(msg.content)}
               </div>
             </div>
-            <div 
+            <div
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
                 msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                showInitialTimestamp ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+                showInitialTimestamp
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
               )}
               style={{
                 touchAction: "manipulation",
-                WebkitTapHighlightColor: "transparent"
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               {formatMessageDate(msg.timestamp)}
@@ -725,94 +773,29 @@ const ChatInterface = () => {
     });
   };
 
-  const [safetyDialog, setSafetyDialog] = useState<{
-    open: boolean;
-    type: "suicide" | "violence" | null;
-  }>({ open: false, type: null });
-
-  const { data: profile } = useQuery({
-    queryKey: ["profile", userData?.userId],
-    queryFn: async () => {
-      if (!userData?.userId) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("suicide_concern, violence_concern, extreme_content")
-        .eq("id", userData.userId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!userData?.userId,
-    refetchInterval: 1000,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-  });
-
-  useEffect(() => {
-    if (profile?.extreme_content) {
-      setSafetyDialog({
-        open: true,
-        type: profile.extreme_content.toLowerCase() as "suicide" | "violence",
-      });
-    }
-  }, [profile?.extreme_content]);
-
-  const [showSuspensionDialog, setShowSuspensionDialog] = useState(false);
-
-  const SUICIDE_RESOURCES = `National Suicide Prevention Lifeline (24/7):
-1-800-273-8255
-
-Crisis Text Line (24/7):
-Text HOME to 741741
-
-Veterans Crisis Line:
-1-800-273-8255 (Press 1)
-
-Trevor Project (LGBTQ+):
-1-866-488-7386
-
-Please seek professional help immediately. Your life matters, and there are people who want to help.`;
-
-  const VIOLENCE_RESOURCES = `National Crisis Hotline (24/7):
-1-800-662-4357
-
-Crisis Text Line (24/7):
-Text HOME to 741741
-
-National Domestic Violence Hotline:
-1-800-799-SAFE (7233)
-
-If you're having thoughts of harming others, please seek professional help immediately.
-If there is an immediate danger to anyone's safety, contact emergency services (911).`;
-
-  useEffect(() => {
-    if (profile?.suicide_concern === 5 || profile?.violence_concern === 5) {
-      setShowSuspensionDialog(true);
-    }
-  }, [profile]);
-
+  // Stripe subscription upgrade
   const handleSubscribe = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { userId: userData?.userId }
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { userId: userData?.userId },
       });
-
       if (error) throw error;
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       toast({
         title: "Error",
         description: "Could not initiate checkout. Please try again later.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
   return (
     <>
+      {/* The "Unlock Amorine PRO" welcome dialog for free users */}
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
           <div className="grid grid-cols-1 md:grid-cols-2 h-full">
@@ -823,10 +806,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                 alt="Amorine AI Companion"
                 className="w-full h-full object-cover object-center rounded-l-[32px]"
-                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                style={{ aspectRatio: "1/1", objectFit: "cover" }}
               />
             </div>
-
             {/* Right Column - Content */}
             <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
               <DialogHeader className="space-y-2">
@@ -834,7 +816,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   Unlock Amorine PRO
                 </DialogTitle>
                 <DialogDescription className="text-base md:text-lg text-gray-600">
-                  Unlock more messaging, long-term memory, images, voice and more.
+                  Unlock more messaging, long-term memory, images, and more.
                 </DialogDescription>
               </DialogHeader>
 
@@ -889,6 +871,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* Dialog if account suspended (safety checks) */}
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
@@ -899,9 +882,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </p>
               <p>Please email amorineapp@gmail.com for support.</p>
               <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
-                {profile?.suicide_concern === 5
-                  ? SUICIDE_RESOURCES
-                  : VIOLENCE_RESOURCES}
+                {profile?.suicide_concern === 5 ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -913,11 +894,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      <Dialog 
-        open={showLimitReachedDialog} 
-        onOpenChange={() => {}}
-        modal={true}
-      >
+      {/* Dialog if daily-limit reached (free tier) */}
+      <Dialog open={showLimitReachedDialog} onOpenChange={() => {}} modal={true}>
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
           <div className="grid grid-cols-1 md:grid-cols-2 h-full">
             {/* Left Column - Image */}
@@ -927,10 +905,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                 alt="Amorine AI Companion"
                 className="w-full h-full object-cover object-center rounded-l-[32px]"
-                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                style={{ aspectRatio: "1/1", objectFit: "cover" }}
               />
             </div>
-
             {/* Right Column - Content */}
             <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
               <DialogHeader className="space-y-2">
@@ -946,15 +923,21 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 <div className="space-y-3">
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Unlimited messages - chat as much as you want</span>
+                    <span className="text-gray-700">
+                      Unlimited messages - chat as much as you want
+                    </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Enhanced long-term memory and context</span>
+                    <span className="text-gray-700">
+                      Enhanced long-term memory and context
+                    </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Image sharing and generation</span>
+                    <span className="text-gray-700">
+                      Image sharing and generation
+                    </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
@@ -962,7 +945,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   </div>
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Priority support and updates</span>
+                    <span className="text-gray-700">
+                      Priority support and updates
+                    </span>
                   </div>
                 </div>
               </div>
@@ -993,11 +978,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      <Dialog 
-        open={showTokenDepletedDialog} 
-        onOpenChange={setShowTokenDepletedDialog}
-        modal={true}
-      >
+      {/* Dialog if token-balance depleted (pro-tier) */}
+      <Dialog open={showTokenDepletedDialog} onOpenChange={setShowTokenDepletedDialog} modal={true}>
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
           <div className="grid grid-cols-1 md:grid-cols-2 h-full">
             <div className="relative hidden md:block h-full">
@@ -1006,10 +988,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
                 alt="Amorine AI Companion"
                 className="w-full h-full object-cover object-center rounded-l-[32px]"
-                style={{ aspectRatio: '1/1', objectFit: 'cover' }}
+                style={{ aspectRatio: "1/1", objectFit: "cover" }}
               />
             </div>
-
             <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
               <DialogHeader className="space-y-2">
                 <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
@@ -1060,12 +1041,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* The main chat container */}
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
           "sm:pl-[100px]"
         )}
       >
+        {/* Sticky top bar */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
             <UserRound className="w-6 h-6 text-white" />
@@ -1092,7 +1075,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 disabled={isLoadingMore}
                 className="flex items-center gap-2"
               >
-                {isLoadingMore ? "Loading..." : <><ArrowUp className="w-4 h-4" />Load More</>}
+                {isLoadingMore ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    <ArrowUp className="w-4 h-4" />
+                    Load More
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -1108,6 +1098,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <div ref={messagesEndRef} />
         </div>
 
+        {/* The user input area */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <textarea
@@ -1138,7 +1129,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               }
               className={cn(
                 "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
-                (profile?.suicide_concern === 5 || profile?.violence_concern === 5 || isTokenDepleted)
+                (profile?.suicide_concern === 5 ||
+                  profile?.violence_concern === 5 ||
+                  isTokenDepleted)
                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                   : "bg-gray-50"
               )}
@@ -1176,6 +1169,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </div>
       </div>
 
+      {/* Safety Acknowledgment if needed */}
       {userData?.userId && safetyDialog.type && (
         <SafetyAcknowledgmentDialog
           open={safetyDialog.open}
