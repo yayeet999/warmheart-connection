@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,14 +129,14 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400 text-base font-medium tracking-wide transition-all duration-200 focus:ring-2 focus:ring-plum-300/20 focus:shadow-[0_0_15px_rgba(155,135,245,0.1)] hover:border-white/30"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400 text-base font-medium tracking-wide transition-all duration-200 focus:ring-2 focus:ring-plum-300/20 focus:shadow-[0_0_15px_rgba(155,135,245,0.1)] hover:border-white/30"
                   />
                   <Button
                     className="w-full group relative px-8 py-6 text-lg font-medium text-white overflow-hidden rounded-full transform hover:scale-[1.02] transition-all duration-500"
@@ -157,14 +158,14 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400 text-base font-medium tracking-wide transition-all duration-200 focus:ring-2 focus:ring-plum-300/20 focus:shadow-[0_0_15px_rgba(155,135,245,0.1)] hover:border-white/30"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400 text-base font-medium tracking-wide transition-all duration-200 focus:ring-2 focus:ring-plum-300/20 focus:shadow-[0_0_15px_rgba(155,135,245,0.1)] hover:border-white/30"
                   />
                   <Button
                     className="w-full group relative px-8 py-6 text-lg font-medium text-white overflow-hidden rounded-full transform hover:scale-[1.02] transition-all duration-500"
