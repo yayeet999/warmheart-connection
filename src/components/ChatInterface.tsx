@@ -1,4 +1,3 @@
-<lov-code>
 import { useState, useRef, useEffect } from "react";
 import { Send, Info, ArrowUp, UserRound, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,27 +121,6 @@ const ChatInterface = () => {
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
-
-  // Add new state for token exhaustion
-  const [showTokenExhaustedDialog, setShowTokenExhaustedDialog] = useState(false);
-
-  // Add subscription data query
-  const { data: subscriptionData } = useQuery({
-    queryKey: ['subscription'],
-    queryFn: async () => {
-      if (!userData?.userId) return null;
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('tier, token_balance')
-        .eq('user_id', userData.userId)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!userData?.userId,
-    refetchInterval: 3000
-  });
 
   const handleTouchStart = (e: React.TouchEvent, messageId: number) => {
     touchStartX.current = e.touches[0].clientX;
@@ -365,12 +343,6 @@ const ChatInterface = () => {
         variant: "destructive",
       });
       navigate("/auth");
-      return;
-    }
-
-    // Check token balance for pro users
-    if (subscriptionData?.tier === 'pro' && subscriptionData.token_balance < 0.025) {
-      setShowTokenExhaustedDialog(true);
       return;
     }
 
@@ -943,4 +915,187 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             {/* Right Column - Content */}
             <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
               <DialogHeader className="space-y-2">
-                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-
+                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
+                  Ready to Continue Our Chat?
+                </DialogTitle>
+                <DialogDescription className="text-base md:text-lg text-gray-600">
+                  You've reached the free tier limit of 200 messages. Upgrade to PRO for unlimited conversations with Amorine!
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex-grow mt-4 md:mt-6 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Unlimited messages - chat as much as you want</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Enhanced long-term memory and context</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Image sharing and generation</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Voice messages and calls</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
+                    <span className="text-gray-700">Priority support and updates</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto pt-4 md:pt-6">
+                <Button
+                  onClick={handleSubscribe}
+                  className="w-full bg-gradient-primary hover:bg-gradient-primary/90 text-white py-6 text-lg"
+                >
+                  Upgrade to PRO
+                </Button>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Secure payment powered by Stripe
+                </p>
+              </div>
+
+              <DialogFooter className="mt-4 md:mt-6">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowLimitReachedDialog(false)}
+                  className="w-full sm:w-auto"
+                >
+                  Maybe Later
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div
+        className={cn(
+          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
+          "sm:pl-[100px]"
+        )}
+      >
+        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1">
+            <UserRound className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-sm font-medium text-gray-800">Amorine</span>
+        </div>
+
+        <div
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            if (target.scrollTop === 0 && hasMore && !isLoadingMore) {
+              loadMoreMessages();
+            }
+          }}
+        >
+          {hasMore && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMoreMessages}
+                disabled={isLoadingMore}
+                className="flex items-center gap-2"
+              >
+                {isLoadingMore ? "Loading..." : <><ArrowUp className="w-4 h-4" />Load More</>}
+              </Button>
+            </div>
+          )}
+          <div ref={messagesStartRef} />
+          {renderMessages()}
+          {isTyping && (
+            <div className="flex justify-start items-end space-x-2">
+              <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg">
+                <TypingIndicator />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="p-4 bg-white border-t border-gray-200">
+          <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
+            <textarea
+              ref={textAreaRef}
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                adjustTextAreaHeight();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={
+                isLoading ||
+                profile?.suicide_concern === 5 ||
+                profile?.violence_concern === 5
+              }
+              placeholder={
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5
+                  ? "Account suspended"
+                  : "Message Amorine..."
+              }
+              className={cn(
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[15px] placeholder:text-gray-400 resize-none scrollbar-none",
+                profile?.suicide_concern === 5 || profile?.violence_concern === 5
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-gray-50"
+              )}
+              rows={1}
+              style={{
+                touchAction: "manipulation",
+                minHeight: "44px",
+                lineHeight: "1.4",
+                transition: "height 0.2s ease",
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.fontSize = "16px";
+              }}
+            />
+            <Button
+              onClick={handleSend}
+              size="icon"
+              className={cn(
+                "bg-gradient-primary hover:bg-gradient-primary/90 rounded-full w-10 h-10 flex items-center justify-center shrink-0",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+              disabled={
+                isLoading ||
+                !message.trim() ||
+                profile?.suicide_concern === 5 ||
+                profile?.violence_concern === 5
+              }
+            >
+              <ArrowUp className="w-5 h-5 text-white" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {userData?.userId && safetyDialog.type && (
+        <SafetyAcknowledgmentDialog
+          open={safetyDialog.open}
+          onOpenChange={(open) => setSafetyDialog((prev) => ({ ...prev, open }))}
+          type={safetyDialog.type}
+          userId={userData.userId}
+        />
+      )}
+    </>
+  );
+};
+
+export default ChatInterface;
