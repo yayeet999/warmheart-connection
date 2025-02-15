@@ -46,7 +46,7 @@ const LandingPage = () => {
           <div className="absolute inset-x-0 bottom-0 h-[10%] backdrop-blur-[1px] bg-gradient-to-t from-dark-200/60 to-transparent z-10" />
           
           {/* Hero Image - Clearer and More Prominent */}
-          <div className="absolute inset-0 group">
+          <div className="absolute inset-0 group bg-dark-200">
             <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-20" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-20" />
             <video
@@ -54,7 +54,8 @@ const LandingPage = () => {
               loop
               muted
               playsInline
-              className="w-full h-full object-cover object-[center_15%] transition-all duration-700"
+              webkit-playsinline="true"
+              className="w-full h-full object-cover object-[center_15%] transition-all duration-700 bg-dark-200"
               style={{ 
                 filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
                 transform: "scale(1.05)",
