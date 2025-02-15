@@ -299,6 +299,8 @@ export type Database = {
           id: string
           stripe_subscription_id: string | null
           tier: Database["public"]["Enums"]["subscription_tier"]
+          token_balance: number | null
+          token_last_updated: string | null
           updated_at: string
           user_id: string
         }
@@ -309,6 +311,8 @@ export type Database = {
           id?: string
           stripe_subscription_id?: string | null
           tier?: Database["public"]["Enums"]["subscription_tier"]
+          token_balance?: number | null
+          token_last_updated?: string | null
           updated_at?: string
           user_id: string
         }
@@ -319,6 +323,8 @@ export type Database = {
           id?: string
           stripe_subscription_id?: string | null
           tier?: Database["public"]["Enums"]["subscription_tier"]
+          token_balance?: number | null
+          token_last_updated?: string | null
           updated_at?: string
           user_id?: string
         }

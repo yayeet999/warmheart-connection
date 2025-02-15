@@ -9,26 +9,28 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 const Settings = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch subscription data
+  // Fetch subscription data including token balance
   const { data: subscriptionData } = useQuery({
     queryKey: ['subscription'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('subscriptions')
-        .select('tier')
+        .select('tier, token_balance, token_last_updated')
         .eq('user_id', session?.user.id)
         .single();
       
       if (error) throw error;
       return data;
     },
-    enabled: !!session?.user.id
+    enabled: !!session?.user.id,
+    refetchInterval: 3000 // Refresh every 3 seconds for real-time updates
   });
 
   // Fetch profile data
@@ -84,6 +86,11 @@ const Settings = () => {
     }
   };
 
+  // Calculate token percentage for progress bar
+  const tokenPercentage = subscriptionData?.tier === 'pro' 
+    ? Math.max(0, Math.min(100, (subscriptionData?.token_balance / 100) * 100))
+    : 0;
+
   return (
     <div className={cn(
       "min-h-screen bg-gray-50/80",
@@ -121,18 +128,34 @@ const Settings = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Current Plan</p>
-              <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Current Plan</p>
+                <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
+              </div>
+              
+              {subscriptionData?.tier === 'pro' && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm font-medium text-gray-500">Token Balance</p>
+                    <p className="text-sm text-gray-700">{subscriptionData.token_balance?.toFixed(3) || '0'} / 100</p>
+                  </div>
+                  <Progress value={tokenPercentage} className="h-2" />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Tokens refresh monthly. Each message costs 0.025 tokens.
+                  </p>
+                </div>
+              )}
+
+              {subscriptionData?.tier === 'free' && (
+                <Button
+                  onClick={handleSubscribe}
+                  className="mt-4 bg-gradient-primary hover:bg-gradient-primary/90"
+                >
+                  Upgrade to Pro
+                </Button>
+              )}
             </div>
-            {subscriptionData?.tier === 'free' && (
-              <Button
-                onClick={handleSubscribe}
-                className="mt-4 bg-gradient-primary hover:bg-gradient-primary/90"
-              >
-                Upgrade to Pro
-              </Button>
-            )}
           </CardContent>
         </Card>
 

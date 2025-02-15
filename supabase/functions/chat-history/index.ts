@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
@@ -10,6 +11,45 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+);
+
+async function updateTokenBalance(userId: string, messageCount: number) {
+  try {
+    // Fetch user's subscription
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('tier, token_balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (subError) throw subError;
+
+    // Only process for pro users
+    if (subscription.tier !== 'pro') return;
+
+    // Calculate token deduction (0.025 tokens per message)
+    const deduction = messageCount * 0.025;
+
+    // Update token balance
+    const { error: updateError } = await supabase
+      .from('subscriptions')
+      .update({ 
+        token_balance: subscription.token_balance - deduction,
+        token_last_updated: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) throw updateError;
+
+    console.log(`Updated token balance for user ${userId}. Deducted ${deduction} tokens`);
+  } catch (error) {
+    console.error('Error updating token balance:', error);
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -52,19 +92,22 @@ serve(async (req) => {
       const messageToStore = {
         type: message.type,
         content: message.content,
-        timestamp: new Date().toISOString() // store a timestamp
+        timestamp: new Date().toISOString()
       };
 
-      // Push the new message to the FRONT (index 0)
       const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
       console.log('Redis push result:', pushResult);
 
-      // Keep the list capped at 10,000
       await redis.ltrim(key, 0, 9999);
 
-      // Now check how many total messages
       const currentLength = await redis.llen(key);
       console.log('Current list length after adding message:', currentLength);
+
+      // Only process token deduction for user messages every 5 messages
+      if (message.type === 'user' && currentLength % 5 === 0) {
+        console.log(`Processing token deduction at message count: ${currentLength}`);
+        await updateTokenBalance(userId, 5);
+      }
 
       // ---------------------------------------------------------------------
       // Trigger embedding if we just hit a multiple of 8 messages
