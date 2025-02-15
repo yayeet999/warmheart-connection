@@ -78,7 +78,6 @@ serve(async (req) => {
       mode: 'subscription',
       success_url: `${req.headers.get('origin')}/chat?success=true`,
       cancel_url: `${req.headers.get('origin')}/settings?canceled=true`,
-      automatic_tax: { enabled: true },
     })
 
     return new Response(
