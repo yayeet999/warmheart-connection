@@ -45,6 +45,9 @@ serve(async (req) => {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
         
+        console.log('Processing subscription event:', event.type)
+        console.log('Customer ID:', customerId)
+        
         // Get the user id from stripe_customers table
         const { data: customerData, error: customerError } = await supabase
           .from('stripe_customers')
@@ -57,7 +60,9 @@ serve(async (req) => {
           return new Response('Customer not found', { status: 404 })
         }
 
-        // Update the subscription
+        console.log('Found user ID:', customerData.id)
+
+        // Update the subscription by user_id
         const { error: updateError } = await supabase
           .from('subscriptions')
           .update({
@@ -72,11 +77,16 @@ serve(async (req) => {
           console.error('Error updating subscription:', updateError)
           return new Response('Error updating subscription', { status: 500 })
         }
+
+        console.log('Successfully updated subscription for user:', customerData.id)
         break
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
+        
+        console.log('Processing subscription deletion')
+        console.log('Subscription ID:', subscription.id)
         
         // Update subscription to free tier
         const { error: updateError } = await supabase
@@ -93,6 +103,8 @@ serve(async (req) => {
           console.error('Error updating subscription:', updateError)
           return new Response('Error updating subscription', { status: 500 })
         }
+
+        console.log('Successfully reverted subscription to free tier')
         break
       }
     }
