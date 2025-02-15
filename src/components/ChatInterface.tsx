@@ -1073,7 +1073,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       {/* The main chat container */}
       <div
         className={cn(
-          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F1F1F1]",
+          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
           "sm:pl-[100px]"
         )}
       >
