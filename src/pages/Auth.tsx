@@ -65,40 +65,59 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-plum/5 to-coral/5 grid-background">
-      <header className="w-full bg-white/80 backdrop-blur-md py-4 px-6 flex justify-between items-center fixed top-0 z-50 border-b border-gray-100">
-        <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-dark-200 flex flex-col relative overflow-hidden">
+      {/* Ambient background effects */}
+      <div className="absolute inset-0 bg-gradient-dark opacity-80" />
+      <div className="absolute inset-0 bg-gradient-spotlight opacity-40" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(91,52,217,0.1),transparent_50%)] opacity-60" />
+      <div className="absolute w-full h-full bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay" />
+
+      <header className="w-full py-4 px-6 fixed top-0 left-0 right-0 z-[100] transition-all duration-500 bg-dark-100/85 backdrop-blur-md border-b border-plum-300/20 shadow-lg shadow-plum-400/10">
+        <div className="container mx-auto flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate("/")}
-            className="text-plum hover:text-coral transition-colors"
+            className="relative group text-white/80 hover:text-white"
           >
-            <ArrowLeft className="h-6 w-6" />
+            <div className="absolute inset-0 bg-dark-100/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
+            <ArrowLeft className="h-6 w-6 relative z-10" />
           </Button>
-          <span className="text-2xl font-bold bg-gradient-primary text-transparent bg-clip-text">
+          <span className="text-2xl font-bold bg-gradient-to-r from-coral-200 to-plum-200 text-transparent bg-clip-text">
             Amorine
           </span>
         </div>
       </header>
 
-      <div className="container mx-auto flex justify-center items-center min-h-screen p-4">
-        <Card className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl border-0">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl font-bold text-center bg-gradient-primary text-transparent bg-clip-text">
-              Welcome to Amorine
+      <div className="container mx-auto flex justify-center items-center min-h-screen p-4 relative z-10">
+        <Card className="w-full max-w-md bg-dark-100/95 backdrop-blur-xl shadow-2xl border border-white/10 relative group">
+          {/* Ambient glow effects */}
+          <div className="absolute -inset-x-20 -inset-y-10 bg-gradient-radial from-coral-400/10 to-transparent opacity-50 blur-3xl" />
+          <div className="absolute -inset-x-20 -inset-y-10 bg-gradient-radial from-plum-400/10 to-transparent opacity-50 blur-3xl" />
+          
+          <CardHeader className="space-y-2 relative z-10">
+            <CardTitle className="text-2xl font-bold text-center">
+              <span className="bg-gradient-to-r from-coral-100 to-plum-100 text-transparent bg-clip-text">
+                Welcome to Amorine
+              </span>
             </CardTitle>
-            <CardDescription className="text-center text-gray-600">
+            <CardDescription className="text-center text-gray-300 font-serif">
               Your always-available companion
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative z-10">
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-8">
-                <TabsTrigger value="login" className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white">
+              <TabsList className="grid w-full grid-cols-2 mb-8 bg-dark-200/70">
+                <TabsTrigger 
+                  value="login" 
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-coral-400/95 data-[state=active]:to-plum-300/95 data-[state=active]:text-white text-gray-300"
+                >
                   Login
                 </TabsTrigger>
-                <TabsTrigger value="signup" className="data-[state=active]:bg-gradient-primary data-[state=active]:text-white">
+                <TabsTrigger 
+                  value="signup" 
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-coral-400/95 data-[state=active]:to-plum-300/95 data-[state=active]:text-white text-gray-300"
+                >
                   Sign Up
                 </TabsTrigger>
               </TabsList>
@@ -109,21 +128,25 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-white/50 border-gray-200 focus:border-plum"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-white/50 border-gray-200 focus:border-plum"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
                   />
                   <Button
-                    className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
+                    className="w-full group relative px-8 py-6 text-lg font-medium text-white overflow-hidden rounded-full transform hover:scale-[1.02] transition-all duration-500"
                     onClick={() => handleAuth("LOGIN")}
                     disabled={loading}
                   >
-                    {loading ? "Loading..." : "Login"}
+                    <div className="absolute inset-0 bg-gradient-to-r from-coral-400/95 via-plum-300/95 to-coral-300/95" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-plum-300/95 via-coral-400/95 to-plum-300/95 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <span className="relative z-10 text-white/95">
+                      {loading ? "Loading..." : "Login"}
+                    </span>
                   </Button>
                 </div>
               </TabsContent>
@@ -134,40 +157,44 @@ const Auth = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-white/50 border-gray-200 focus:border-plum"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
                   />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-white/50 border-gray-200 focus:border-plum"
+                    className="bg-dark-200/70 border-white/20 focus:border-plum-300/70 text-white placeholder:text-gray-400"
                   />
                   <Button
-                    className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
+                    className="w-full group relative px-8 py-6 text-lg font-medium text-white overflow-hidden rounded-full transform hover:scale-[1.02] transition-all duration-500"
                     onClick={() => handleAuth("SIGNUP")}
                     disabled={loading}
                   >
-                    {loading ? "Loading..." : "Sign Up"}
+                    <div className="absolute inset-0 bg-gradient-to-r from-coral-400/95 via-plum-300/95 to-coral-300/95" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-plum-300/95 via-coral-400/95 to-plum-300/95 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <span className="relative z-10 text-white/95">
+                      {loading ? "Loading..." : "Sign Up"}
+                    </span>
                   </Button>
                 </div>
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <CardFooter className="flex flex-col gap-4 relative z-10">
             <div className="relative w-full">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-gray-200" />
+                <span className="w-full border-t border-white/20" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white/80 px-2 text-gray-500">
+                <span className="bg-dark-100/95 px-2 text-gray-400">
                   Or continue with
                 </span>
               </div>
             </div>
             <Button
               variant="outline"
-              className="w-full bg-white hover:bg-gray-50 border border-gray-200"
+              className="w-full bg-dark-200/80 hover:bg-dark-200/95 border-white/30 text-white hover:text-white transition-colors shadow-sm shadow-white/5"
               onClick={handleGoogleLogin}
               disabled={loading}
             >
@@ -191,13 +218,13 @@ const Auth = () => {
               </svg>
               Google
             </Button>
-            <p className="text-center text-xs text-gray-600 mt-2">
+            <p className="text-center text-xs text-gray-200 mt-2">
               By signing up, you agree to our{" "}
-              <Link to="/terms-of-service" className="underline text-coral hover:text-plum transition-colors">
+              <Link to="/terms-of-service" className="text-coral-200 hover:text-plum-200 transition-colors">
                 Terms of Service
               </Link>{" "}
               and{" "}
-              <Link to="/privacy-policy" className="underline text-coral hover:text-plum transition-colors">
+              <Link to="/privacy-policy" className="text-coral-200 hover:text-plum-200 transition-colors">
                 Privacy Policy
               </Link>
             </p>
