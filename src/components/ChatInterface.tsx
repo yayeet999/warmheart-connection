@@ -212,13 +212,13 @@ const ChatInterface = () => {
       const [{ data: subscription }] = await Promise.all([
         supabase
           .from("subscriptions")
-          .select("subscription_tier")
+          .select("tier")
           .eq("user_id", session.user.id)
           .maybeSingle(),
       ]);
 
       return {
-        subscription: subscription || { subscription_tier: "free" },
+        subscription: subscription || { tier: "free" },
         userId: session.user.id,
       };
     },
@@ -343,11 +343,11 @@ const ChatInterface = () => {
         .single();
       return data;
     },
-    enabled: !!userData?.userId && userData?.subscription?.subscription_tier === 'pro',
+    enabled: !!userData?.userId && userData?.subscription?.tier === 'pro',
     refetchInterval: 3000
   });
 
-  const isTokenDepleted = userData?.subscription?.subscription_tier === 'pro' && tokenData?.token_balance < 1;
+  const isTokenDepleted = userData?.subscription?.tier === 'pro' && tokenData?.token_balance < 1;
 
   const handleSend = async () => {
     if (!message.trim() || isLoading || isTokenDepleted) return;
@@ -371,7 +371,7 @@ const ChatInterface = () => {
       {
         body: {
           userId: session.user.id,
-          tier: userData?.subscription?.subscription_tier || "free",
+          tier: userData?.subscription?.tier || "free",
         },
       }
     );
@@ -607,7 +607,7 @@ const ChatInterface = () => {
     }
   };
 
-  const isFreeUser = userData?.subscription?.subscription_tier === "free";
+  const isFreeUser = userData?.subscription?.tier === "free";
 
   const renderMessageContent = (content: string) => {
     // check for any image markdown

@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,7 +22,7 @@ const Settings = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('subscriptions')
-        .select('subscription_tier, token_balance')
+        .select('tier, token_balance')
         .eq('user_id', session?.user.id)
         .single();
       
@@ -114,7 +115,7 @@ const Settings = () => {
         </Card>
 
         {/* Token Balance Section (PRO users only) */}
-        {subscriptionData?.subscription_tier === 'pro' && (
+        {subscriptionData?.tier === 'pro' && (
           <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -156,9 +157,9 @@ const Settings = () => {
           <CardContent>
             <div>
               <p className="text-sm font-medium text-gray-500">Current Plan</p>
-              <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.subscription_tier || 'Free'}</p>
+              <p className="text-[15px] text-gray-700 capitalize">{subscriptionData?.tier || 'Free'}</p>
             </div>
-            {subscriptionData?.subscription_tier === 'free' && (
+            {subscriptionData?.tier === 'free' && (
               <Button
                 onClick={handleSubscribe}
                 className="mt-4 bg-gradient-primary hover:bg-gradient-primary/90"
@@ -220,3 +221,4 @@ const Settings = () => {
 };
 
 export default Settings;
+
