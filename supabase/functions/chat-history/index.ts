@@ -1,10 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
   token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
 });
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_ANON_KEY')!,
+  {
+    global: {
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+      },
+    },
+  }
+);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +110,49 @@ serve(async (req) => {
       if (currentLength % 5 === 0) {
         console.log(`Reached a multiple of 5 (count = ${currentLength}), triggering Overseer...`);
         try {
+          // First, process token deductions for PRO users
+          const { data: subscription } = await supabase
+            .from('subscriptions')
+            .select('subscription_tier, token_balance')
+            .eq('user_id', userId)
+            .single();
+
+          if (subscription?.subscription_tier === 'pro') {
+            // Get last 5 messages for processing
+            const recentMessages = await redis.lrange(key, 0, 4);
+            const parsedMessages = recentMessages.map(msg => 
+              typeof msg === 'string' ? JSON.parse(msg) : msg
+            );
+
+            // Calculate token deductions
+            const userMessageCount = parsedMessages.filter(msg => msg.type === 'user').length;
+            const aiImageCount = parsedMessages.filter(msg => 
+              msg.type === 'ai' && msg.content.includes('![Generated Image]')
+            ).length;
+
+            const tokenDeduction = (userMessageCount * 0.025) + (aiImageCount * 1.0);
+
+            if (tokenDeduction > 0) {
+              // Update token balance atomically
+              const { data: updatedSubscription, error: updateError } = await supabase
+                .from('subscriptions')
+                .update({ 
+                  token_balance: subscription.token_balance - tokenDeduction,
+                  token_last_updated: new Date().toISOString()
+                })
+                .eq('user_id', userId)
+                .select()
+                .single();
+
+              if (updateError) {
+                console.error('Error updating token balance:', updateError);
+              } else {
+                console.log(`Token balance updated. Deducted ${tokenDeduction} tokens.`);
+              }
+            }
+          }
+
+          // Continue with existing Overseer call
           const overseerUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/overseer`;
           const res = await fetch(overseerUrl, {
             method: 'POST',
@@ -112,7 +168,7 @@ serve(async (req) => {
             console.log('Overseer function called successfully.');
           }
         } catch (e) {
-          console.error('Failed to call Overseer function:', e);
+          console.error('Failed to call Overseer function or process tokens:', e);
         }
       }
 
