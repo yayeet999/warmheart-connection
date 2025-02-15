@@ -18,11 +18,40 @@ export default {
     },
     extend: {
       colors: {
-        coral: "#FF6B4A", // Slightly more saturated and darker
-        plum: "#5B34D9", // Deeper, more masculine purple
-        cream: "#FFF1E6", // Slightly warmer cream
-        softgray: "#F0F2F5", // Slightly cooler gray
-        charcoal: "#403E43", // New dark accent color
+        coral: {
+          50: '#FFF3F0',
+          100: '#FFE6E0',
+          200: '#FFD0C2',
+          300: '#FFB3A3',
+          400: '#FF8F75',
+          500: '#FF6B4A', // Base coral
+          600: '#FF4D26',
+          700: '#FF2E00',
+          800: '#CC2500',
+          900: '#991C00',
+        },
+        plum: {
+          50: '#F3F0FF',
+          100: '#E6E0FF',
+          200: '#C2B8FF',
+          300: '#9F8FFF',
+          400: '#7C66FF',
+          500: '#5B34D9', // Base plum
+          600: '#4A2AB3',
+          700: '#3A218C',
+          800: '#291866',
+          900: '#190F40',
+        },
+        dark: {
+          100: '#1F1F23',
+          200: '#18181C',
+          300: '#121215',
+          400: '#0C0C0E',
+          500: '#060607',
+        },
+        cream: "#FFF1E6",
+        softgray: "#F0F2F5",
+        charcoal: "#403E43",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -59,30 +88,35 @@ export default {
       },
       backgroundImage: {
         'gradient-primary': 'linear-gradient(135deg, #FF6B4A 0%, #5B34D9 100%)',
+        'gradient-conic': 'conic-gradient(var(--tw-gradient-stops))',
+        'gradient-dark': 'linear-gradient(to bottom, rgba(31, 31, 35, 0.8), rgba(12, 12, 14, 1))',
+        'gradient-radial': 'radial-gradient(circle at center, var(--tw-gradient-stops))',
+        'gradient-spotlight': 'radial-gradient(circle at center, rgba(255, 107, 74, 0.15), transparent 70%)',
+      },
+      animation: {
+        'spin-slow': 'spin 8s linear infinite',
+        'spin-slower': 'spin 12s linear infinite reverse',
+        'fade-up': 'fadeUp 1.2s cubic-bezier(0.22, 1, 0.36, 1)',
+        'float': 'float 3s ease-in-out infinite',
+      },
+      keyframes: {
+        fadeUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-        float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
-        }
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "float": "float 6s ease-in-out infinite",
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'serif'],
       },
     },
   },
