@@ -29,9 +29,9 @@ serve(async (req) => {
     // Get the raw body
     const body = await req.text()
     
-    // Verify the webhook
+    // Verify the webhook using the async version
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') || ''
-    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret)
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
