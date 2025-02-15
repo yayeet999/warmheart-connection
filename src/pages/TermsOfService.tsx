@@ -1,3 +1,5 @@
+
+import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -5,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const TermsOfService = () => {
   return (
     <div className="min-h-screen bg-dark-200 flex flex-col relative overflow-hidden">
+      {/* Ambient background effects */}
       <div className="absolute inset-0 bg-gradient-dark opacity-80" />
       <div className="absolute inset-0 bg-gradient-spotlight opacity-40" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(91,52,217,0.1),transparent_50%)] opacity-60" />
