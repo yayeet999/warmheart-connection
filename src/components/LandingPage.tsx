@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Heart, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -52,43 +51,36 @@ const LandingPage = () => {
       <Header />
       
       <main className="relative z-10 flex-grow pt-8">
-        <div className="lg:hidden relative h-[85vh] min-h-[650px] overflow-hidden bg-dark-200">
-          <div className="absolute inset-0 bg-dark-200 z-0" />
-          <div className="absolute inset-0 bg-gradient-to-b from-dark-300/25 via-dark-200/50 to-dark-200/90 z-[1]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_85%,rgba(91,52,217,0.1),transparent_70%)] z-[2]" />
-          
-          <div className="absolute inset-x-0 bottom-0 h-[25%] bg-gradient-to-t from-dark-200 via-dark-200/95 to-transparent z-[3]" />
-          <div className="absolute inset-x-0 bottom-0 h-[15%] backdrop-blur-[2px] bg-gradient-to-t from-dark-200/80 to-transparent z-[3]" />
-          <div className="absolute inset-x-0 bottom-0 h-[10%] backdrop-blur-[1px] bg-gradient-to-t from-dark-200/60 to-transparent z-[3]" />
-          
-          <div className="absolute inset-0 group bg-dark-200 z-[1]">
-            <div className="absolute inset-0 bg-gradient-to-b from-dark-300/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-[4]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.08),transparent_70%)] animate-pulse-slow z-[4]" />
+        <div className="lg:hidden relative h-[85vh] min-h-[650px] overflow-hidden">
+          <div className="absolute inset-0 bg-dark-200" style={{ zIndex: 0 }} />
+          <div className="absolute inset-0" style={{ zIndex: 1, backgroundColor: '#18181C' }}>
             {videoUrl && (
               <video
                 autoPlay
                 loop
                 muted
                 playsInline
-                className="w-full h-full object-cover object-[center_15%] transition-all duration-700 bg-dark-200"
+                className="w-full h-full object-cover object-[center_15%]"
                 style={{ 
-                  filter: "contrast(1.08) brightness(1.02) saturate(1.05)",
-                  transform: "scale(1.05)",
-                  transition: "all 0.7s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow: "inset 0 0 100px rgba(0,0,0,0.2)",
-                  backgroundColor: "#18181C",
-                  backgroundImage: "none"
+                  backgroundColor: '#18181C',
+                  mixBlendMode: 'normal',
+                  objectFit: 'cover',
+                  width: '100%',
+                  height: '100%'
                 }}
               >
                 <source src={videoUrl} type="video/webm" />
               </video>
             )}
           </div>
-
-          <div className="absolute top-1/3 right-0 w-72 h-72 bg-gradient-conic from-coral-400/15 via-plum-400/5 to-coral-400/15 rounded-full blur-2xl animate-spin-slower" />
-          <div className="absolute bottom-[40%] -left-20 w-96 h-96 bg-gradient-conic from-plum-400/10 via-coral-400/5 to-plum-400/10 rounded-full blur-2xl animate-spin-slow" />
-          
-          <div className="absolute inset-x-0 top-0 z-20 h-full flex flex-col">
+          <div className="absolute inset-0 bg-gradient-to-b from-dark-300/25 via-dark-200/50 to-dark-200/90" style={{ zIndex: 2 }} />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_85%,rgba(91,52,217,0.1),transparent_70%)]" style={{ zIndex: 2 }} />
+          <div className="absolute inset-x-0 bottom-0 h-[25%] bg-gradient-to-t from-dark-200 via-dark-200/95 to-transparent" style={{ zIndex: 3 }} />
+          <div className="absolute inset-x-0 bottom-0 h-[15%] backdrop-blur-[2px] bg-gradient-to-t from-dark-200/80 to-transparent" style={{ zIndex: 3 }} />
+          <div className="absolute inset-x-0 bottom-0 h-[10%] backdrop-blur-[1px] bg-gradient-to-t from-dark-200/60 to-transparent" style={{ zIndex: 3 }} />
+          <div className="absolute top-1/3 right-0 w-72 h-72 bg-gradient-conic from-coral-400/15 via-plum-400/5 to-coral-400/15 rounded-full blur-2xl animate-spin-slower" style={{ zIndex: 4 }} />
+          <div className="absolute bottom-[40%] -left-20 w-96 h-96 bg-gradient-conic from-plum-400/10 via-coral-400/5 to-plum-400/10 rounded-full blur-2xl animate-spin-slow" style={{ zIndex: 4 }} />
+          <div className="absolute inset-x-0 top-0 h-full flex flex-col" style={{ zIndex: 5 }}>
             <div className="pt-16 px-6 text-center space-y-6">
               <div className="relative animate-float motion-reduce:animate-none mx-auto w-fit mb-8"
                 style={{ 
