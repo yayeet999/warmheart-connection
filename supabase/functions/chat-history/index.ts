@@ -113,11 +113,11 @@ serve(async (req) => {
           // First, process token deductions for PRO users
           const { data: subscription } = await supabase
             .from('subscriptions')
-            .select('subscription_tier, token_balance')
+            .select('tier, token_balance')
             .eq('user_id', userId)
             .single();
 
-          if (subscription?.subscription_tier === 'pro') {
+          if (subscription?.tier === 'pro') {
             // Get last 5 messages for processing
             const recentMessages = await redis.lrange(key, 0, 4);
             const parsedMessages = recentMessages.map(msg => 
