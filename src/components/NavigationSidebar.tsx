@@ -1,4 +1,3 @@
-
 import { Home, MessageSquare, Settings, HelpCircle, LogOut, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,27 +77,33 @@ const NavigationSidebar = () => {
           isMobile ? (
             isExpanded ? "w-[250px] translate-x-0" : "w-[250px] -translate-x-full"
           ) : (
-            "w-[100px] translate-x-0"
+            "w-[100px] translate-x-0 hover:shadow-xl border-r border-gray-100"
           )
         )}
       >
-        <div className="flex-1 flex flex-col w-full space-y-1 mt-16">
+        <div className="flex flex-col gap-2 w-full">
           {navItems.map(({ icon: Icon, path, label }) => (
             <Link
               key={path}
               to={path}
               onClick={() => isMobile && setIsExpanded(false)}
               className={cn(
-                "flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200 group w-full",
+                "flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200 group w-full relative",
                 location.pathname === path
-                  ? "bg-gradient-primary text-white shadow-sm"
+                  ? "bg-gradient-primary text-white shadow-sm after:absolute after:inset-0 after:bg-white/10 after:opacity-0 after:transition-opacity hover:after:opacity-100"
                   : "text-gray-600 hover:bg-gray-100/80",
-                "active:scale-[0.98]"
+                "active:scale-[0.98]",
+                !isMobile && "justify-center"
               )}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
               {isMobile && (
                 <span className="text-sm font-medium">{label}</span>
+              )}
+              {!isMobile && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 pointer-events-none translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0">
+                  {label}
+                </div>
               )}
             </Link>
           ))}
@@ -107,14 +112,20 @@ const NavigationSidebar = () => {
         <button
           onClick={handleLogout}
           className={cn(
-            "flex items-center gap-3 p-3.5 rounded-xl w-full",
+            "flex items-center gap-3 p-3.5 rounded-xl w-full mt-auto",
             "text-gray-600 hover:bg-gray-100/80 transition-all duration-200",
-            "active:scale-[0.98]"
+            "active:scale-[0.98]",
+            !isMobile && "justify-center group relative"
           )}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {isMobile && (
             <span className="text-sm font-medium">Logout</span>
+          )}
+          {!isMobile && (
+            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 pointer-events-none translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0">
+              Logout
+            </div>
           )}
         </button>
       </nav>
