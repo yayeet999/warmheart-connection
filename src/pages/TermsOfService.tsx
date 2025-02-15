@@ -296,9 +296,9 @@ const TermsOfService = () => {
                 <p className="text-gray-400">
                   If you have any questions or concerns about these Terms or the Service, please contact us at:
                 </p>
-                <div className="mt-4 p-6 bg-cream rounded-xl">
-                  <strong className="block text-gray-400">Nevaubi LLC – Amorine Support</strong>
-                  <a href="mailto:amorineapp@gmail.com" className="text-coral hover:text-plum transition-colors">
+                <div className="mt-4 p-6 bg-dark-200/80 backdrop-blur-md rounded-xl border border-white/10 shadow-lg">
+                  <strong className="block text-white/90">Nevaubi LLC – Amorine Support</strong>
+                  <a href="mailto:amorineapp@gmail.com" className="text-coral-200 hover:text-plum-200 transition-colors">
                     amorineapp@gmail.com
                   </a>
                 </div>
