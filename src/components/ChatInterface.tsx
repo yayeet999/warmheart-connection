@@ -795,78 +795,101 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* The "Unlock Amorine PRO" welcome dialog for free users */}
+      {/* NEW "Unlock Amorine PRO" welcome dialog with updated design for free users */}
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
-        <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
-          <div className="grid grid-cols-1 md:grid-cols-2 h-full">
-            {/* Left Column - Image */}
-            <div className="relative hidden md:block h-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-coral/10 to-plum/10 rounded-l-[32px] blur-3xl" />
-              <img
-                src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
-                alt="Amorine AI Companion"
-                className="w-full h-full object-cover object-center rounded-l-[32px]"
-                style={{ aspectRatio: "1/1", objectFit: "cover" }}
-              />
-            </div>
-            {/* Right Column - Content */}
-            <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full">
-              <DialogHeader className="space-y-2">
-                <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-coral to-plum text-transparent bg-clip-text">
-                  Unlock Amorine PRO
-                </DialogTitle>
-                <DialogDescription className="text-base md:text-lg text-gray-600">
-                  Unlock more messaging, long-term memory, images, and more.
-                </DialogDescription>
-              </DialogHeader>
+        <DialogContent className="p-0 gap-0 w-[85vw] sm:w-[440px] max-w-[440px] overflow-hidden bg-dark-100/95 backdrop-blur-xl rounded-2xl">
+          {/* Top / Hero Image Section */}
+          <div className="relative w-full h-[160px] sm:h-[200px] rounded-t-2xl overflow-hidden">
+            {/* Gradient overlays for a dark-lush vibe */}
+            <div className="absolute inset-0 bg-gradient-to-b from-dark-100/60 via-dark-100/80 to-dark-100 z-10" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.1),transparent_70%)] animate-pulse-slow z-10" />
+            <img
+              src="/lovable-uploads/e102eaf5-d438-4e05-8625-0562ebd5647d.png"
+              alt="Amorine AI Companion"
+              className="w-full h-full object-cover"
+              style={{ objectPosition: "50% 25%" }}
+            />
+          </div>
 
-              <div className="flex-grow mt-4 md:mt-6 space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Unlimited daily messages</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Enhanced long-term memory and context</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Image sharing and generation</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Voice messages and calls</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-coral mt-0.5 shrink-0" />
-                    <span className="text-gray-700">Priority support and updates</span>
-                  </div>
+          {/* Content Overlap Section */}
+          <div className="relative z-20 -mt-6 px-4 sm:px-6 pb-3 sm:pb-5">
+            <DialogHeader className="space-y-2 sm:space-y-3">
+              <DialogTitle className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-coral-100 to-plum-100 text-transparent bg-clip-text font-serif text-center tracking-tight">
+                Unlock Amorine PRO
+              </DialogTitle>
+              <DialogDescription className="text-[15px] sm:text-[16px] text-white/90 font-serif text-center leading-relaxed px-2">
+                Unlock more messaging, long-term memory, images, and more.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Feature List */}
+            <div className="space-y-2.5 sm:space-y-4 py-1 sm:py-2">
+              {/* Example bullet w/ gradient icon */}
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[13px] sm:text-[15px]">✓</span>
                 </div>
+                <span className="text-white/95 font-serif text-[15px] sm:text-[16px] leading-relaxed">
+                  Unlimited daily messages
+                </span>
               </div>
-
-              <div className="mt-auto pt-4 md:pt-6">
-                <Button
-                  onClick={handleSubscribe}
-                  className="w-full bg-gradient-primary hover:bg-gradient-primary/90 text-white py-6 text-lg"
-                >
-                  Upgrade to PRO
-                </Button>
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  Secure payment powered by Stripe
-                </p>
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[13px] sm:text-[15px]">✓</span>
+                </div>
+                <span className="text-white/95 font-serif text-[15px] sm:text-[16px] leading-relaxed">
+                  Enhanced long-term memory and context
+                </span>
               </div>
-
-              <DialogFooter className="mt-4 md:mt-6">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowWelcomeDialog(false)}
-                  className="w-full sm:w-auto"
-                >
-                  Continue with Free Plan
-                </Button>
-              </DialogFooter>
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[13px] sm:text-[15px]">✓</span>
+                </div>
+                <span className="text-white/95 font-serif text-[15px] sm:text-[16px] leading-relaxed">
+                  Image sharing and generation
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[13px] sm:text-[15px]">✓</span>
+                </div>
+                <span className="text-white/95 font-serif text-[15px] sm:text-[16px] leading-relaxed">
+                  Voice messages and calls
+                </span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[13px] sm:text-[15px]">✓</span>
+                </div>
+                <span className="text-white/95 font-serif text-[15px] sm:text-[16px] leading-relaxed">
+                  Priority support and updates
+                </span>
+              </div>
             </div>
+
+            {/* CTA Buttons */}
+            <div className="pt-2 sm:pt-3">
+              <Button
+                onClick={handleSubscribe}
+                className="w-full bg-gradient-primary hover:opacity-90 text-white py-3 sm:py-4 text-[15px] sm:text-[16px] font-serif relative group overflow-hidden rounded-full shadow-lg shadow-coral-400/10"
+              >
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="relative z-10 tracking-wide">Upgrade to PRO</span>
+              </Button>
+              <p className="text-[12px] sm:text-[13px] text-white/60 text-center mt-2 sm:mt-3 font-serif">
+                Secure payment powered by Stripe
+              </p>
+            </div>
+
+            <DialogFooter className="mt-2 sm:mt-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowWelcomeDialog(false)}
+                className="w-full text-white/80 hover:text-white font-serif text-[15px] sm:text-[16px] py-2.5 sm:py-3 hover:bg-dark-200/40 transition-colors tracking-wide"
+              >
+                Continue with Free Plan
+              </Button>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
@@ -882,7 +905,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </p>
               <p>Please email amorineapp@gmail.com for support.</p>
               <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
-                {profile?.suicide_concern === 5 ? SUICIDE_RESOURCES : VIOLENCE_RESOURCES}
+                {profile?.suicide_concern === 5
+                  ? SUICIDE_RESOURCES
+                  : VIOLENCE_RESOURCES}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -979,7 +1004,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       </Dialog>
 
       {/* Dialog if token-balance depleted (pro-tier) */}
-      <Dialog open={showTokenDepletedDialog} onOpenChange={setShowTokenDepletedDialog} modal={true}>
+      <Dialog
+        open={showTokenDepletedDialog}
+        onOpenChange={setShowTokenDepletedDialog}
+        modal={true}
+      >
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
           <div className="grid grid-cols-1 md:grid-cols-2 h-full">
             <div className="relative hidden md:block h-full">
