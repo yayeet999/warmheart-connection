@@ -1014,7 +1014,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <div className="relative w-full h-[160px] sm:h-[200px] rounded-t-2xl overflow-hidden">
             {/* Example top background image or gradient */}
             <img
-              src="/lovable-uploads/amorine_hero.webm"
+              src="/lovable-uploads/am_hero.png"
               alt="Some hero"
               className="absolute inset-0 w-full h-full object-cover opacity-50"
             />
