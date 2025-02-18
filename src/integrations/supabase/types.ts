@@ -246,6 +246,35 @@ export type Database = {
         }
         Relationships: []
       }
+      sent_images: {
+        Row: {
+          id: string
+          image_id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          image_id: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          image_id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sent_images_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "image_library"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stripe_customers: {
         Row: {
           created_at: string
