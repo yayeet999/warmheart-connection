@@ -9,21 +9,13 @@ const redis = new Redis({
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 /**
- * This edge function handles storing/fetching image URLs in Redis.
- * Request body must have { action: "store" | "get", userId, message_id, urls? }.
- *
- * - action="store": store an array of URLs in Redis under key `image_urls:{message_id}`.
- *   Value: { urls, user_id, created_at }
- *
- * - action="get": retrieve the array of URLs for a given message_id.
- *
- * On success, returns JSON { success: true, urls?: string[] }.
- * On error, returns { error: string } with non-200 status.
+ * This function stores/fetches image URLs in Redis under keys like "image_urls:{message_id}".
+ * Request body must have:
+ *   { action: "store"|"get", userId: string, message_id: string, urls?: string[] }.
  */
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -37,44 +29,39 @@ serve(async (req: Request) => {
       throw new Error('Missing required fields: action, userId, and message_id.');
     }
 
-    // "store" workflow: store an array of image URLs under "image_urls:{message_id}"
+    // Action: store
     if (action === "store") {
       if (!urls || !Array.isArray(urls)) {
-        throw new Error('For action="store", you must provide an array "urls".');
+        throw new Error('For "store" action, you must provide an array "urls".');
       }
-
       const key = `image_urls:${message_id}`;
       const value = {
         urls,
         user_id: userId,
         created_at: new Date().toISOString(),
       };
-
       await redis.set(key, JSON.stringify(value));
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // "get" workflow: retrieve the stored URLs for a message_id
+    // Action: get
     if (action === "get") {
       const key = `image_urls:${message_id}`;
-      const result = await redis.get<string>(key);
-
-      if (!result) {
+      const raw = await redis.get<string>(key);
+      if (!raw) {
         return new Response(
           JSON.stringify({ success: false, error: "No images found for this message_id." }),
-          {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      const parsed = JSON.parse(result);
-      return new Response(JSON.stringify({ success: true, urls: parsed.urls }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const parsed = JSON.parse(raw);
+      return new Response(
+        JSON.stringify({ success: true, urls: parsed.urls }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     throw new Error(`Invalid action: ${action}`);
