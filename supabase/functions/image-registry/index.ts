@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -13,19 +14,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * This edge function handles storing/fetching image URLs in Redis.
- * Request body must have { action: "store" | "get", userId, message_id, urls? }.
- *
- * - action="store": store an array of URLs in Redis under key `image_urls:{message_id}`.
- *   Value: { urls, user_id, created_at }
- *
- * - action="get": retrieve the array of URLs for a given message_id.
- *
- * On success, returns JSON { success: true, urls?: string[] }.
- * On error, returns { error: string } with non-200 status.
- */
 serve(async (req: Request) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -51,6 +41,8 @@ serve(async (req: Request) => {
       };
 
       await redis.set(key, JSON.stringify(value));
+      console.log(`Stored URLs for message_id ${message_id}:`, value);
+      
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -59,11 +51,16 @@ serve(async (req: Request) => {
     // "get" workflow: retrieve the stored URLs for a message_id
     if (action === "get") {
       const key = `image_urls:${message_id}`;
-      const result = await redis.get<string>(key);
+      const result = await redis.get(key);
+
+      console.log(`Retrieved data for message_id ${message_id}:`, result);
 
       if (!result) {
         return new Response(
-          JSON.stringify({ success: false, error: "No images found for this message_id." }),
+          JSON.stringify({ 
+            success: false, 
+            error: "No images found for this message_id." 
+          }),
           {
             status: 404,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,10 +68,43 @@ serve(async (req: Request) => {
         );
       }
 
-      const parsed = JSON.parse(result);
-      return new Response(JSON.stringify({ success: true, urls: parsed.urls }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Handle the Redis response safely
+      let parsed;
+      try {
+        parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      } catch (parseError) {
+        console.error("Error parsing Redis data:", parseError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Invalid data format in storage." 
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      if (!parsed || !parsed.urls) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Invalid data structure in storage." 
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, urls: parsed.urls }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     throw new Error(`Invalid action: ${action}`);
@@ -82,7 +112,10 @@ serve(async (req: Request) => {
     console.error("image-registry error:", error);
     return new Response(
       JSON.stringify({ error: error.message || "Internal server error" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { 
+        status: 400, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
   }
 });
