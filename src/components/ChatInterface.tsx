@@ -84,7 +84,7 @@ const DateSeparator = ({ date }: { date: string }) => {
 // ImageSet COMPONENT
 // (fetches stored URLs from "image-registry" function)
 // =============================
-function ImageSet({ message_id }: { message_id: string }) {
+function ImageSet({ message_id, onImageClick }: { message_id: string, onImageClick: (src: string) => void }) {
   const [urls, setUrls] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,14 +141,14 @@ function ImageSet({ message_id }: { message_id: string }) {
   return (
     <div className="flex flex-wrap gap-3 mt-2">
       {urls.map((u, i) => (
-        <ImageMessage key={i} src={u} />
+        <ImageMessage key={i} src={u} onImageClick={onImageClick} />
       ))}
     </div>
   );
 }
 
 // An individual image display
-const ImageMessage = ({ src }: { src: string }) => {
+const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: string) => void }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -161,21 +161,19 @@ const ImageMessage = ({ src }: { src: string }) => {
   }
 
   return (
-    <div className="relative w-full max-w-[300px] my-1">
+    <div className="relative w-full max-w-[300px] my-1 cursor-pointer" onClick={() => onImageClick(src)}>
       {!isLoaded && (
         <div
           className="absolute inset-0 image-skeleton rounded-2xl"
-          style={{ aspectRatio: "9/16" }}
         />
       )}
       <img
         src={src}
         alt="Generated"
         className={cn(
-          "w-full rounded-2xl transition-all duration-300",
+          "w-full rounded-2xl transition-all duration-300 object-contain",
           isLoaded ? "loaded" : "opacity-0"
         )}
-        style={{ aspectRatio: "9/16" }}
         loading="lazy"
         onLoad={() => setIsLoaded(true)}
         onError={() => {
@@ -217,7 +215,7 @@ const ChatInterface = () => {
 
   const navigate = useNavigate();
 
-  // Swipe detection
+  // For swipe detection on mobile
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
@@ -554,7 +552,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         // =============================
         //    IMAGE WORKFLOW
         // =============================
-        // Turn off the mode
         setImageRequestMode(false);
 
         try {
@@ -777,10 +774,23 @@ If there is an immediate danger to anyone's safety, contact emergency services (
   };
 
   // RENDERING MESSAGES
+
+  // State for expanded image
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+
+  const handleImageClick = (src: string) => {
+    setExpandedImageUrl(src);
+  };
+
+  // We'll modify the rendering so that if the message has metadata.type = "image_message",
+  // we split into 2 separate "bubbles": one bubble for the image(s), another bubble for the text placeholder.
+  // But user specifically wants the text bubble AFTER the image bubble. We'll do the image bubble first, then text bubble second.
+
   const renderMessages = () => {
     let currentDate = "";
     let lastMessageTime = "";
 
+    // We'll define a helper to see if we show the date/time
     const shouldShowInitialTimestamp = (msg: any, index: number) => {
       if (!msg.timestamp) return false;
       const messageDate = new Date(msg.timestamp).toDateString();
@@ -790,9 +800,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       return currentTime - lastTime > 15 * 60 * 1000;
     };
 
-    return messages.map((msg, i) => {
+    const rendered: JSX.Element[] = [];
+
+    messages.forEach((msg, i) => {
       let showDateSeparator = false;
       let showInitialTimestamp = false;
+
       try {
         if (msg.timestamp) {
           const messageDate = new Date(msg.timestamp).toDateString();
@@ -807,12 +820,16 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         console.error("Error processing date:", error);
       }
 
-      return (
-        <div key={i}>
-          {showDateSeparator && msg.timestamp && (
-            <DateSeparator date={msg.timestamp} />
-          )}
+      if (showDateSeparator && msg.timestamp) {
+        rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
+      }
+
+      // If it's an image_message, we break it into two bubbles:
+      if (msg.metadata?.type === "image_message") {
+        // 1) The "image bubble"
+        rendered.push(
           <div
+            key={`msg-${i}-image`}
             className="group flex flex-col"
             role="button"
             tabIndex={0}
@@ -836,19 +853,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   swipedMessageId === i ? "translate-x-[-20px]" : ""
                 )}
               >
-                {/* 
-                  If the message has metadata.type="image_message", we show:
-                    1) message.content (placeholder)
-                    2) <ImageSet message_id={msg.metadata.message_id} />
-                */}
-                {msg.metadata?.type === "image_message" ? (
-                  <>
-                    <p className="text-[15px] leading-relaxed">{msg.content}</p>
-                    <ImageSet message_id={msg.metadata.message_id} />
-                  </>
-                ) : (
-                  <p className="text-[15px] leading-relaxed">{msg.content}</p>
-                )}
+                <ImageSet message_id={msg.metadata.message_id} onImageClick={handleImageClick} />
               </div>
             </div>
             {/* Timestamp */}
@@ -868,9 +873,112 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               {formatMessageDate(msg.timestamp)}
             </div>
           </div>
-        </div>
-      );
+        );
+
+        // 2) The "placeholder text bubble" as a separate message
+        rendered.push(
+          <div
+            key={`msg-${i}-text`}
+            className="group flex flex-col"
+            role="button"
+            tabIndex={0}
+            onTouchStart={(e) => handleTouchStart(e, i)}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={() => handleTouchEnd(i)}
+          >
+            <div
+              className={cn(
+                "flex",
+                msg.type === "ai" ? "justify-start" : "justify-end",
+                "items-end space-x-2 mb-1"
+              )}
+            >
+              <div
+                className={cn(
+                  "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                  msg.type === "ai"
+                    ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
+                    : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                  swipedMessageId === i ? "translate-x-[-20px]" : ""
+                )}
+              >
+                <p className="text-[15px] leading-relaxed">{msg.content}</p>
+              </div>
+            </div>
+            {/* Timestamp */}
+            <div
+              className={cn(
+                "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                // For separate bubble, we might also show/hide timestamp
+                showInitialTimestamp
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+              )}
+              style={{
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {formatMessageDate(msg.timestamp)}
+            </div>
+          </div>
+        );
+
+      } else {
+        // Normal text message
+        rendered.push(
+          <div key={i}>
+            <div
+              className="group flex flex-col"
+              role="button"
+              tabIndex={0}
+              onTouchStart={(e) => handleTouchStart(e, i)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={() => handleTouchEnd(i)}
+            >
+              <div
+                className={cn(
+                  "flex",
+                  msg.type === "ai" ? "justify-start" : "justify-end",
+                  "items-end space-x-2 mb-1"
+                )}
+              >
+                <div
+                  className={cn(
+                    "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                    msg.type === "ai"
+                      ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
+                      : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                    swipedMessageId === i ? "translate-x-[-20px]" : ""
+                  )}
+                >
+                  <p className="text-[15px] leading-relaxed">{msg.content}</p>
+                </div>
+              </div>
+              {/* Timestamp */}
+              <div
+                className={cn(
+                  "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                  msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                  showInitialTimestamp
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+                )}
+                style={{
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
+            </div>
+          </div>
+        );
+      }
     });
+
+    return rendered;
   };
 
   // Stripe subscription for user
@@ -1224,6 +1332,22 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           type={safetyDialog.type}
           userId={userData.userId}
         />
+      )}
+
+      {/* =========================
+          IMAGE EXPANSION OVERLAY
+      ========================== */}
+      {expandedImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+          onClick={() => setExpandedImageUrl(null)}
+        >
+          <img
+            src={expandedImageUrl}
+            alt="Expanded"
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
       )}
     </>
   );
