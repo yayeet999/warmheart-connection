@@ -8,8 +8,8 @@ import { ArrowUp, Plus, Image as ImageIcon, Video, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessages } from "./ChatMessages";
 import { ChatDialogs } from "./ChatDialogs";
-import { formatMessageDate } from "./utils";
-import { SafetyAcknowledgmentDialog } from "../SafetyAcknowledgmentDialog"; // still from your existing code
+import { formatMessageDate } from "./utils.ts";
+import { SafetyAcknowledgmentDialog } from "../SafetyAcknowledgmentDialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import TypingIndicator from "../TypingIndicator";
@@ -509,7 +509,6 @@ const ChatInterface: React.FC = () => {
         setShowSuspensionDialog={setShowSuspensionDialog}
         profile={profile}
         handleSubscribe={async () => {
-          // same subscribe logic from original code
           try {
             const { data, error } = await supabase.functions.invoke("create-checkout", {
               body: { userId: userData?.userId },
