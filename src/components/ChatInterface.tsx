@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Info, ArrowUp, UserRound, CheckCircle2 } from "lucide-react";
+import { Send, Info, ArrowUp, UserRound, CheckCircle2, Plus, Image as ImageIcon, Video, Mic } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
@@ -101,7 +102,7 @@ const ImageMessage = ({ src }: { src: string }) => {
 
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // For dialogs/popups
@@ -115,13 +116,14 @@ const ChatInterface = () => {
   const [hasMore, setHasMore] = useState(true);
   const [messageCount, setMessageCount] = useState(0);
 
+  // "Image request mode" state
+  const [imageRequestMode, setImageRequestMode] = useState(false);
+
   // Refs for scrolling & focusing
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const messagesStartRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottom = useRef(true);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const navigate = useNavigate();
 
@@ -398,7 +400,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   // Textarea resizing
   const adjustTextAreaHeight = () => {
-    const textArea = textAreaRef.current;
+    const textArea = inputRef.current;
     if (textArea) {
       textArea.style.height = "auto";
       const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120);
@@ -406,8 +408,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
   const resetTextAreaHeight = () => {
-    if (textAreaRef.current) {
-      textAreaRef.current.style.height = "24px";
+    if (inputRef.current) {
+      inputRef.current.style.height = "24px";
     }
   };
 
@@ -447,43 +449,36 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
 
     // send the message
+    const userMessageContent = message.trim();
     setMessage("");
     resetTextAreaHeight();
-
     requestAnimationFrame(() => {
-      textAreaRef.current?.focus();
+      inputRef.current?.focus();
     });
 
     setIsLoading(true);
     setIsTyping(true);
 
-    const userMessage = { type: "user", content: message.trim() };
+    const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
     const updatedCount = messageCount + 1;
     setMessageCount(updatedCount);
 
     try {
-      // 1) Pre-check for 'image' vs. 'text'
-      const { data: preCheckData, error: preCheckError } =
-        await supabase.functions.invoke("pre-checker", {
-          body: {
-            userId: session.user.id,
-            message: userMessage.content,
-          },
-        });
-      if (preCheckError) {
-        console.error("Pre-checker error:", preCheckError);
-        // fallback to text if error
-      }
+      if (imageRequestMode) {
+        // =========================
+        // IMAGE WORKFLOW
+        // =========================
+        // Clear the "image mode" once we send
+        setImageRequestMode(false);
 
-      if (preCheckData?.messageType === "image") {
-        // == IMAGE FLOW ==
         try {
+          // 1) Call image-context-analyzer
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
                 userId: session.user.id,
-                message: userMessage.content,
+                message: userMessageContent,
               },
             });
           if (imageContextError) {
@@ -495,7 +490,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
-          // store user message w/ metadata
+          // 2) store user message w/ metadata
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -519,7 +514,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           setIsTyping(true);
 
-          // call amorine-image-search
+          // 3) call amorine-image-search
           const { data: imageSearchResult, error: searchError } =
             await supabase.functions.invoke("amorine-image-search", {
               body: { analysis: imageContext.analysis },
@@ -531,11 +526,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error(imageSearchResult.error || "No matching images found");
           }
 
-          // create AI response w/ image markdown
+          // 4) create AI response w/ image markdown
           const aiResponse = {
             type: "ai",
             content: imageSearchResult.images
-              .map((img) => `![Generated Image](${img.url})`)
+              .map((img: any) => `![Generated Image](${img.url})`)
               .join("\n"),
           };
           setMessages((prev) => [...prev, aiResponse]);
@@ -561,9 +556,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         } finally {
           setIsTyping(false);
         }
+
       } else {
-        // == TEXT FLOW ==
-        // store the user message
+        // =========================
+        // TEXT WORKFLOW
+        // =========================
+        // 1) Store the user message
         const { error: storeError } = await supabase.functions.invoke(
           "chat-history",
           {
@@ -579,7 +577,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           throw new Error("Failed to store message");
         }
 
-        // Attempt vector-search to retrieve memories
+        // 2) Attempt vector-search to retrieve memories
         try {
           const { data: vectorData, error: vectorError } =
             await supabase.functions.invoke("vector-search-context", {
@@ -599,7 +597,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           console.error("Error calling vector-search-context:", err);
         }
 
-        // Then call chat
+        // 3) Then call chat
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
@@ -617,6 +615,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
+          // The chat function might return multiple "ai" messages with some delay
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -662,7 +661,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       setIsLoading(false);
       setIsTyping(false);
       requestAnimationFrame(() => {
-        textAreaRef.current?.focus();
+        inputRef.current?.focus();
       });
     }
   };
@@ -795,7 +794,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* NEW "Unlock Amorine PRO" welcome dialog with updated design for free users */}
+      {/* The "Unlock Amorine PRO" welcome dialog for free users */}
       <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="p-0 gap-0 w-[85vw] sm:w-[440px] max-w-[440px] overflow-hidden bg-dark-100/95 backdrop-blur-xl rounded-2xl">
           {/* Top / Hero Image Section */}
@@ -1119,7 +1118,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </Button>
             </div>
           )}
-          <div ref={messagesStartRef} />
           {renderMessages()}
           {isTyping && (
             <div className="flex justify-start items-end space-x-2">
@@ -1134,8 +1132,44 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         {/* The user input area */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
+            {/* "Plus" button for iOS-like media options */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="p-0 w-10 h-10 flex items-center justify-center shrink-0"
+                >
+                  <Plus className="w-5 h-5 text-gray-700" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={6} className="p-1">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setImageRequestMode(true);
+                    toast({
+                      title: "Image Mode Activated",
+                      description: "Your next message will generate an image",
+                    });
+                  }}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Get an Image</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="flex items-center gap-2">
+                  <Video className="w-4 h-4" />
+                  <span>Get a Video (Coming soon)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="flex items-center gap-2">
+                  <Mic className="w-4 h-4" />
+                  <span>Get a Voice Note (Coming soon)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <textarea
-              ref={textAreaRef}
+              ref={inputRef}
               value={message}
               onChange={(e) => {
                 setMessage(e.target.value);
@@ -1177,10 +1211,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 msOverflowStyle: "none",
                 scrollbarWidth: "none",
               }}
-              onFocus={(e) => {
-                e.currentTarget.style.fontSize = "16px";
-              }}
             />
+
             <Button
               onClick={handleSend}
               size="icon"
@@ -1199,6 +1231,13 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               <ArrowUp className="w-5 h-5 text-white" />
             </Button>
           </div>
+
+          {/* If user is in image-request mode, show a small indicator at the bottom */}
+          {imageRequestMode && (
+            <div className="mt-2 text-sm text-coral-600 font-medium px-2">
+              [Next message will generate an image]
+            </div>
+          )}
         </div>
       </div>
 
