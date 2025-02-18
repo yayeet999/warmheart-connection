@@ -1,12 +1,7 @@
-import React from "react";
-import { formatMessageDate } from "./utils.ts";
 
-interface Message {
-  type: "ai" | "user";
-  content: string;
-  timestamp?: string;
-  delay?: number;
-}
+import React from "react";
+import { formatMessageDate, type Message } from "./utils";
+import { ImageSet } from "./ImageSet";
 
 interface ChatMessagesProps {
   messages: Message[];
@@ -14,7 +9,6 @@ interface ChatMessagesProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
-  formatMessageDate: (timestamp?: string) => string;
   profile: any;
   shouldScrollToBottom: React.MutableRefObject<boolean>;
 }
@@ -25,7 +19,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   hasMore,
   isLoadingMore,
   onLoadMore,
-  formatMessageDate,
   profile,
   shouldScrollToBottom,
 }) => {
