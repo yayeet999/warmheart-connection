@@ -1,11 +1,47 @@
 
 project_id = "medzxzfdadwzpuqimeih"
 
-[global.middleware.env]
-UPSTASH_REDIS_REST_URL = "std"
-UPSTASH_REDIS_REST_TOKEN = "std"
-SUPABASE_URL = "std"
-SUPABASE_SERVICE_ROLE_KEY = "std"
+[functions.chat]
+verify_jwt = true
 
-[http_server]
-port = 54321
+[functions.chat-history]
+verify_jwt = true
+
+[functions.check-message-limits]
+verify_jwt = true
+
+[functions.intro-chat]
+verify_jwt = true
+
+[functions.embed-conversation-chunk]
+verify_jwt = true
+
+[functions.vector-search-context]
+verify_jwt = true
+
+[functions.overseer]
+verify_jwt = true
+
+[functions.middle-thoughts]
+verify_jwt = true
+
+[functions.amorine_updater]
+verify_jwt = true
+
+[functions.pre-checker]
+verify_jwt = true
+
+[functions.amorineimages-vector]
+verify_jwt = true
+
+[functions.image-context-analyzer]
+verify_jwt = true
+
+[functions.amorine-image-search]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = true

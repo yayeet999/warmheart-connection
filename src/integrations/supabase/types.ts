@@ -105,7 +105,6 @@ export type Database = {
           full_url: string
           id: string
           metadata: Json | null
-          placeholder_text: string | null
           storage_path: string
           tags: string[] | null
           title: string | null
@@ -118,7 +117,6 @@ export type Database = {
           full_url: string
           id?: string
           metadata?: Json | null
-          placeholder_text?: string | null
           storage_path: string
           tags?: string[] | null
           title?: string | null
@@ -131,7 +129,6 @@ export type Database = {
           full_url?: string
           id?: string
           metadata?: Json | null
-          placeholder_text?: string | null
           storage_path?: string
           tags?: string[] | null
           title?: string | null
