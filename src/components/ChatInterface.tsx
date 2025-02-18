@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Info, ArrowUp, UserRound, CheckCircle2, Plus, Image as ImageIcon, Video, Mic } from "lucide-react";
+import {
+  Send,
+  Info,
+  ArrowUp,
+  UserRound,
+  CheckCircle2,
+  Plus,
+  Image as ImageIcon,
+  Video,
+  Mic,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -15,7 +25,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
@@ -120,9 +135,9 @@ const ChatInterface = () => {
   const [imageRequestMode, setImageRequestMode] = useState(false);
 
   // Refs for scrolling & focusing
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const shouldScrollToBottom = useRef(true);
 
   const navigate = useNavigate();
@@ -469,11 +484,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         // =========================
         // IMAGE WORKFLOW
         // =========================
-        // Clear the "image mode" once we send
+        // Toggle OFF once we send
         setImageRequestMode(false);
 
         try {
-          // 1) Call image-context-analyzer
+          // 1) image-context-analyzer
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
@@ -561,7 +576,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         // =========================
         // TEXT WORKFLOW
         // =========================
-        // 1) Store the user message
+        // 1) store user message
         const { error: storeError } = await supabase.functions.invoke(
           "chat-history",
           {
@@ -615,7 +630,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
-          // The chat function might return multiple "ai" messages with some delay
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -794,12 +808,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* The "Unlock Amorine PRO" welcome dialog for free users */}
-      <Dialog open={showWelcomeDialog && isFreeUser} onOpenChange={setShowWelcomeDialog}>
+      {/* NEW "Unlock Amorine PRO" welcome dialog for free users */}
+      <Dialog
+        open={showWelcomeDialog && isFreeUser}
+        onOpenChange={setShowWelcomeDialog}
+      >
         <DialogContent className="p-0 gap-0 w-[85vw] sm:w-[440px] max-w-[440px] overflow-hidden bg-dark-100/95 backdrop-blur-xl rounded-2xl">
           {/* Top / Hero Image Section */}
           <div className="relative w-full h-[160px] sm:h-[200px] rounded-t-2xl overflow-hidden">
-            {/* Gradient overlays for a dark-lush vibe */}
+            {/* Gradient overlays */}
             <div className="absolute inset-0 bg-gradient-to-b from-dark-100/60 via-dark-100/80 to-dark-100 z-10" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,107,74,0.1),transparent_70%)] animate-pulse-slow z-10" />
             <img
@@ -823,7 +840,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
             {/* Feature List */}
             <div className="space-y-2.5 sm:space-y-4 py-1 sm:py-2">
-              {/* Example bullet w/ gradient icon */}
               <div className="flex items-start gap-3">
                 <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-r from-coral-400 to-plum-400 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-[13px] sm:text-[15px]">✓</span>
@@ -1079,7 +1095,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         {/* Sticky top bar */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
-            <img 
+            <img
               src="/lovable-uploads/amprofile.webp"
               alt="Amorine"
               className="w-full h-full object-cover"
@@ -1132,7 +1148,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         {/* The user input area */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
-            {/* "Plus" button for iOS-like media options */}
+            {/* "Plus" button that toggles to image icon if in image mode */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1140,17 +1156,17 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   size="icon"
                   className="p-0 w-10 h-10 flex items-center justify-center shrink-0"
                 >
-                  <Plus className="w-5 h-5 text-gray-700" />
+                  {imageRequestMode ? (
+                    <ImageIcon className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <Plus className="w-5 h-5 text-gray-700" />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" sideOffset={6} className="p-1">
                 <DropdownMenuItem
                   onClick={() => {
-                    setImageRequestMode(true);
-                    toast({
-                      title: "Image Mode Activated",
-                      description: "Your next message will generate an image",
-                    });
+                    setImageRequestMode((prev) => !prev);
                   }}
                   className="flex items-center gap-2 cursor-pointer"
                 >
@@ -1231,13 +1247,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               <ArrowUp className="w-5 h-5 text-white" />
             </Button>
           </div>
-
-          {/* If user is in image-request mode, show a small indicator at the bottom */}
-          {imageRequestMode && (
-            <div className="mt-2 text-sm text-coral-600 font-medium px-2">
-              [Next message will generate an image]
-            </div>
-          )}
         </div>
       </div>
 
