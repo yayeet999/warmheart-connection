@@ -53,8 +53,7 @@ function buildAnalysisPrompt(
   profile: Profile, // Add user profile
   timestamp: Date
 ): string {
-    return `
-You are a highly skilled image context analyzer for an AI companion named Amorine. Your ONLY output should be a JSON object, with NO additional text or explanation.  Your task is to analyze the provided conversation, user profile, AI profile, and current time, and then describe the IDEAL image to retrieve to best fit the context.  Be as SPECIFIC and DESCRIPTIVE as possible in the "image_requirements" section.  Think like a professional photographer or artist when describing the image.
+  return `You are a highly skilled image context analyzer for an AI companion named Amorine. Your ONLY output should be a JSON object, with NO additional text or explanation.  Your task is to analyze the provided conversation, user profile, AI profile, and current time, and then describe the IDEAL image to retrieve to best fit the context.  Be as SPECIFIC and DESCRIPTIVE as possible in the "image_requirements" section.  Think like a professional photographer or artist when describing the image.
 
 Here is some background information:
 
@@ -69,7 +68,7 @@ Amorine's Current Challenges: ${aiProfile.current_challenges?.join(", ") || "Non
 User's name: ${profile.name}
 User's pronouns: ${profile.pronouns}
 
-User's Current Message:
+User's Current Message (MOST IMPORTANT):
 ${currentMessage}
 
 REQUIRED JSON OUTPUT FORMAT (strictly adhere to this):
@@ -82,106 +81,24 @@ REQUIRED JSON OUTPUT FORMAT (strictly adhere to this):
   },
   "relationship_context": {
     "stage": "string, Current relationship stage (copy from input)",
-    "current_dynamics": "string, Brief description of the current interaction (e.g., 'sharing personal stories', 'making plans', 'offering support')",
+    "current_dynamics": "string, Brief description of the *current* interaction (e.g., 'joking', 'offering support', 'making plans')",
     "boundaries": "string[], List of relevant boundaries to consider (e.g., ['avoid overly intimate topics', 'maintain friendly tone'])"
   },
   "temporal_context": {
     "time_of_day": "string, Time of day (e.g., 'morning', 'afternoon', 'evening', 'night')",
     "ai_current_activity": "string, Amorine's likely activity based on her schedule",
-    "setting": "string,  A likely setting for the image (e.g., 'indoors, living room', 'outdoors, park', 'cafe')"
+    "setting": "string, Likely setting for the image (e.g., 'indoors, living room', 'outdoors, park', 'cafe')"
   },
   "image_requirements": {
-    "subject_matter": "string,  The PRIMARY subject of the image (e.g., 'a close-up of a smiling woman', 'a wide shot of a beach at sunset', 'a steaming cup of coffee on a wooden table'). BE SPECIFIC.",
-    "style": "string, The artistic style (e.g., 'photorealistic', 'impressionistic', 'anime', 'cartoon', 'sketch', 'abstract', 'black and white'). BE SPECIFIC (e.g., 'high-resolution photograph', 'digital painting with vibrant colors').",
-    "mood": "string, The overall mood or feeling (e.g., 'calm', 'joyful', 'romantic', 'melancholy', 'energetic').",
+    "subject_matter": "string, The PRIMARY subject of the image (e.g., 'a close-up of a smiling woman', 'a wide shot of a beach at sunset', 'a steaming cup of coffee on a wooden table'). BE SPECIFIC.",
+    "style": "string, Artistic style (e.g., 'photorealistic', 'impressionistic', 'anime', 'cartoon', 'sketch', 'abstract', 'black and white'). BE SPECIFIC (e.g., 'high-resolution photograph', 'digital painting with vibrant colors').",
+    "mood": "string, Overall mood or feeling (e.g., 'calm', 'joyful', 'romantic', 'melancholy', 'energetic').",
     "composition": "string, How the image should be framed (e.g., 'close-up', 'medium shot', 'long shot', 'wide shot', 'bird's-eye view', 'low angle', 'high angle', 'rule of thirds').",
     "specific_elements": "string[], List of specific objects, details, or features to include (e.g., ['red scarf', 'rainy window', 'bookshelf in background', 'golden retriever puppy']). Be as DETAILED as possible."
   }
 }
 
-Examples of good JSON output:
-
-Example 1:
-\`\`\`json
-{
-  "emotional_context": {
-    "ai_emotion": "playful",
-    "user_emotion": "excited",
-    "overall_tone": "lighthearted"
-  },
-  "relationship_context": {
-    "stage": "growing_attraction",
-    "current_dynamics": "joking and teasing each other",
-    "boundaries": ["keep it light and fun", "avoid overly serious topics"]
-  },
-  "temporal_context": {
-    "time_of_day": "evening",
-    "ai_current_activity": "relaxing at home",
-    "setting": "cozy living room"
-  },
-  "image_requirements": {
-    "subject_matter": "a playful kitten batting at a toy mouse",
-    "style": "photorealistic",
-    "mood": "cheerful and energetic",
-    "composition": "close-up, shallow depth of field",
-    "specific_elements": ["kitten with bright green eyes", "soft, warm lighting", "blurry background"]
-  }
-}
-\`\`\`
-
-Example 2:
-\`\`\`json
-{
-  "emotional_context": {
-    "ai_emotion": "supportive",
-    "user_emotion": "stressed",
-    "overall_tone": "serious and concerned"
-  },
-  "relationship_context": {
-    "stage": "newly_dating",
-    "current_dynamics": "user is sharing a problem, AI is offering comfort",
-    "boundaries": ["be empathetic", "avoid being dismissive"]
-  },
-  "temporal_context": {
-    "time_of_day": "night",
-    "ai_current_activity": "getting ready for bed",
-    "setting": "bedroom, dimly lit"
-  },
-  "image_requirements": {
-    "subject_matter": "a steaming mug of chamomile tea on a nightstand",
-    "style": "photorealistic",
-    "mood": "calm and soothing",
-    "composition": "medium shot, soft focus",
-    "specific_elements": ["steam rising from the mug", "a book in the background", "warm, dim lighting"]
-  }
-}
-\`\`\`
-
-Example 3:
-{
-  "emotional_context": {
-    "ai_emotion": "curious",
-    "user_emotion": "excited",
-    "overall_tone": "enthusiastic"
-  },
-  "relationship_context": {
-    "stage": "introductory_stage",
-    "current_dynamics": "user is describing a hobby",
-    "boundaries": ["be polite", "show genuine interest"]
-  },
-  "temporal_context": {
-    "time_of_day": "afternoon",
-    "ai_current_activity": "working on a project",
-    "setting": "home office, brightly lit"
-  },
-  "image_requirements": {
-    "subject_matter": "a colorful, abstract painting in progress on an easel",
-    "style": "abstract expressionism",
-    "mood": "creative and energetic",
-    "composition": "medium shot, slightly tilted angle",
-    "specific_elements": ["vibrant paint splatters", "brushes in a jar", "canvas with bold colors"]
-  }
-}
+Prioritize the user's current message.  The other context should *refine*, not *replace*, the user's request. If the user asks for a 'red car', the image should be of a red car, even if it's nighttime.  The context might influence the *type* of red car (e.g., a classic red car at night, a modern red car in a showroom), but it should still be a *red car*.
 `;
 }
 
@@ -213,15 +130,15 @@ serve(async (req) => {
     
     // Fetch user profile
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('name, pronouns')
-      .eq('id', userId)
-      .single();
+    .from('profiles')
+    .select('name, pronouns')
+    .eq('id', userId)
+    .single();
 
-    if (profileError || !profile) {
-      console.error('Error fetching profile:', profileError);
-      throw new Error('Could not fetch user profile');
-    }
+  if (profileError || !profile) {
+    console.error('Error fetching profile:', profileError);
+    throw new Error('Could not fetch user profile');
+  }
 
 
     // Fetch recent messages from Redis
@@ -240,7 +157,7 @@ serve(async (req) => {
           }
         })
         .filter((msg): msg is Message => msg !== null); // Ensure type safety
-        recentMessages.reverse(); // Reverse to have oldest first
+        recentMessages.reverse();
     } catch (e) {
       console.error("Error retrieving messages from Redis:", e);
       // Continue with empty messages rather than failing
@@ -263,7 +180,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192", // Using llama3
+        model: "llama-3.1-8b-instant", // Using llama3
         messages: [
           {
             role: "system",
