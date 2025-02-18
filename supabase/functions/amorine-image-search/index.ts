@@ -22,23 +22,46 @@ Deno.serve(async (req) => {
     const { analysis } = await req.json();
     
     if (!analysis || !analysis.keywords) {
-      throw new Error('Invalid analysis format');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid analysis format - missing keywords',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
     }
 
-    // Get the storage paths that match the keywords
+    // Get images directly based on keyword matching
     const keywords = analysis.keywords.map((k: string) => k.toLowerCase());
     
-    const { data: storagePaths, error: pathError } = await supabase.rpc(
-      'match_image_keywords',
-      { p_keywords: keywords }
-    );
-    
-    if (pathError) {
-      console.error('Error matching keywords:', pathError);
-      throw pathError;
+    // Instead of using RPC, let's directly query the image library
+    // and use array overlap to find matching tags
+    const { data: images, error: dbError } = await supabase
+      .from('image_library')
+      .select('id, full_url, tags, title, description, placeholder_text')
+      .contains('tags', keywords)
+      .eq('active', true)
+      .limit(5);
+
+    if (dbError) {
+      console.error('Error fetching images:', dbError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Database query failed',
+          details: dbError.message
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      );
     }
 
-    if (!storagePaths?.length) {
+    if (!images?.length) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -51,36 +74,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get the full image data for the matching paths
-    const { data: images, error: dbError } = await supabase
-      .from('image_library')
-      .select('id, full_url, tags, title, description, placeholder_text')
-      .in('storage_path', storagePaths)
-      .eq('active', true);
-
-    if (dbError) {
-      console.error('Error fetching images:', dbError);
-      throw dbError;
-    }
-
-    if (!images?.length) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'No active images found',
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 404,
-        }
-      );
-    }
-
     // Map the images to the response format
     const responseImages = images.map((img) => ({
       url: img.full_url,
       description: img.description,
-      placeholder_text: img.placeholder_text,
+      placeholder_text: img.placeholder_text || "Here's an image that matches what you described.",
       title: img.title,
       tags: img.tags,
     }));
@@ -99,7 +97,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: 'An unexpected error occurred',
+        details: error.message
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
