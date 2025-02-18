@@ -94,7 +94,7 @@ serve(async (req) => {
       throw new Error('Analysis object is required');
     }
 
-    console.log('Received analysis:', JSON.stringify(analysis));
+    console.log('Received analysis:', JSON.stringify(analysis, null, 2));
 
     // Build search query from analysis
     const searchQuery = buildSearchQuery(analysis);
@@ -111,7 +111,7 @@ serve(async (req) => {
       includeMetadata: true,
     });
 
-    console.log('Vector search results:', JSON.stringify(searchResults));
+    console.log('Vector search results:', JSON.stringify(searchResults, null, 2));
 
     if (searchResults.length === 0) {
       console.log('No matching images found in vector search');
@@ -131,7 +131,7 @@ serve(async (req) => {
     // Query the new image_library table
     const { data: images, error: dbError } = await supabase
       .from('image_library')
-      .select('id, full_url, tags, title, description')
+      .select('id, full_url, tags, title, description, placeholder_text')
       .in('storage_path', storagePaths)
       .eq('active', true);
 
@@ -139,6 +139,8 @@ serve(async (req) => {
       console.error('Database query error:', dbError);
       throw dbError;
     }
+
+    console.log('Raw database query results:', JSON.stringify(images, null, 2));
 
     if (!images || images.length === 0) {
       console.log('No active images found in database');
@@ -151,24 +153,28 @@ serve(async (req) => {
       );
     }
 
-    // Map the results - now using the full_url directly
+    // Map the results - now using the full_url directly and including placeholder_text
     const processedImages = images.map(image => ({
       id: image.id,
       url: image.full_url,
       tags: image.tags,
       title: image.title,
-      description: image.description
+      description: image.description,
+      placeholder_text: image.placeholder_text
     }));
 
-    console.log(`Successfully found ${processedImages.length} images`);
-    console.log('Image URLs:', processedImages.map(img => img.url));
+    console.log('Processed images being returned:', JSON.stringify(processedImages, null, 2));
+
+    const response = {
+      success: true,
+      images: processedImages,
+      searchQuery
+    };
+
+    console.log('Final response being sent:', JSON.stringify(response, null, 2));
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        images: processedImages,
-        searchQuery
-      }),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -186,3 +192,4 @@ serve(async (req) => {
     );
   }
 });
+
