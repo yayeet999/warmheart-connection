@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -40,8 +39,9 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString(),
       };
 
-      await redis.set(key, JSON.stringify(value));
-      console.log(`Stored URLs for message_id ${message_id}:`, value);
+      // Set a 1-day TTL (24 hours = 86400 seconds)
+      await redis.set(key, JSON.stringify(value), { ex: 86400 });
+      console.log(`Stored URLs for message_id ${message_id} with 1-day TTL:`, value);
       
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
