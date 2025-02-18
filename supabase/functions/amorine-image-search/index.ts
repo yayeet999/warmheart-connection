@@ -112,7 +112,7 @@ serve(async (req) => {
     // Search vector index.  Crucially, remove the filter.
     const searchResults = await vectorIndex.query({
       vector: queryVector,
-      topK: 1, // Keep at 1 for now, can increase later if needed
+      topK: 2, // Keep at 1 for now, can increase later if needed
       includeMetadata: true, // Make sure to include metadata
     });
 
