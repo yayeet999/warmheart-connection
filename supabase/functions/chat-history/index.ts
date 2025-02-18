@@ -62,11 +62,9 @@ serve(async (req) => {
         content: message.content
       });
 
-      // 1) Store metadata (if present) along with type, content, timestamp
       const messageToStore = {
         type: message.type,
         content: message.content,
-        metadata: message.metadata ?? null,
         timestamp: new Date().toISOString() // store a timestamp
       };
 
@@ -126,12 +124,10 @@ serve(async (req) => {
               typeof msg === 'string' ? JSON.parse(msg) : msg
             );
 
-            // Calculate token deductions:
-            //  * 0.025 tokens per user message
-            //  * 1 token per AI image (metadata.type === "image_message")
+            // Calculate token deductions
             const userMessageCount = parsedMessages.filter(msg => msg.type === 'user').length;
-            const aiImageCount = parsedMessages.filter(msg =>
-              msg.type === 'ai' && msg.metadata?.type === 'image_message'
+            const aiImageCount = parsedMessages.filter(msg => 
+              msg.type === 'ai' && msg.content.includes('![Generated Image]')
             ).length;
 
             const tokenDeduction = (userMessageCount * 0.025) + (aiImageCount * 1.0);
