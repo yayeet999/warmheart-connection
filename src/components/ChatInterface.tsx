@@ -81,31 +81,34 @@ const DateSeparator = ({ date }: { date: string }) => {
 
 // =============================
 // ImageSet COMPONENT
-// This fetches real URLs from the new 'image-registry' function
-// then displays them below the placeholder text
+// Now uses supabase.functions.invoke('image-registry') with "get" action
 // =============================
-function ImageSet({ messageId }: { messageId: string }) {
+function ImageSet({ message_id }: { message_id: string }) {
   const [urls, setUrls] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Grab current user from supabase (for userId)
+  const { data: sessionData } = useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session;
+    }
+  });
 
   useEffect(() => {
     async function fetchUrls() {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL}/image-registry`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "get",
-              userId: "dummy", // Not strictly needed unless you want to verify ownership
-              message_id: messageId,
-            }),
+        if (!sessionData?.user?.id) return;
+        const { data, error } = await supabase.functions.invoke("image-registry", {
+          body: {
+            action: "get",
+            userId: sessionData.user.id,
+            message_id
           }
-        );
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          setError(data.error || "Failed to retrieve images");
+        });
+        if (error || !data?.success) {
+          setError(data?.error || "Failed to retrieve images");
           return;
         }
         setUrls(data.urls || []);
@@ -114,9 +117,8 @@ function ImageSet({ messageId }: { messageId: string }) {
         setError("Failed to retrieve images");
       }
     }
-
     fetchUrls();
-  }, [messageId]);
+  }, [message_id, sessionData?.user?.id]);
 
   if (error) {
     return (
@@ -604,37 +606,30 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           }
 
           // Grab the first placeholder_text (or combine them if you want)
-          // For demonstration, we just take the first
-          // but you could combine or do something fancier
           const firstImg = imageSearchResult.images[0];
-          // If your table has "placeholder_text", ensure you added it in .select():
-          //   .select('id, full_url, placeholder_text, tags, title, description')
           const placeholderText =
             firstImg?.description ||
-            "I'm sending an image of me, I hope you like it!";
+            "I'm sending an image for you, I hope you like it!";
 
           // 4) create a unique message_id
-          const messageId = `msg_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+          const message_id = `msg_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
           // 5) store the real URLs in the new image-registry
-          const storeRegResp = await fetch(
-            `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL}/image-registry`,
+          const { data: regData, error: regError } = await supabase.functions.invoke(
+            "image-registry",
             {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+              body: {
                 action: "store",
                 userId: session.user.id,
-                message_id: messageId,
+                message_id,
                 urls: imageSearchResult.images.map((img: any) => img.url),
-              }),
+              },
             }
           );
-          const regData = await storeRegResp.json();
-          if (!storeRegResp.ok || !regData.success) {
-            console.error("Error storing image URLs in registry:", regData);
+          if (regError || !regData?.success) {
+            console.error("Error storing image URLs in registry:", regError);
             throw new Error(
-              regData.error || "Failed to store image URLs in image-registry"
+              regData?.error || "Failed to store image URLs in image-registry"
             );
           }
 
@@ -644,7 +639,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             content: placeholderText,
             metadata: {
               type: "image_message",
-              message_id: messageId,
+              message_id,
             },
           };
           setMessages((prev) => [...prev, aiResponse]);
@@ -835,12 +830,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 {/* 
                   If the message has metadata.type="image_message", we show:
                     1) message.content (the placeholder text)
-                    2) <ImageSet messageId={msg.metadata.message_id} />
+                    2) <ImageSet message_id={msg.metadata.message_id} />
                 */}
                 {msg.metadata?.type === "image_message" ? (
                   <>
                     <p className="text-[15px] leading-relaxed">{msg.content}</p>
-                    <ImageSet messageId={msg.metadata.message_id} />
+                    <ImageSet message_id={msg.metadata.message_id} />
                   </>
                 ) : (
                   <p className="text-[15px] leading-relaxed">{msg.content}</p>
