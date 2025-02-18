@@ -68,7 +68,7 @@ serve(async (req: Request) => {
         );
       }
 
-      // Parse the stored data
+      // Handle the Redis response safely
       let parsed;
       try {
         parsed = typeof result === 'string' ? JSON.parse(result) : result;
@@ -99,18 +99,8 @@ serve(async (req: Request) => {
         );
       }
 
-      // STEP ADDED: filter out images already "used" by this user
-      const usedKey = `used_images:${userId}`;
-      const usedUrls = await redis.smembers(usedKey) ?? [];
-      const finalUrls = parsed.urls.filter((u: string) => !usedUrls.includes(u));
-
-      // Mark these newly-served images as "used" for this user
-      if (finalUrls.length > 0) {
-        await redis.sadd(usedKey, ...finalUrls);
-      }
-
       return new Response(
-        JSON.stringify({ success: true, urls: finalUrls }),
+        JSON.stringify({ success: true, urls: parsed.urls }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
