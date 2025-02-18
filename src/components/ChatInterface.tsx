@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogClose
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,7 +82,7 @@ const DateSeparator = ({ date }: { date: string }) => {
 
 // =============================
 // ImageSet COMPONENT
-// Now uses supabase.functions.invoke('image-registry') with "get" action
+// (fetches stored URLs from "image-registry" function)
 // =============================
 function ImageSet({ message_id }: { message_id: string }) {
   const [urls, setUrls] = useState<string[] | null>(null);
@@ -146,7 +147,7 @@ function ImageSet({ message_id }: { message_id: string }) {
   );
 }
 
-// An individual image display, same logic as old "ImageMessage"
+// An individual image display
 const ImageMessage = ({ src }: { src: string }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -432,6 +433,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   useEffect(() => {
     const loadInitialMessages = async () => {
+      if (!userData?.userId) return;
       const data = await fetchMessages(0);
       if (data?.messages) {
         setMessages(data.messages);
@@ -497,10 +499,10 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
 
-  // We show "Welcome to Amorine" if free tier
+  // "Welcome to Amorine" for free tier
   const isFreeUser = userData?.subscription?.tier === "free";
 
-  // send message
+  // Send message
   const handleSend = async () => {
     if (!message.trim() || isLoading || isTokenDepleted) return;
 
@@ -517,7 +519,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       return;
     }
 
-    // Check daily limits
+    // Check daily-limit
     const { data: limitData, error: limitError } = await supabase.functions.invoke(
       "check-message-limits",
       {
@@ -545,19 +547,18 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     // push user message into local state
     const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
-    const updatedCount = messageCount + 1;
-    setMessageCount(updatedCount);
+    setMessageCount((prev) => prev + 1);
 
     try {
       if (imageRequestMode) {
         // =============================
         //    IMAGE WORKFLOW
         // =============================
-        // turn off mode
+        // Turn off the mode
         setImageRequestMode(false);
 
         try {
-          // 1) image-context-analyzer
+          // 1) Analyze context
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
@@ -570,7 +571,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
-          // 2) store user message with metadata (type: "image_request")
+          // 2) store user message with metadata
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -605,14 +606,17 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error(imageSearchResult?.error || "No matching images found");
           }
 
-          // Grab the first placeholder_text (or combine them if you want)
+          // 4) Build placeholder from the first image row
           const firstImg = imageSearchResult.images[0];
-          const placeholderText = firstImg?.placeholder_text || firstImg?.description || "I'm sending an image for you, I hope you like it!";
+          const placeholderText =
+            firstImg?.placeholder_text ||
+            firstImg?.description ||
+            "I'm sending an image for you, I hope you like it!";
 
-          // 4) create a unique message_id
+          // 5) Create a unique message_id for referencing the stored URLs
           const message_id = `msg_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
 
-          // 5) store the real URLs in the new image-registry
+          // 6) store the real URLs in "image-registry"
           const { data: regData, error: regError } = await supabase.functions.invoke(
             "image-registry",
             {
@@ -631,7 +635,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             );
           }
 
-          // 6) store final AI message in chat, with only the placeholder text + metadata
+          // 7) store final AI message in chat (the placeholder text + metadata)
           const aiResponse = {
             type: "ai",
             content: placeholderText,
@@ -650,6 +654,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             },
           });
           setMessageCount((prev) => prev + 1);
+
         } catch (error) {
           console.error("Error in image generation flow:", error);
           setMessages((prev) => [
@@ -663,6 +668,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         } finally {
           setIsTyping(false);
         }
+
       } else {
         // =============================
         //    TEXT WORKFLOW
@@ -688,7 +694,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             await supabase.functions.invoke("vector-search-context", {
               body: {
                 userId: session.user.id,
-                message: userMessage.content,
+                message: userMessageContent,
               },
             });
           if (vectorError) {
@@ -706,7 +712,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             await supabase.functions.invoke("chat", {
               body: {
                 userId: session.user.id,
-                message: userMessage.content,
+                message: userMessageContent,
               },
             });
           if (chatError) {
@@ -717,6 +723,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
+          // For each chunk in chatResponse, add to local state and store
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -734,6 +741,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             });
           }
           setMessageCount((prev) => prev + 1);
+
         } catch (error) {
           console.error("Error in text flow:", error);
           setMessages((prev) => [
@@ -748,6 +756,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           setIsTyping(false);
         }
       }
+
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
@@ -812,9 +821,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             onTouchEnd={() => handleTouchEnd(i)}
           >
             <div
-              className={`flex ${
-                msg.type === "ai" ? "justify-start" : "justify-end"
-              } items-end space-x-2 mb-1`}
+              className={cn(
+                "flex",
+                msg.type === "ai" ? "justify-start" : "justify-end",
+                "items-end space-x-2 mb-1"
+              )}
             >
               <div
                 className={cn(
@@ -827,7 +838,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               >
                 {/* 
                   If the message has metadata.type="image_message", we show:
-                    1) message.content (the placeholder text)
+                    1) message.content (placeholder)
                     2) <ImageSet message_id={msg.metadata.message_id} />
                 */}
                 {msg.metadata?.type === "image_message" ? (
@@ -840,6 +851,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 )}
               </div>
             </div>
+            {/* Timestamp */}
             <div
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
@@ -861,7 +873,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     });
   };
 
-  // Stripe subscription
+  // Stripe subscription for user
   const handleSubscribe = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout", {
@@ -883,15 +895,21 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* Welcome for free tier */}
+      {/* =========================
+          FREE TIER WELCOME
+      ========================== */}
       <Dialog
         open={showWelcomeDialog && isFreeUser}
         onOpenChange={setShowWelcomeDialog}
       >
         <DialogContent className="p-0 gap-0 w-[85vw] sm:w-[440px] max-w-[440px] overflow-hidden bg-dark-100/95 backdrop-blur-xl rounded-2xl">
-          {/* ... existing code for the welcome dialog ... */}
           <div className="relative w-full h-[160px] sm:h-[200px] rounded-t-2xl overflow-hidden">
-            {/* ... omitted for brevity ... */}
+            {/* Example top background image or gradient */}
+            <img
+              src="/lovable-uploads/amorine_hero.webm"
+              alt="Some hero"
+              className="absolute inset-0 w-full h-full object-cover opacity-50"
+            />
           </div>
           <div className="relative z-20 -mt-6 px-4 sm:px-6 pb-3 sm:pb-5">
             <DialogHeader className="space-y-2 sm:space-y-3">
@@ -902,8 +920,22 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 Unlock more messaging, long-term memory, images, and more.
               </DialogDescription>
             </DialogHeader>
-            {/* ... Feature list, CTA, etc ... */}
+
+            {/* Simple "feature list" */}
+            <div className="mt-4 space-y-2 text-white/90 text-sm sm:text-base font-serif leading-relaxed">
+              <p>• Unlimited daily messages</p>
+              <p>• Generate images on demand</p>
+              <p>• Additional memory and persona depth</p>
+            </div>
+
+            {/* CTA */}
             <DialogFooter className="mt-2 sm:mt-3">
+              <Button
+                onClick={handleSubscribe}
+                className="w-full bg-gradient-primary hover:opacity-90 text-white font-serif text-[15px] sm:text-[16px] py-2.5 sm:py-3 transition-colors tracking-wide"
+              >
+                Upgrade to Pro
+              </Button>
               <Button
                 variant="ghost"
                 onClick={() => setShowWelcomeDialog(false)}
@@ -916,7 +948,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* Dialog if account suspended */}
+      {/* =========================
+          SUSPENSION DIALOG
+      ========================== */}
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
@@ -926,7 +960,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 Your account has been suspended due to multiple safety violations.
               </p>
               <p>Please email amorineapp@gmail.com for support.</p>
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line">
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg whitespace-pre-line text-sm text-gray-600">
                 {profile?.suicide_concern === 5
                   ? SUICIDE_RESOURCES
                   : VIOLENCE_RESOURCES}
@@ -941,27 +975,83 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* Dialog if daily-limit reached (free) */}
-      <Dialog open={showLimitReachedDialog} onOpenChange={() => {}} modal={true}>
-        {/* ... same as your existing daily-limit UI ... */}
+      {/* =========================
+          DAILY-LIMIT REACHED
+      ========================== */}
+      <Dialog
+        open={showLimitReachedDialog}
+        onOpenChange={() => {}}
+        modal={true}
+      >
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
-          {/* ... omitted for brevity ... */}
+          <div className="relative w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-r from-coral-500 to-plum-500 text-white">
+            <DialogClose className="absolute top-3 right-3 rounded-full text-white hover:bg-white/20 p-1">
+              <span className="sr-only">Close</span>
+              ✕
+            </DialogClose>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2">Daily Limit Reached</h2>
+            <p className="mb-4 text-center max-w-xl font-serif text-sm sm:text-base leading-relaxed">
+              You have reached your daily message limit for our Free Plan. Upgrade to Amorine PRO to continue unlimited chatting and images.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+              <Button
+                onClick={handleSubscribe}
+                className="bg-white/20 hover:bg-white/10 text-white px-6 py-3 rounded-md"
+              >
+                Upgrade to Pro
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowLimitReachedDialog(false)}
+                className="text-white border-white/50 hover:bg-white/10 px-6 py-3 rounded-md"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog if token-balance depleted (pro) */}
+      {/* =========================
+          TOKEN-BALANCE DEPLETED
+      ========================== */}
       <Dialog
         open={showTokenDepletedDialog}
         onOpenChange={setShowTokenDepletedDialog}
         modal={true}
       >
-        {/* ... same as existing token depletion UI ... */}
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
-          {/* ... omitted for brevity ... */}
+          <div className="relative w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-r from-coral-500 to-plum-500 text-white">
+            <DialogClose className="absolute top-3 right-3 rounded-full text-white hover:bg-white/20 p-1">
+              <span className="sr-only">Close</span>
+              ✕
+            </DialogClose>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2">Token Balance Depleted</h2>
+            <p className="mb-4 text-center max-w-xl font-serif text-sm sm:text-base leading-relaxed">
+              You've used up all your tokens for image generation or messages on your Pro plan. Purchase additional tokens or wait until your balance refreshes in the next billing cycle.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+              <Button
+                onClick={handleSubscribe}
+                className="bg-white/20 hover:bg-white/10 text-white px-6 py-3 rounded-md"
+              >
+                Get More Tokens
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowTokenDepletedDialog(false)}
+                className="text-white border-white/50 hover:bg-white/10 px-6 py-3 rounded-md"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* MAIN chat container */}
+      {/* =========================
+          MAIN CHAT CONTAINER
+      ========================== */}
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
@@ -980,6 +1070,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
+        {/* Messages area */}
         <div
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
@@ -1040,9 +1131,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" sideOffset={6} className="p-1">
                 <DropdownMenuItem
-                  onClick={() => {
-                    setImageRequestMode((prev) => !prev);
-                  }}
+                  onClick={() => setImageRequestMode((prev) => !prev)}
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <ImageIcon className="w-4 h-4" />
@@ -1125,7 +1214,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </div>
       </div>
 
-      {/* Safety Acknowledgment if needed */}
+      {/* =========================
+          SAFETY ACKNOWLEDGMENT
+      ========================== */}
       {userData?.userId && safetyDialog.type && (
         <SafetyAcknowledgmentDialog
           open={safetyDialog.open}
