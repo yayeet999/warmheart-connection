@@ -607,9 +607,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           // Grab the first placeholder_text (or combine them if you want)
           const firstImg = imageSearchResult.images[0];
-          const placeholderText =
-            firstImg?.description ||
-            "I'm sending an image for you, I hope you like it!";
+          const placeholderText = firstImg?.placeholder_text || firstImg?.description || "I'm sending an image for you, I hope you like it!";
 
           // 4) create a unique message_id
           const message_id = `msg_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
