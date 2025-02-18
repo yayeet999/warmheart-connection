@@ -107,7 +107,7 @@ serve(async (req) => {
     // Search vector index - Changed from 3 to 1 for topK
     const searchResults = await vectorIndex.query({
       vector: queryVector,
-      topK: 3,
+      topK: 2,
       includeMetadata: true,
     });
 
