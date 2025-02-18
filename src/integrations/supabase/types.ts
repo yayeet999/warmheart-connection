@@ -171,36 +171,6 @@ export type Database = {
         }
         Relationships: []
       }
-      pregenerated_images: {
-        Row: {
-          active: boolean | null
-          created_at: string
-          embedding: string | null
-          id: string
-          prompt_used: string | null
-          storage_path: string
-          tags: string[] | null
-        }
-        Insert: {
-          active?: boolean | null
-          created_at?: string
-          embedding?: string | null
-          id?: string
-          prompt_used?: string | null
-          storage_path: string
-          tags?: string[] | null
-        }
-        Update: {
-          active?: boolean | null
-          created_at?: string
-          embedding?: string | null
-          id?: string
-          prompt_used?: string | null
-          storage_path?: string
-          tags?: string[] | null
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           account_disabled: boolean
