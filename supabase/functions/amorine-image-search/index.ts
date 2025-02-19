@@ -6,7 +6,7 @@ import { Index } from "npm:@upstash/vector";
 const vectorIndex = new Index({
   url: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('amorineIMAGE_UPSTASH_VECTOR_REST_TOKEN')!,
-  namespace: "amorine-image"
+  namespace: "amorine-image" // Keep the namespace, it's good practice
 });
 
 // Initialize Supabase client
@@ -35,7 +35,7 @@ async function generateEmbeddings(text: string): Promise<number[]> {
       body: JSON.stringify({
         model: "text-embedding-3-small",
         input: text,
-        dimensions: 384,
+        dimensions: 384,  // Keep this consistent
       }),
     });
 
@@ -84,6 +84,8 @@ function buildSearchQuery(analysis: any): string {
     return parts.join('. ');
 }
 
+
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -91,150 +93,101 @@ serve(async (req) => {
 
   try {
     const { analysis } = await req.json();
+
     if (!analysis) {
       throw new Error('Analysis object is required');
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Not authenticated" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    const userId = session.user.id;
+    console.log('Received analysis:', JSON.stringify(analysis, null, 2));
 
+    // Build search query from analysis
     const searchQuery = buildSearchQuery(analysis);
+    console.log('Built search query:', searchQuery);
+
+    // Generate embeddings for the search query
     const queryVector = await generateEmbeddings(searchQuery);
-
-    let topK = 5;
-    let attempts = 0;
-    let foundImage = false;
-    let selectedImage = null;
-    let searchResults;
-
-    while (!foundImage && attempts < 4) {
-      searchResults = await vectorIndex.query({
-        vector: queryVector,
-        topK: topK,
-        includeMetadata: true,
-        includeVectors: false, // No need to include the vectors
-      });
-
-      if (searchResults && searchResults.length > 0) {
-          // Get storage paths from the vector search results
-          const storagePaths = searchResults.map(result => result.id);
-
-          // Fetch image details and check if they've been sent before
-          const { data: images, error: dbError } = await supabase
-            .from('image_library')
-            .select('id, full_url, tags, title, description, placeholder_text, storage_path')
-            .in('storage_path', storagePaths)
-            .eq('active', true);
-
-          if (dbError) {
-            console.error('Database query error:', dbError);
-            throw dbError;
-          }
-
-          if (images && images.length > 0) {
-            // Check if each image has been sent to the user before
-            for (const image of images) {
-                const { data: sentData, error: sentError } = await supabase
-                    .from('sent_images')
-                    .select('id')
-                    .eq('user_id', userId)
-                    .eq('image_id', image.id) // Use the Supabase image ID
-                    .maybeSingle();
-
-                if (sentError) {
-                    console.error("Error checking sent_images:", sentError);
-                    throw sentError;
-                }
-
-                // If sentData is null, the image hasn't been sent
-                if (!sentData) {
-                    selectedImage = image;
-                    foundImage = true;
-                    break; // Exit the loop as soon as we find an unused image
-                }
-            }
-          }
-      }
-
-      if (!foundImage) {
-        // Increase topK for the next attempt
-        if (topK === 5) {
-          topK = 20;
-        } else if (topK === 20) {
-          topK = 50;
-        } else if (topK === 50) {
-          topK = 100;
-        }
-        attempts++;
-      }
-    }
+    console.log('Generated embeddings for search query');
 
 
-    if (!foundImage) {
-      console.log('No matching *unused* images found in vector search');
+    // Search vector index.  Crucially, remove the filter.
+    const searchResults = await vectorIndex.query({
+      vector: queryVector,
+      topK: 1, // Keep at 1 for now, can increase later if needed
+      includeMetadata: true, // Make sure to include metadata
+    });
+
+
+    console.log('Vector search results:', JSON.stringify(searchResults, null, 2));
+
+    if (!searchResults || searchResults.length === 0) {
+      console.log('No matching images found in vector search');
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'No matching, unused images found'
+          error: 'No matching images found'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // If we found an image, proceed as before, but also record it as sent
-    if (selectedImage) {
-        const processedImage = {
-          id: selectedImage.id, // Keep the Supabase ID
-          url: selectedImage.full_url, // Use the full URL
-          tags: selectedImage.tags,
-          title: selectedImage.title,
-          description: selectedImage.description,
-          placeholder_text: selectedImage.placeholder_text,
-          storage_path: selectedImage.storage_path // Include storage_path
-        };
+    // Get the storage paths (IDs) of the matching images.  Upstash Vector returns
+    // the ID you provided when you added the vector.  In this case, that's the
+    // `storage_path` from your `image_library` table.
+    const storagePaths = searchResults.map(result => result.id);
+    console.log('Storage paths from vector search:', storagePaths);
 
-        // Record the image as sent
-        const { error: insertError } = await supabase
-          .from('sent_images')
-          .insert({
-            user_id: userId,
-            image_id: selectedImage.id, // Use the Supabase image ID
-          });
 
-        if (insertError) {
-          console.error("Error inserting into sent_images:", insertError);
-          // Decide if you want to fail the entire request, or just log the error
-          // and continue.  For now, we'll continue, but log the error.
-        }
+    // Query the new image_library table
+    const { data: images, error: dbError } = await supabase
+      .from('image_library')
+      .select('id, full_url, tags, title, description, placeholder_text, storage_path') // Select storage_path
+      .in('storage_path', storagePaths) // Use storage_path, not id
+      .eq('active', true);
 
-        const response = {
-          success: true,
-          images: [processedImage], // Return the processed image
-          searchQuery // Optionally return the search query for debugging
-        };
+    if (dbError) {
+      console.error('Database query error:', dbError);
+      throw dbError; // Re-throw to be caught in the outer try/catch
+    }
 
-        return new Response(
-          JSON.stringify(response),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-    } else {
-      // This should never happen because of the while loop condition, but it's good to have a fallback.
+    console.log('Raw database query results:', JSON.stringify(images, null, 2));
+
+    if (!images || images.length === 0) {
+      console.log('No active images found in database');
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'No matching images found after multiple attempts'
+          error: 'No active images found'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Map the results
+    const processedImages = images.map(image => ({
+      id: image.id, // Keep the Supabase ID
+      url: image.full_url, // Use the full URL
+      tags: image.tags,
+      title: image.title,
+      description: image.description,
+      placeholder_text: image.placeholder_text,
+      storage_path: image.storage_path // Include storage_path
+    }));
+
+    console.log('Processed images being returned:', JSON.stringify(processedImages, null, 2));
+
+    const response = {
+      success: true,
+      images: processedImages, // Return the processed images
+      searchQuery // Optionally return the search query for debugging
+    };
+
+    console.log('Final response being sent:', JSON.stringify(response, null, 2));
+
+
+    return new Response(
+      JSON.stringify(response),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Error in amorine-image-search:', error);
     return new Response(
