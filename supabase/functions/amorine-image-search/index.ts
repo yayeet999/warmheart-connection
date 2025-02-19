@@ -59,25 +59,117 @@ async function generateEmbeddings(text: string): Promise<number[]> {
 function buildSearchQuery(analysis: any): string {
   const parts = [];
 
-  // Just as an example, same logic you had...
-  if (analysis.emotional_context) {
-    parts.push(`Emotion: ${analysis.emotional_context.overall_tone}`);
-    parts.push(`AI Emotion: ${analysis.emotional_context.ai_emotion}`);
-  }
-  if (analysis.image_requirements) {
-    parts.push(`Style: ${analysis.image_requirements.style}`);
-    parts.push(`Mood: ${analysis.image_requirements.mood}`);
-    parts.push(`Subject: ${analysis.image_requirements.subject_matter}`);
-    if (analysis.image_requirements.specific_elements) {
-      parts.push(`Elements: ${analysis.image_requirements.specific_elements.join(', ')}`);
+  try {
+    // Emotional Context
+    if (analysis.emotional_essence) {
+      const emotional = analysis.emotional_essence;
+      parts.push(`Primary Emotion: ${emotional.primary_emotion}`);
+      
+      if (emotional.secondary_emotions?.length) {
+        parts.push(`Secondary Emotions: ${emotional.secondary_emotions.join(', ')}`);
+      }
+      
+      if (emotional.mood) {
+        // Convert -100 to 100 scale to descriptive terms for better search
+        const valence = emotional.mood.valence;
+        const energy = emotional.mood.energy;
+        
+        const valenceDesc = valence > 50 ? 'very positive' : 
+                           valence > 0 ? 'positive' :
+                           valence > -50 ? 'negative' : 'very negative';
+                           
+        const energyDesc = energy > 75 ? 'very energetic' :
+                          energy > 50 ? 'energetic' :
+                          energy > 25 ? 'calm' : 'very calm';
+                          
+        parts.push(`Mood: ${valenceDesc} and ${energyDesc}`);
+      }
     }
-  }
-  if (analysis.temporal_context) {
-    parts.push(`Time: ${analysis.temporal_context.time_of_day}`);
-    parts.push(`Setting: ${analysis.temporal_context.setting}`);
+
+    // Visual Elements
+    if (analysis.visual_core) {
+      const visual = analysis.visual_core;
+      if (visual.image_type) {
+        parts.push(`Image Type: ${visual.image_type}`);
+      }
+      
+      if (visual.composition) {
+        const comp = visual.composition;
+        parts.push(`Focus: ${comp.focal_point}`);
+        parts.push(`Depth: ${comp.depth}`);
+        parts.push(`Lighting: ${comp.lighting}`);
+      }
+    }
+
+    // Semantic Content
+    if (analysis.semantic_content) {
+      const semantic = analysis.semantic_content;
+      
+      if (semantic.primary_subject) {
+        const subject = semantic.primary_subject;
+        parts.push(`Category: ${subject.category}`);
+        parts.push(`Subject: ${subject.specific_description}`);
+        
+        if (subject.key_attributes?.length) {
+          parts.push(`Key Features: ${subject.key_attributes.join(', ')}`);
+        }
+      }
+
+      if (semantic.supporting_elements?.length) {
+        const significantElements = semantic.supporting_elements
+          .filter(elem => elem.significance > 50) // Only include highly significant elements
+          .map(elem => elem.element);
+          
+        if (significantElements.length) {
+          parts.push(`Supporting Elements: ${significantElements.join(', ')}`);
+        }
+      }
+
+      if (semantic.symbolic_meaning) {
+        parts.push(`Symbolism: ${semantic.symbolic_meaning}`);
+      }
+    }
+
+    // Intimacy Context (with careful handling)
+    if (analysis.intimacy_metrics) {
+      const intimacy = analysis.intimacy_metrics;
+      
+      // Only include intimacy-related terms if the levels are significant
+      if (intimacy.suggestiveness > 20 || intimacy.flirt_level > 20) {
+        parts.push(`Style: ${intimacy.outfit_style}`);
+        parts.push(`Interaction Distance: ${intimacy.personal_space}`);
+      }
+    }
+
+    // Context
+    if (analysis.context) {
+      const context = analysis.context;
+      
+      if (context.environment) {
+        parts.push(`Setting: ${context.environment}`);
+      }
+      
+      if (context.temporal_setting) {
+        parts.push(`Time Context: ${context.temporal_setting}`);
+      }
+      
+      if (context.atmosphere) {
+        parts.push(`Atmosphere: ${context.atmosphere}`);
+      }
+
+      if (context.intended_purpose?.length) {
+        parts.push(`Purpose: ${context.intended_purpose.join(', ')}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error building search query:', error);
+    // Fallback to basic search if structure parsing fails
+    return `${analysis.semantic_content?.primary_subject?.specific_description || 'general image'}`;
   }
 
-  return parts.join('. ');
+  // Filter out any empty parts and join
+  return parts.filter(part => part && part.length > 0).join('. ');
 }
 
 serve(async (req) => {
@@ -178,7 +270,7 @@ serve(async (req) => {
       throw new Error(registryInvoke.data?.error || registryInvoke.error?.message || 'image-registry store failed');
     }
 
-    // 3) Add chosen image to the user’s used_images set
+    // 3) Add chosen image to the user's used_images set
     await redis.sadd(usedSetKey, chosen.storage_path);
 
     // 4) Return the single chosen image
