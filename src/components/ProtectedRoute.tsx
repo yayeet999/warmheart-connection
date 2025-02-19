@@ -2,15 +2,29 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, isLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isLoading && !session) {
-      navigate("/auth");
-    }
+    const checkAndRefreshSession = async () => {
+      if (!isLoading && !session) {
+        navigate("/auth");
+        return;
+      }
+      
+      if (session) {
+        // Ensure we have a valid session
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!currentSession) {
+          navigate("/auth");
+        }
+      }
+    };
+
+    checkAndRefreshSession();
   }, [session, isLoading, navigate]);
 
   if (isLoading) {

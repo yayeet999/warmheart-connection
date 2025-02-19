@@ -7,7 +7,21 @@ const SUPABASE_URL = "https://medzxzfdadwzpuqimeih.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lZHp4emZkYWR3enB1cWltZWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg0NTQ2ODQsImV4cCI6MjA1NDAzMDY4NH0.KJtDwdSUVs-l32_D56xL5a_ead1dRri9gxx9r923nqA";
 
 // Create Supabase client with proper configuration
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true
+  }
+});
 
-// Initialize auth state
-supabase.auth.getSession().catch(console.error);
+// Initialize auth state and prefetch session
+const initializeAuth = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    // Ensure the client has the latest session
+    await supabase.auth.setSession(session);
+  }
+};
+
+// Initialize auth
+initializeAuth().catch(console.error);
