@@ -7,20 +7,7 @@ const SUPABASE_URL = "https://medzxzfdadwzpuqimeih.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lZHp4emZkYWR3enB1cWltZWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg0NTQ2ODQsImV4cCI6MjA1NDAzMDY4NH0.KJtDwdSUVs-l32_D56xL5a_ead1dRri9gxx9r923nqA";
 
 // Create Supabase client with proper configuration
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false, // Changed to false as we handle this in AuthProvider
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    flowType: 'pkce' // Added PKCE flow for better security
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'supabase-js-web'
-    }
-  }
-});
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 // Initialize auth state
 supabase.auth.getSession().catch(console.error);
