@@ -594,10 +594,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           // 3) call amorine-image-search
           const { data: imageSearchResult, error: searchError } =
             await supabase.functions.invoke("amorine-image-search", {
-              body: { 
-                analysis: imageContext.analysis,
-                userId: session.user.id 
-              },
+              body: { analysis: imageContext.analysis },
             });
           if (searchError) {
             throw new Error("Image search failed");
