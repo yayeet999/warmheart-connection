@@ -50,56 +50,84 @@ function buildAnalysisPrompt(
   currentMessage: string,
   recentMessages: Message[],
   aiProfile: AIProfile,
-  profile: Profile, // Add user profile
+  profile: Profile,
   timestamp: Date
 ): string {
-  return `You are a highly skilled image context analyzer for an AI companion named Amorine. Your ONLY output should be a JSON object, with NO additional text or explanation.  Your task is to analyze the provided conversation, user profile, AI profile, and current time, and then describe the IDEAL image to retrieve to best fit the context.  Be as SPECIFIC and DESCRIPTIVE as possible in the "image_requirements" section.  Think like a professional photographer or artist when describing the image.
+  return `You are a highly skilled image context analyzer for an AI companion named Amorine. Your ONLY output should be a JSON object, with NO additional text or explanation. Your task is to analyze the provided context and describe the IDEAL image that best fits the current situation.
 
-Here is some background information:
-
-Current Relationship Stage (between Amorine and the user): ${aiProfile.relationship_stage}
-
-Recent Conversation (Last 15 messages, most recent last):
+CRITICAL CONTEXT:
+- User's Current Message (HIGHEST PRIORITY): ${currentMessage}
+- Current Relationship Stage: ${aiProfile.relationship_stage}
+- Recent Conversation (Last 15 messages):
 ${formatMessages(recentMessages)}
+- Current Time: ${timestamp.toLocaleTimeString()} (${getCurrentTimeSlot()})
+- Scheduled Activity: ${aiProfile.daily_schedule?.[getCurrentTimeSlot()] || "None"}
+- Current Challenges: ${aiProfile.current_challenges?.join(", ") || "None"}
+- User's Name: ${profile.name}
+- User's Pronouns: ${profile.pronouns}
 
-Current Time: ${timestamp.toLocaleTimeString()} (${getCurrentTimeSlot()})
-Amorine's Scheduled Activity: ${aiProfile.daily_schedule?.[getCurrentTimeSlot()] || "No specific activity"}
-Amorine's Current Challenges: ${aiProfile.current_challenges?.join(", ") || "None"}
-User's name: ${profile.name}
-User's pronouns: ${profile.pronouns}
-
-User's Current Message (MOST IMPORTANT):
-${currentMessage}
+ANALYSIS GUIDELINES:
+1. User's current message is THE MOST IMPORTANT factor
+2. Use other context to refine, not override, the user's request
+3. Consider relationship stage for appropriate intimacy levels
+4. Ensure all numerical values are precise (0-100 scale where specified)
+5. Be specific and detailed in descriptions
+6. Maintain appropriate boundaries based on relationship stage
+7. Consider current time and activity context
+8. Carefully analyze user's communication style and emotional state:
+   - Consider tone (sweet, playful, rude, disrespectful, etc.)
+   - Note recurring emotional patterns in recent messages
+   - Factor in user's typical interaction style
+   - Adapt response appropriately to user's current emotional state
 
 REQUIRED JSON OUTPUT FORMAT (strictly adhere to this):
 
 {
-  "emotional_context": {
-    "ai_emotion": "string, Amorine's likely emotion (e.g., 'happy', 'curious', 'concerned', 'playful')",
-    "user_emotion": "string, User's likely emotion (e.g., 'excited', 'sad', 'stressed', 'flirty')",
-    "overall_tone": "string, Overall tone of the conversation (e.g., 'lighthearted', 'serious', 'romantic', 'casual')"
+  "emotional_essence": {
+    "primary_emotion": "string, Amorine's primary emotion",
+    "secondary_emotions": "string[], max 2-3 additional emotions",
+    "intensity": "number, 0-100 scale",
+    "mood": {
+      "valence": "number, -100 to 100 (negative to positive)",
+      "energy": "number, 0-100 (calm to energetic)"
+    }
   },
-  "relationship_context": {
-    "stage": "string, Current relationship stage (copy from input)",
-    "current_dynamics": "string, Brief description of the *current* interaction (e.g., 'joking', 'offering support', 'making plans')",
-    "boundaries": "string[], List of relevant boundaries to consider (e.g., ['avoid overly intimate topics', 'maintain friendly tone'])"
+  "visual_core": {
+    "image_type": "string, e.g., 'selfie', 'group_photo', 'landscape', 'food', etc.",
+    "composition": {
+      "focal_point": "string, main focus point",
+      "depth": "string, 'shallow' | 'medium' | 'deep'",
+      "lighting": "string, 'dark' | 'medium' | 'bright'"
+    }
   },
-  "temporal_context": {
-    "time_of_day": "string, Time of day (e.g., 'morning', 'afternoon', 'evening', 'night')",
-    "ai_current_activity": "string, Amorine's likely activity based on her schedule",
-    "setting": "string, Likely setting for the image (e.g., 'indoors, living room', 'outdoors, park', 'cafe')"
+  "semantic_content": {
+    "primary_subject": {
+      "category": "string, main subject category",
+      "specific_description": "string, detailed description",
+      "key_attributes": "string[], max 3 important attributes"
+    },
+    "supporting_elements": [{
+      "element": "string, supporting element",
+      "significance": "number, 0-100 importance scale"
+    }],
+    "symbolic_meaning": "string, single concise interpretation"
   },
-  "image_requirements": {
-    "subject_matter": "string, The PRIMARY subject of the image (e.g., 'a close-up of a smiling woman', 'a wide shot of a beach at sunset', 'a steaming cup of coffee on a wooden table'). BE SPECIFIC.",
-    "style": "string, Artistic style (e.g., 'photorealistic', 'impressionistic', 'anime', 'cartoon', 'sketch', 'abstract', 'black and white'). BE SPECIFIC (e.g., 'high-resolution photograph', 'digital painting with vibrant colors').",
-    "mood": "string, Overall mood or feeling (e.g., 'calm', 'joyful', 'romantic', 'melancholy', 'energetic').",
-    "composition": "string, How the image should be framed (e.g., 'close-up', 'medium shot', 'long shot', 'wide shot', 'bird's-eye view', 'low angle', 'high angle', 'rule of thirds').",
-    "specific_elements": "string[], List of specific objects, details, or features to include (e.g., ['red scarf', 'rainy window', 'bookshelf in background', 'golden retriever puppy']). Be as DETAILED as possible."
+  "intimacy_metrics": {
+    "suggestiveness": "number, 0-100 scale (none to subtle)",
+    "flirt_level": "number, 0-100 scale",
+    "outfit_style": "string, e.g., 'casual', 'elegant', 'playful'",
+    "personal_space": "string, 'distant' | 'social' | 'personal' | 'intimate'"
+  },
+  "context": {
+    "intended_purpose": "string[], max 2 purposes",
+    "temporal_setting": "string, time context",
+    "cultural_tone": "string, cultural context",
+    "atmosphere": "string, overall ambiance",
+    "environment": "string, e.g., 'indoors', 'outdoors', 'home', 'work', 'car'"
   }
 }
 
-Prioritize the user's current message.  The other context should *refine*, not *replace*, the user's request. If the user asks for a 'red car', the image should be of a red car, even if it's nighttime.  The context might influence the *type* of red car (e.g., a classic red car at night, a modern red car in a showroom), but it should still be a *red car*.
-`;
+Remember: The user's current message MUST be the primary influence on the image selection, with other context serving to refine and enhance the selection, not redirect it.`;
 }
 
 serve(async (req) => {
