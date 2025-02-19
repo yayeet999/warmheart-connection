@@ -568,7 +568,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
-          // 2) store user message with metadata
+          // 2) store user message with metadata (including analysis + unique message_id)
+          const message_id = `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -579,6 +580,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   metadata: {
                     type: "image_request",
                     analysis: imageContext.analysis,
+                    message_id,
                   },
                 },
                 action: "add",
@@ -591,48 +593,28 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           setIsTyping(true);
 
-          // 3) call amorine-image-search
+          // 3) call amorine-image-search (now including userId + message_id)
           const { data: imageSearchResult, error: searchError } =
             await supabase.functions.invoke("amorine-image-search", {
-              body: { analysis: imageContext.analysis },
+              body: {
+                analysis: imageContext.analysis,
+                userId: session.user.id,
+                message_id,
+              },
             });
           if (searchError) {
             throw new Error("Image search failed");
           }
-          if (!imageSearchResult?.success || !imageSearchResult.images?.length) {
+          if (!imageSearchResult?.success || !imageSearchResult.chosen) {
             throw new Error(imageSearchResult?.error || "No matching images found");
           }
 
-          // 4) Build placeholder from the first image row
-          const firstImg = imageSearchResult.images[0];
-          const placeholderText =
-            firstImg?.placeholder_text ||
-            firstImg?.description ||
-            "I'm sending an image for you, I hope you like it!";
+          // 4) Use either the placeholder_text from the function, or fallback
+          let placeholderText =
+            imageSearchResult.chosen.placeholder_text ||
+            "Here’s an image for you! I hope you like it.";
 
-          // 5) Create a unique message_id for referencing the stored URLs
-          const message_id = `msg_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
-
-          // 6) store the real URLs in "image-registry"
-          const { data: regData, error: regError } = await supabase.functions.invoke(
-            "image-registry",
-            {
-              body: {
-                action: "store",
-                userId: session.user.id,
-                message_id,
-                urls: imageSearchResult.images.map((img: any) => img.url),
-              },
-            }
-          );
-          if (regError || !regData?.success) {
-            console.error("Error storing image URLs in registry:", regError);
-            throw new Error(
-              regData?.error || "Failed to store image URLs in image-registry"
-            );
-          }
-
-          // 7) store final AI message in chat (the placeholder text + metadata)
+          // 5) store final AI message (with metadata referencing the same message_id)
           const aiResponse = {
             type: "ai",
             content: placeholderText,
@@ -782,19 +764,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setExpandedImageUrl(src);
   };
 
-  // We'll modify the rendering so that if the message has metadata.type = "image_message",
-  // we split into 2 separate "bubbles": one bubble for the image(s), another bubble for the text placeholder.
-  // But user specifically wants the text bubble AFTER the image bubble. We'll do the image bubble first, then text bubble second.
-
+  // We'll define a helper to see if we show a new date or timestamp
   const renderMessages = () => {
     let currentDate = "";
     let lastMessageTime = "";
 
-    // We'll define a helper to see if we show the date/time
     const shouldShowInitialTimestamp = (msg: any, index: number) => {
       if (!msg.timestamp) return false;
       const messageDate = new Date(msg.timestamp).toDateString();
-      if (messageDate !== currentDate) return true;
+      if (messageDate !== currentDate) return false;
       const currentTime = new Date(msg.timestamp).getTime();
       const lastTime = lastMessageTime ? new Date(lastMessageTime).getTime() : 0;
       return currentTime - lastTime > 15 * 60 * 1000;
@@ -910,7 +888,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
                 msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                // For separate bubble, we might also show/hide timestamp
                 showInitialTimestamp
                   ? "opacity-100"
                   : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
