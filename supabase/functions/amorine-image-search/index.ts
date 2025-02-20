@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -124,9 +125,10 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
       parts.push(`RELATIONSHIP: ${analysis.intimacy_metrics.relationship_stage}`);
     }
 
-    // 4. Time Context
-    const timeContext = analysis.context?.temporal_setting || getCurrentTimeSlot();
-    parts.push(`TIME: ${timeContext}`);
+    // 4. Time Context (use from analysis if available)
+    if (analysis.context?.temporal_setting) {
+      parts.push(`TIME: ${analysis.context.temporal_setting}`);
+    }
 
     // 5. Flirtiness Level (if significant)
     if (analysis.intimacy_metrics?.flirt_level > 20) {
@@ -153,15 +155,6 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
   return parts.filter(Boolean).join('\n');
 }
 
-function getCurrentTimeSlot(): string {
-  const hour = new Date().getHours();
-  
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 22) return "evening";
-  return "night";
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -180,7 +173,9 @@ serve(async (req) => {
     console.log('Built search query:', searchQuery);
     
     const queryVector = await generateEmbeddings(searchQuery);
-    const currentTimeSlot = getCurrentTimeSlot();
+
+    // Use temporal_setting from analysis or default to an empty string
+    const timeContext = analysis.context?.temporal_setting || '';
 
     // The Redis set for used images
     const usedSetKey = `used_images:${userId}`;
@@ -231,7 +226,7 @@ serve(async (req) => {
             searchResult.score,
             img,
             analysis,
-            currentTimeSlot
+            timeContext
           );
 
           return {
