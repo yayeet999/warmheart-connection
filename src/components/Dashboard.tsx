@@ -192,45 +192,23 @@ const Dashboard = () => {
       "ml-0 md:ml-[100px]"
     )}>
       <div className="flex items-center gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-charcoal">Our Journey Together</h1>
+        <h1 className={cn(
+          "text-2xl md:text-3xl font-bold text-charcoal",
+          isMobile ? "mx-auto" : ""
+        )}>
+          Our Journey Together
+        </h1>
         <Badge 
           variant={subscription?.tier === 'pro' ? 'default' : 'secondary'} 
-          className="flex items-center gap-1"
+          className={cn(
+            "flex items-center gap-1",
+            isMobile ? "absolute right-4" : ""
+          )}
         >
           <Crown className="w-3 h-3" />
           {subscription?.tier === 'pro' ? 'Pro Plan' : 'Free Plan'}
         </Badge>
       </div>
-
-      {/* Connection Stats Card */}
-      <Card className="mb-6 overflow-hidden bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <CardHeader className="pb-2 border-b border-white/10">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Activity className="h-5 w-5 text-coral" />
-            Connection Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="py-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <div className="text-center p-3 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="text-2xl font-bold text-coral">28</div>
-              <div className="text-sm text-gray-300">Conversations</div>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="text-2xl font-bold text-plum-400">12</div>
-              <div className="text-sm text-gray-300">Deep Insights</div>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="text-2xl font-bold text-coral">5</div>
-              <div className="text-sm text-gray-300">Shared Stories</div>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-lg backdrop-blur-sm">
-              <div className="text-2xl font-bold text-plum-400">Level 3</div>
-              <div className="text-sm text-gray-300">Connection</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filter Categories */}
       <div className="mb-6">
