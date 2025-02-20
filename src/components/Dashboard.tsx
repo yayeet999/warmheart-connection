@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Activity, Heart, MessageSquare, Crown, Sparkles, BookOpen, User, 
-  Lightbulb, Laugh, Brain, Flower2, Coffee, Music, Palette, HeartHandshake,
-  Clock, Star, Cloud, Bot
+  Lightbulb, Laugh, MessageCircle, Flower2, Coffee, Rocket, Palette, HeartHandshake,
+  Clock, Star, CloudLightning, Cherry
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,12 +25,11 @@ const amorineProfile = {
 };
 
 interface Memory {
-  date: string;
-  highlight: string;
-  tags: string[];
-  emotion?: string;
-  category?: string;
-  imageUrl?: string;
+  id: string;
+  user_id: string;
+  timestamp: number;
+  content: string;
+  filters: string[];
 }
 
 const getEmotionColor = (emotion?: string) => {
@@ -44,78 +43,49 @@ const getEmotionColor = (emotion?: string) => {
   return colors[emotion?.toLowerCase() || "default"];
 };
 
-const MemoryCard = ({ memory, isLarge = false }: { memory: Memory, isLarge?: boolean }) => {
+const MemoryCard = ({ memory }: { memory: Memory }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const emotionColors = getEmotionColor(memory.category);
   
   return (
     <div 
-      className={cn(
-        "relative group transition-transform duration-500 ease-out transform-gpu",
-        isLarge ? "md:col-span-2" : ""
-      )}
+      className="relative group transition-transform duration-500 ease-out transform-gpu"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className={cn(
-        "absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-        "bg-gradient-to-r",
-        emotionColors.from + "/20",
-        emotionColors.to + "/20"
-      )} />
+      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-coral-400/20 to-plum-400/20" />
       
-      <Card className={cn(
-        "overflow-hidden transition-all duration-300",
-        "hover:shadow-xl hover:-translate-y-1 bg-white/95",
-        "border border-gray-100 hover:border-gray-200",
-        isLarge ? "md:flex" : ""
-      )}>
-        {memory.imageUrl && isLarge && (
-          <div className="relative w-full md:w-1/3 aspect-square md:aspect-auto overflow-hidden">
-            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${memory.imageUrl})` }} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-          </div>
-        )}
-        
-        <CardContent className={cn(
-          "p-4",
-          isLarge ? "md:flex-1" : "",
-          "relative z-10"
-        )}>
+      <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white/95 border border-gray-100 hover:border-gray-200">
+        <CardContent className="p-4 relative z-10">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
-              <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-300",
-                "bg-gradient-to-r",
-                emotionColors.from,
-                emotionColors.to,
-                "group-hover:scale-110"
-              )}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-300 bg-gradient-to-r from-coral-500 to-plum-500 group-hover:scale-110">
                 <Heart className="w-5 h-5 text-white" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <Clock className="w-3 h-3 text-gray-400" />
-                <p className="text-sm text-gray-600">{memory.date}</p>
+                <p className="text-sm text-gray-600">
+                  {new Date(memory.timestamp).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric'
+                  })}
+                </p>
               </div>
-              <p className={cn(
-                "mt-2 font-medium transition-colors duration-300",
-                "text-gray-900 group-hover:text-gray-700",
-                isLarge ? "text-lg" : "text-base"
-              )}>{memory.highlight}</p>
-              {memory.tags && (
+              <p className="mt-2 font-medium transition-colors duration-300 text-gray-900 group-hover:text-gray-700">
+                {memory.content}
+              </p>
+              {memory.filters && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {memory.tags.map((tag: string) => (
+                  {memory.filters.map((filter) => (
                     <Badge 
-                      key={tag} 
+                      key={filter} 
                       variant="secondary" 
-                      className={cn(
-                        "text-xs px-2 py-0.5 transition-colors duration-300",
-                        "hover:bg-gray-100"
-                      )}
+                      className="text-xs px-2 py-0.5 transition-colors duration-300 hover:bg-gray-100"
                     >
-                      {tag}
+                      {filter}
                     </Badge>
                   ))}
                 </div>
@@ -128,63 +98,78 @@ const MemoryCard = ({ memory, isLarge = false }: { memory: Memory, isLarge?: boo
   );
 };
 
+const EmptyState = () => (
+  <div className="text-center py-12">
+    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-coral-100 to-plum-100 flex items-center justify-center">
+      <Heart className="w-8 h-8 text-coral-500" />
+    </div>
+    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Memories Yet</h3>
+    <p className="text-gray-600 max-w-sm mx-auto">
+      As you chat with Amorine, special moments and meaningful conversations will be captured here as memories.
+    </p>
+  </div>
+);
+
 const Dashboard = () => {
   const isMobile = useIsMobile();
-  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
-  
-  const { data: subscription } = useQuery({
-    queryKey: ["subscription"],
+  const [selectedFilter, setSelectedFilter] = useState<string>("All Moments");
+
+  // Fetch user session
+  const { data: session } = useQuery({
+    queryKey: ["session"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("tier")
-        .eq("user_id", user.id)
-        .single();
-
-      return subscription;
+      const { data: { session } } = await supabase.auth.getSession();
+      return session;
     },
   });
 
-  // Enhanced memories data with more metadata
-  const memories: Memory[] = [
-    {
-      date: "2 hours ago",
-      highlight: "We had a deep conversation about the importance of self-reflection and personal growth. You shared some insightful perspectives about mindfulness.",
-      tags: ["Growth", "Reflection", "Deep Talk"],
-      category: "reflection",
-      imageUrl: "https://images.unsplash.com/photo-1519834785169-98be25ec3f84?q=80&w=1000"
+  // Fetch memories
+  const { data: memoriesData, isLoading } = useQuery({
+    queryKey: ["memories", session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data } = await supabase.functions.invoke("memories", {
+        body: { userId: session.user.id }
+      });
+      return data;
     },
-    {
-      date: "Yesterday",
-      highlight: "You shared your creative writing passion and we brainstormed story ideas. Your imagination and creativity were truly inspiring!",
-      tags: ["Creativity", "Writing", "Stories"],
-      category: "creativity"
+    enabled: !!session?.user?.id
+  });
+
+  // Fetch subscription
+  const { data: subscription } = useQuery({
+    queryKey: ["subscription"],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("tier")
+        .eq("user_id", session.user.id)
+        .single();
+      return subscription;
     },
-    {
-      date: "3 days ago",
-      highlight: "We explored mindfulness techniques for managing daily stress. You showed great interest in developing healthy coping mechanisms.",
-      tags: ["Wellness", "Mindfulness", "Growth"],
-      category: "growth"
-    },
-  ];
+    enabled: !!session?.user?.id
+  });
 
   const filterCategories = [
     { label: "All Moments", icon: Heart, color: "text-rose-500" },
     { label: "Goals", icon: Flower2, color: "text-emerald-500" },
     { label: "Casual", icon: Coffee, color: "text-orange-500" },
-    { label: "Deep Talks", icon: Brain, color: "text-indigo-500" },
+    { label: "Deep Talks", icon: MessageCircle, color: "text-indigo-500" },
     { label: "Stories", icon: BookOpen, color: "text-amber-500" },
     { label: "Activities", icon: Activity, color: "text-cyan-500" },
     { label: "Creative", icon: Palette, color: "text-purple-500" },
     { label: "Insights", icon: Lightbulb, color: "text-yellow-500" },
-    { label: "Stormy", icon: Cloud, color: "text-slate-500" },
+    { label: "Stormy", icon: CloudLightning, color: "text-slate-500" },
     { label: "Connection", icon: HeartHandshake, color: "text-coral" },
-    { label: "Inspiration", icon: Music, color: "text-blue-500" },
-    { label: "Bot", icon: Bot, color: "text-violet-500" }
+    { label: "Inspiration", icon: Rocket, color: "text-blue-500" },
+    { label: "Hot", icon: Cherry, color: "text-red-500" }
   ];
+
+  // Filter memories based on selected filter
+  const filteredMemories = memoriesData?.memories?.filter(memory => 
+    selectedFilter === "All Moments" || memory.filters.includes(selectedFilter)
+  );
 
   return (
     <div className={cn(
@@ -220,7 +205,7 @@ const Dashboard = () => {
               key={label}
               variant={selectedFilter === label ? "default" : "outline"}
               size="sm"
-              onClick={() => setSelectedFilter(label === selectedFilter ? null : label)}
+              onClick={() => setSelectedFilter(label)}
               className={cn(
                 "transition-all duration-300 flex items-center gap-2 px-4",
                 selectedFilter === label 
@@ -242,16 +227,20 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Memory Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {memories.map((memory, index) => (
-          <MemoryCard 
-            key={index} 
-            memory={memory} 
-            isLarge={index === 0} // Make the first card larger
-          />
-        ))}
-      </div>
+      {/* Memory Cards */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="w-8 h-8 border-4 border-coral-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : !filteredMemories?.length ? (
+        <EmptyState />
+      ) : (
+        <div className="space-y-4">
+          {filteredMemories.map((memory) => (
+            <MemoryCard key={memory.id} memory={memory} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
