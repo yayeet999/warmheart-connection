@@ -88,7 +88,7 @@ const ProfileCarousel = () => {
         )}>
           <Button
             variant="ghost"
-            className="group flex items-center gap-2 px-3 py-2 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white/90 transition-all duration-300 shadow-sm hover:shadow-md text-gray-600 hover:text-gray-900"
+            className="group flex items-center gap-2 px-3 py-2 rounded-full bg-gradient-to-r from-coral-200 to-plum-200 hover:from-coral-300 hover:to-plum-300 backdrop-blur-sm transition-all duration-300 shadow-sm hover:shadow-md text-gray-700 hover:text-gray-900 border border-white/20"
             onClick={() => setIsProfileView(false)}
           >
             <ChevronLeft className="w-5 h-5 text-coral transition-transform duration-300 group-hover:-translate-x-1" />
@@ -698,54 +698,21 @@ const ProfileCarousel = () => {
         )}
 
         <div className={cn(
-          "overflow-hidden relative", // Added relative for arrow positioning
+          "overflow-hidden relative",
           "py-8",
           isMobile ? "px-4" : "px-12"
         )}>
-          {isMobile && (
-            <motion.div
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
-              initial={{ opacity: 0 }}
-              animate={{ 
-                opacity: [0, 1, 1, 0],
-                x: [0, 10, 10, 0]
-              }}
-              transition={{ 
-                delay: 1,
-                duration: 2,
-                times: [0, 0.3, 0.7, 1],
-                repeat: 3,
-                repeatDelay: 1
-              }}
-            >
-              <div className="bg-white/40 backdrop-blur-md rounded-full p-3 shadow-lg ring-2 ring-white/50">
-                <ChevronRight className="w-6 h-6 text-white drop-shadow-lg" />
-              </div>
-            </motion.div>
-          )}
-          <motion.div
-            className="flex items-center gap-8"
-            animate={{ x: `-${currentIndex * 100}%` }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.1}
-            onDragEnd={(e, { offset, velocity }) => {
-              const swipe = offset.x;
-              
-              if (Math.abs(velocity.x) > 200 || Math.abs(swipe) > 100) {
-                if (swipe < 0) {
-                  handleNext();
-                } else {
-                  handlePrevious();
-                }
-              }
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          >
+          <div className={cn(
+            isMobile ? "flex flex-col gap-8" : "flex items-center gap-8", // Changed to flex-col for mobile
+            isMobile ? "" : `transform -translate-x-[${currentIndex * 100}%]` // Only apply transform on desktop
+          )}>
             {companions.map((profile) => (
               <motion.div
                 key={profile.id}
-                className="w-full flex-shrink-0 px-2 sm:px-6"
+                className={cn(
+                  "flex-shrink-0",
+                  isMobile ? "w-full" : "w-full px-2 sm:px-6" // Adjusted padding for mobile
+                )}
                 whileHover={{ scale: 1.03 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
@@ -864,26 +831,28 @@ const ProfileCarousel = () => {
                 </Card>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
         </div>
 
-        {/* Enhanced Pagination Dots */}
-        <div className="flex justify-center mt-8 gap-3">
-          {companions.map((_, index) => (
-            <Button
-              key={index}
-              variant="ghost"
-              size="sm"
-              onClick={() => setCurrentIndex(index)}
-              className={cn(
-                "w-2.5 h-2.5 p-0 rounded-full transition-all duration-300 hover:scale-150",
-                currentIndex === index 
-                  ? "bg-gradient-to-r from-coral-500 to-plum-500 scale-125" 
-                  : "bg-gray-300 hover:bg-gray-400"
-              )}
-            />
-          ))}
-        </div>
+        {/* Enhanced Pagination Dots - Only show on desktop */}
+        {!isMobile && (
+          <div className="flex justify-center mt-8 gap-3">
+            {companions.map((_, index) => (
+              <Button
+                key={index}
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentIndex(index)}
+                className={cn(
+                  "w-2.5 h-2.5 p-0 rounded-full transition-all duration-300 hover:scale-150",
+                  currentIndex === index 
+                    ? "bg-gradient-to-r from-coral-500 to-plum-500 scale-125" 
+                    : "bg-gray-300 hover:bg-gray-400"
+                )}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
