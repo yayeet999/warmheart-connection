@@ -38,9 +38,9 @@ async function generateEmbeddings(text: string): Promise<number[]> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: "text-embedding-3-small",
+      model: "text-embedding-3-large",
       input: text,
-      dimensions: 384,
+      dimensions: 1536,
     }),
   });
 
