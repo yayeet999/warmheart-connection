@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -69,63 +68,48 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
   const parts: string[] = [];
 
   try {
+    if (analysis.key_words?.length) {
+      parts.push(analysis.key_words.join(', '));
+    }
+
     if (currentMessage) {
       parts.push(currentMessage);
     }
 
     if (analysis.intimacy_metrics?.relationship_stage) {
       const stage = analysis.intimacy_metrics.relationship_stage.toLowerCase()
-        .replace(/_/g, ' ');
-      parts.push(`Their relationship is in a ${stage} phase`);
+        .replace(/_/g, ' ')
+        .replace(/phase|stage/g, '').trim();
+      parts.push(stage);
     }
 
     if (analysis.context?.temporal_setting) {
-      parts.push(`It's ${analysis.context.temporal_setting.toLowerCase()}`);
+      parts.push(analysis.context.temporal_setting.toLowerCase());
     }
 
     if (analysis.intimacy_metrics?.flirt_level > 0) {
       const flirtLevel = analysis.intimacy_metrics.flirt_level;
       if (flirtLevel > 80) {
-        parts.push("She's being very flirtatious");
+        parts.push("very flirtatious");
       } else if (flirtLevel > 50) {
-        parts.push("She's being somewhat flirty");
+        parts.push("flirty");
       } else if (flirtLevel > 20) {
-        parts.push("She's being slightly playful");
+        parts.push("playful");
       }
     }
 
     if (analysis.visual_core?.image_type) {
-      const typeMap: { [key: string]: string } = {
-        'portrait': 'Amorine takes a portrait photo',
-        'selfie': 'Amorine takes a selfie',
-        'candid': 'A candid shot of Amorine',
-        'full_body': 'A full body photo of Amorine',
-      };
-      const naturalType = typeMap[analysis.visual_core.image_type] || 
-        `A photo of Amorine (${analysis.visual_core.image_type})`;
-      parts.push(naturalType);
+      parts.push(analysis.visual_core.image_type.toLowerCase());
     }
 
     if (analysis.emotional_essence?.intensity > 50 && analysis.emotional_essence?.primary_emotion) {
-      parts.push(`She appears ${analysis.emotional_essence.primary_emotion.toLowerCase()}`);
-    }
-
-    if (analysis.key_words?.length) {
-      parts.push(`Key themes: ${analysis.key_words.join(', ')}`);
-    }
-
-    if (recentMessages.length) {
-      const contextMessages = recentMessages
-        .slice(-3)
-        .map(msg => msg.content)
-        .join(' ');
-      parts.push(`Context: ${contextMessages}`);
+      parts.push(analysis.emotional_essence.primary_emotion.toLowerCase());
     }
 
     return parts.filter(Boolean).join('. ');
   } catch (error) {
     console.error('Error building search query:', error);
-    return currentMessage || 'photo of amorine';
+    return currentMessage || 'amorine';
   }
 }
 
