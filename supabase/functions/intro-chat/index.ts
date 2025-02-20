@@ -51,7 +51,7 @@ serve(async (req) => {
     const { error: updateError } = await supabase
       .from('ai_profiles')
       .update({
-        relationship_stage: `GROWING ATTRACTION STAGE.
+        relationship_stage: `GROWING ATTRACTION
 
 Amorine shows increased warmth and openness while maintaining healthy boundaries, though still mindful of appropriate limits.
 
