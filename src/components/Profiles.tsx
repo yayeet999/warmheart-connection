@@ -284,10 +284,18 @@ const ProfileCarousel = () => {
                       <span className="text-white/90 text-sm font-medium tracking-wide">Occupation</span>
                     </div>
                     <div>
-                      <div className="font-semibold text-white text-2xl mb-1 group-hover:text-coral-200 transition-colors duration-300">
-                        Art Gallery Curator
+                      <div className="text-3xl font-bold text-white flex items-center gap-3">
+                        {amorine.name}
+                        <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
                       </div>
-                      <div className="text-white/90 text-sm tracking-wide">Professional Photographer</div>
+                      <div className="flex items-center gap-2 text-white/90">
+                        <span className="text-2xl font-bold tracking-tight">23</span>
+                        <span className="text-white/40 text-lg">•</span>
+                        <span className="text-sm font-medium tracking-wide flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-coral-300" />
+                          San Francisco
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -307,8 +315,8 @@ const ProfileCarousel = () => {
                   {/* Personality Column */}
                   <div className="md:col-span-5">
                     <div className={cn(
-                      "grid grid-cols-2 gap-3 md:grid-cols-1 md:gap-4", // 2x2 on mobile, single column on desktop
-                      "md:space-y-4" // Only apply vertical spacing on desktop
+                      "grid grid-cols-1 gap-3 md:grid-cols-1 md:gap-4", // Changed from grid-cols-2 to grid-cols-1 for mobile
+                      "space-y-3 md:space-y-4" // Added space-y-3 for mobile spacing
                     )}>
                       {[
                         { trait: "Empathetic", icon: Heart, description: "Understanding & caring", color: "rose", gradient: "from-rose-500 to-coral-500" },
@@ -689,16 +697,55 @@ const ProfileCarousel = () => {
           </>
         )}
 
-        <div className="overflow-hidden px-12 py-8">
+        <div className={cn(
+          "overflow-hidden relative", // Added relative for arrow positioning
+          "py-8",
+          isMobile ? "px-4" : "px-12"
+        )}>
+          {isMobile && (
+            <motion.div
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
+              initial={{ opacity: 0 }}
+              animate={{ 
+                opacity: [0, 1, 1, 0],
+                x: [0, 10, 10, 0]
+              }}
+              transition={{ 
+                delay: 1,
+                duration: 2,
+                times: [0, 0.3, 0.7, 1],
+                repeat: 3,
+                repeatDelay: 1
+              }}
+            >
+              <div className="bg-white/40 backdrop-blur-md rounded-full p-3 shadow-lg ring-2 ring-white/50">
+                <ChevronRight className="w-6 h-6 text-white drop-shadow-lg" />
+              </div>
+            </motion.div>
+          )}
           <motion.div
-            className="flex items-center"
+            className="flex items-center gap-8"
             animate={{ x: `-${currentIndex * 100}%` }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.1}
+            onDragEnd={(e, { offset, velocity }) => {
+              const swipe = offset.x;
+              
+              if (Math.abs(velocity.x) > 200 || Math.abs(swipe) > 100) {
+                if (swipe < 0) {
+                  handleNext();
+                } else {
+                  handlePrevious();
+                }
+              }
+            }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
           >
             {companions.map((profile) => (
               <motion.div
                 key={profile.id}
-                className="w-full flex-shrink-0 px-4"
+                className="w-full flex-shrink-0 px-2 sm:px-6"
                 whileHover={{ scale: 1.03 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
@@ -706,7 +753,8 @@ const ProfileCarousel = () => {
                   className={cn(
                     "relative overflow-hidden cursor-pointer group transition-all duration-500",
                     !profile.isAvailable && "opacity-90 grayscale hover:grayscale-0",
-                    "bg-gradient-to-br from-white to-gray-50 min-h-[600px] rounded-3xl border-0"
+                    "bg-gradient-to-br from-white to-gray-50 min-h-[600px] rounded-3xl border-0",
+                    isMobile ? "mx-[-1.5rem]" : "mx-2" // Added margin on desktop
                   )}
                   onClick={() => handleProfileClick(profile)}
                 >
@@ -721,19 +769,24 @@ const ProfileCarousel = () => {
                       <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/20 to-black/80" />
                     </div>
                   ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-800" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-plum-900/50 to-coral-900/50">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                        <User className="w-48 h-48 text-white" strokeWidth={1.5} />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/80" />
+                    </div>
                   )}
                   
                   {/* Content Overlay */}
                   <CardContent className={cn(
-                    "relative h-full flex flex-col justify-end p-8 z-10",
+                    "relative h-full flex flex-col justify-between p-8 z-10",
                     "min-h-[600px]" // Ensure minimum height
                   )}>
+                    {/* Top Section with Profile Info */}
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="space-y-4"
                     >
                       {/* Profile Info */}
                       <div className="space-y-2">
@@ -743,28 +796,36 @@ const ProfileCarousel = () => {
                               {profile.name}
                               <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
                             </h3>
-                            <p className="text-white/90 text-lg font-medium">
-                              Art Gallery Curator
-                            </p>
-                            <p className="text-white/80">
-                              San Francisco Bay Area
-                            </p>
+                            <div className="flex items-center gap-2 text-white/90">
+                              <span className="text-2xl font-bold tracking-tight">23</span>
+                              <span className="text-white/40 text-lg">•</span>
+                              <span className="text-sm font-medium tracking-wide flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-coral-300" />
+                                San Francisco
+                              </span>
+                            </div>
                           </>
                         ) : (
-                          <div className="space-y-3">
-                            <h3 className="text-3xl font-bold text-white/90">
-                              {profile.name}
-                            </h3>
-                            <p className="text-white/70 text-lg">
-                              Coming Soon
-                            </p>
+                          <div className="absolute inset-x-0 bottom-0 p-8">
+                            <div className="flex items-center justify-center gap-3 text-white/90">
+                              <span className="text-2xl font-medium">Coming Soon</span>
+                              <Heart className="w-6 h-6 text-coral-300" />
+                            </div>
                           </div>
                         )}
                       </div>
+                    </motion.div>
 
-                      {/* Tags Section */}
-                      {profile.isAvailable && (
-                        <div className="flex flex-wrap gap-2 pt-4">
+                    {/* Bottom Section with Tags and Button */}
+                    {profile.isAvailable && (
+                      <div className="space-y-6">
+                        {/* Tags Section */}
+                        <motion.div 
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="flex flex-wrap gap-2"
+                        >
                           {["Photographer", "Art Lover", "Creative Soul"].map((tag) => (
                             <Badge 
                               key={tag}
@@ -774,35 +835,28 @@ const ProfileCarousel = () => {
                               {tag}
                             </Badge>
                           ))}
-                        </div>
-                      )}
-                    </motion.div>
+                        </motion.div>
 
-                    {/* Action Button - Now positioned at bottom */}
-                    <motion.div 
-                      className="mt-auto pt-6"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Button
-                        className={cn(
-                          "w-full py-6 text-lg font-semibold rounded-xl",
-                          "bg-gradient-to-r from-coral-500 to-plum-500 hover:from-coral-600 hover:to-plum-600",
-                          "text-white border-0 shadow-lg hover:shadow-xl",
-                          "transition-all duration-300"
-                        )}
-                      >
-                        {profile.isAvailable ? (
-                          <span className="flex items-center gap-2">
-                            View Profile <Heart className="w-5 h-5" />
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-2">
-                            Coming Soon <Sparkles className="w-5 h-5" />
-                          </span>
-                        )}
-                      </Button>
-                    </motion.div>
+                        {/* Action Button */}
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Button
+                            className={cn(
+                              "w-full py-6 text-lg font-semibold rounded-xl",
+                              "bg-gradient-to-r from-coral-500 to-plum-500 hover:from-coral-600 hover:to-plum-600",
+                              "text-white border-0 shadow-lg hover:shadow-xl",
+                              "transition-all duration-300"
+                            )}
+                          >
+                            <span className="flex items-center gap-2">
+                              View Profile <Heart className="w-5 h-5" />
+                            </span>
+                          </Button>
+                        </motion.div>
+                      </div>
+                    )}
                   </CardContent>
 
                   {/* Hover Effect Overlay */}
