@@ -40,6 +40,7 @@ async function generateEmbeddings(text: string): Promise<number[]> {
     body: JSON.stringify({
       model: "text-embedding-3-large",
       input: text,
+      dimensions: 1024,
     }),
   });
 
