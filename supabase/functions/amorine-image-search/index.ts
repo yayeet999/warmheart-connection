@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -74,25 +73,20 @@ function calculateContextualScore(
   similarity: number,
   imageMetadata: any,
   analysis: any,
-  currentTime: string
+  timeContext: string
 ): ContextualScore {
-  // Base weights
-  const SIMILARITY_WEIGHT = 0.6;
-  const RELATIONSHIP_WEIGHT = 0.25;
-  const TIME_WEIGHT = 0.15;
+  const SIMILARITY_WEIGHT = 0.7;
+  const RELATIONSHIP_WEIGHT = 0.3;
 
-  // Relationship stage matching
   const relationshipScore = imageMetadata.relationship_stage === analysis.intimacy_metrics?.relationship_stage ? 1 : 0.5;
 
-  // Time context matching (morning, afternoon, evening, night)
-  const timeScore = imageMetadata.time_context === currentTime ? 1 : 0.7;
+  let totalScore = (similarity * SIMILARITY_WEIGHT + relationshipScore * RELATIONSHIP_WEIGHT);
 
-  // Calculate total score
-  const totalScore = (
-    similarity * SIMILARITY_WEIGHT +
-    relationshipScore * RELATIONSHIP_WEIGHT +
-    timeScore * TIME_WEIGHT
-  );
+  let timeScore = 0;
+  if (timeContext && imageMetadata.time_context) {
+    timeScore = timeContext === imageMetadata.time_context ? 0.2 : 0;
+    totalScore = totalScore * 0.8 + timeScore;
+  }
 
   return {
     similarityScore: similarity,
@@ -106,12 +100,10 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
   const parts: string[] = [];
 
   try {
-    // 1. Current Message (Highest Priority - 60% weight)
     if (currentMessage) {
       parts.push(`INTENT: ${currentMessage}`);
     }
 
-    // 2. Recent Context (Last 5 messages)
     const recentContext = recentMessages.slice(-5);
     if (recentContext.length) {
       const contextMessages = recentContext
@@ -120,38 +112,31 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
       parts.push(`CONTEXT: ${contextMessages}`);
     }
 
-    // 3. Critical Relationship Context
     if (analysis.intimacy_metrics?.relationship_stage) {
       parts.push(`RELATIONSHIP: ${analysis.intimacy_metrics.relationship_stage}`);
     }
 
-    // 4. Time Context (use from analysis if available)
     if (analysis.context?.temporal_setting) {
       parts.push(`TIME: ${analysis.context.temporal_setting}`);
     }
 
-    // 5. Flirtiness Level (if significant)
     if (analysis.intimacy_metrics?.flirt_level > 20) {
       parts.push(`FLIRT_LEVEL: ${analysis.intimacy_metrics.flirt_level}`);
     }
 
-    // 6. Image Type (if specified)
     if (analysis.visual_core?.image_type) {
       parts.push(`TYPE: ${analysis.visual_core.image_type}`);
     }
 
-    // 7. Primary Emotion (if strong)
     if (analysis.emotional_essence?.intensity > 50) {
       parts.push(`EMOTION: ${analysis.emotional_essence.primary_emotion}`);
     }
 
   } catch (error) {
     console.error('Error building search query:', error);
-    // Fallback to basic query with current message
     return currentMessage || 'general image';
   }
 
-  // Join with newlines for clear separation
   return parts.filter(Boolean).join('\n');
 }
 
@@ -168,21 +153,17 @@ serve(async (req) => {
 
     console.log('amorine-image-search request:', { userId, message_id });
 
-    // Build the focused search query
     const searchQuery = buildSearchQuery(analysis, recentMessages, currentMessage);
     console.log('Built search query:', searchQuery);
     
     const queryVector = await generateEmbeddings(searchQuery);
 
-    // Use temporal_setting from analysis or default to an empty string
     const timeContext = analysis.context?.temporal_setting || '';
 
-    // The Redis set for used images
     const usedSetKey = `used_images:${userId}`;
     const usedPaths = await redis.smembers(usedSetKey);
     const usedPathSet = new Set(usedPaths || []);
 
-    // Progressive topK with similarity threshold
     const topKs = [5, 10, 20];
     let bestMatch = null;
     let bestScore = 0;
@@ -194,7 +175,7 @@ serve(async (req) => {
         vector: queryVector,
         topK: k,
         includeMetadata: true,
-        scoreThreshold: 0.7 // Minimum similarity threshold
+        scoreThreshold: 0.7
       });
 
       if (!searchResults?.length) {
@@ -202,7 +183,6 @@ serve(async (req) => {
         continue;
       }
 
-      // Fetch full image data from Supabase
       const storagePaths = searchResults.map(r => r.id);
       const { data: images, error } = await supabase
         .from('image_library')
@@ -215,7 +195,6 @@ serve(async (req) => {
         throw new Error(error.message);
       }
 
-      // Score and filter results
       const availableImages = images
         .filter(img => !usedPathSet.has(img.storage_path))
         .map(img => {
@@ -242,7 +221,7 @@ serve(async (req) => {
         if (topMatch.score.totalScore > bestScore) {
           bestMatch = topMatch.image;
           bestScore = topMatch.score.totalScore;
-          break; // Found a good match, no need to try larger K
+          break;
         }
       }
     }
@@ -258,7 +237,6 @@ serve(async (req) => {
       });
     }
 
-    // Store in image-registry
     const registryInvoke = await supabase.functions.invoke("image-registry", {
       body: {
         action: "store",
@@ -273,10 +251,8 @@ serve(async (req) => {
       throw new Error(registryInvoke.data?.error || registryInvoke.error?.message || 'image-registry store failed');
     }
 
-    // Add to used images set
     await redis.sadd(usedSetKey, bestMatch.storage_path);
 
-    // Return the best match
     return new Response(JSON.stringify({
       success: true,
       chosen: {
