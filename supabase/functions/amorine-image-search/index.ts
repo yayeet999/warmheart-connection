@@ -135,7 +135,6 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
         'selfie': 'Amorine takes a selfie',
         'candid': 'A candid shot of Amorine',
         'full_body': 'A full body photo of Amorine',
-        // Add more mappings as needed
       };
       const naturalType = typeMap[analysis.visual_core.image_type] || 
         `A photo of Amorine (${analysis.visual_core.image_type})`;
@@ -145,6 +144,11 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
     // Convert emotion to natural language
     if (analysis.emotional_essence?.intensity > 50 && analysis.emotional_essence?.primary_emotion) {
       parts.push(`She appears ${analysis.emotional_essence.primary_emotion.toLowerCase()}`);
+    }
+
+    // Add key words from analysis
+    if (analysis.key_words?.length) {
+      parts.push(`Key themes: ${analysis.key_words.join(', ')}`);
     }
 
     // Add recent context if available
