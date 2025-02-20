@@ -721,7 +721,7 @@ const ProfileCarousel = () => {
                     "relative overflow-hidden cursor-pointer group transition-all duration-500",
                     !profile.isAvailable && "opacity-90 grayscale hover:grayscale-0",
                     "bg-gradient-to-br from-white to-gray-50 min-h-[600px] rounded-3xl border-0",
-                    isMobile ? "mx-[-1.5rem]" : "mx-2" // Added margin on desktop
+                    isMobile ? "mx-[-1rem] w-[97%] mx-auto" : "mx-2" // Adjusted width to be just slightly narrower
                   )}
                   onClick={() => handleProfileClick(profile)}
                 >
