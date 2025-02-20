@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Activity, Heart, MessageSquare, Crown, Sparkles, BookOpen, User, 
   Lightbulb, Laugh, Brain, Flower2, Coffee, Music, Palette, HeartHandshake,
-  Clock, Star
+  Clock, Star, Cloud, Bot
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -174,14 +174,16 @@ const Dashboard = () => {
   const filterCategories = [
     { label: "All Moments", icon: Heart, color: "text-rose-500" },
     { label: "Goals", icon: Flower2, color: "text-emerald-500" },
+    { label: "Casual", icon: Coffee, color: "text-orange-500" },
     { label: "Deep Talks", icon: Brain, color: "text-indigo-500" },
     { label: "Stories", icon: BookOpen, color: "text-amber-500" },
     { label: "Activities", icon: Activity, color: "text-cyan-500" },
     { label: "Creative", icon: Palette, color: "text-purple-500" },
     { label: "Insights", icon: Lightbulb, color: "text-yellow-500" },
+    { label: "Stormy", icon: Cloud, color: "text-slate-500" },
     { label: "Connection", icon: HeartHandshake, color: "text-coral" },
-    { label: "Casual", icon: Coffee, color: "text-orange-500" },
-    { label: "Inspiration", icon: Music, color: "text-blue-500" }
+    { label: "Inspiration", icon: Music, color: "text-blue-500" },
+    { label: "Bot", icon: Bot, color: "text-violet-500" }
   ];
 
   return (
@@ -196,7 +198,7 @@ const Dashboard = () => {
           "text-2xl md:text-3xl font-bold text-charcoal",
           isMobile ? "mx-auto" : ""
         )}>
-          Our Journey Together
+          Memories
         </h1>
         <Badge 
           variant={subscription?.tier === 'pro' ? 'default' : 'secondary'} 
