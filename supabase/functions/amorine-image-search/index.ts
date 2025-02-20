@@ -101,43 +101,66 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
 
   try {
     if (currentMessage) {
-      parts.push(`INTENT: ${currentMessage}`);
+      parts.push(currentMessage);
     }
 
-    const recentContext = recentMessages.slice(-5);
-    if (recentContext.length) {
-      const contextMessages = recentContext
+    // Convert relationship stage to natural language
+    if (analysis.intimacy_metrics?.relationship_stage) {
+      const stage = analysis.intimacy_metrics.relationship_stage.toLowerCase()
+        .replace(/_/g, ' ');
+      parts.push(`Their relationship is in a ${stage} phase`);
+    }
+
+    // Convert temporal context to natural language
+    if (analysis.context?.temporal_setting) {
+      parts.push(`It's ${analysis.context.temporal_setting.toLowerCase()}`);
+    }
+
+    // Convert flirt level to descriptive language
+    if (analysis.intimacy_metrics?.flirt_level > 0) {
+      const flirtLevel = analysis.intimacy_metrics.flirt_level;
+      if (flirtLevel > 80) {
+        parts.push("She's being very flirtatious");
+      } else if (flirtLevel > 50) {
+        parts.push("She's being somewhat flirty");
+      } else if (flirtLevel > 20) {
+        parts.push("She's being slightly playful");
+      }
+    }
+
+    // Convert image type to natural description
+    if (analysis.visual_core?.image_type) {
+      const typeMap: { [key: string]: string } = {
+        'portrait': 'Amorine takes a portrait photo',
+        'selfie': 'Amorine takes a selfie',
+        'candid': 'A candid shot of Amorine',
+        'full_body': 'A full body photo of Amorine',
+        // Add more mappings as needed
+      };
+      const naturalType = typeMap[analysis.visual_core.image_type] || 
+        `A photo of Amorine (${analysis.visual_core.image_type})`;
+      parts.push(naturalType);
+    }
+
+    // Convert emotion to natural language
+    if (analysis.emotional_essence?.intensity > 50 && analysis.emotional_essence?.primary_emotion) {
+      parts.push(`She appears ${analysis.emotional_essence.primary_emotion.toLowerCase()}`);
+    }
+
+    // Add recent context if available
+    if (recentMessages.length) {
+      const contextMessages = recentMessages
+        .slice(-3)
         .map(msg => msg.content)
         .join(' ');
-      parts.push(`CONTEXT: ${contextMessages}`);
+      parts.push(`Context: ${contextMessages}`);
     }
 
-    if (analysis.intimacy_metrics?.relationship_stage) {
-      parts.push(`RELATIONSHIP: ${analysis.intimacy_metrics.relationship_stage}`);
-    }
-
-    if (analysis.context?.temporal_setting) {
-      parts.push(`TIME: ${analysis.context.temporal_setting}`);
-    }
-
-    if (analysis.intimacy_metrics?.flirt_level > 20) {
-      parts.push(`FLIRT_LEVEL: ${analysis.intimacy_metrics.flirt_level}`);
-    }
-
-    if (analysis.visual_core?.image_type) {
-      parts.push(`TYPE: ${analysis.visual_core.image_type}`);
-    }
-
-    if (analysis.emotional_essence?.intensity > 50) {
-      parts.push(`EMOTION: ${analysis.emotional_essence.primary_emotion}`);
-    }
-
+    return parts.filter(Boolean).join('. ');
   } catch (error) {
     console.error('Error building search query:', error);
-    return currentMessage || 'general image';
+    return currentMessage || 'photo of amorine';
   }
-
-  return parts.filter(Boolean).join('\n');
 }
 
 serve(async (req) => {
