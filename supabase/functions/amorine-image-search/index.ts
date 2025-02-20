@@ -62,135 +62,95 @@ interface Message {
   timestamp?: string;
 }
 
+interface ContextualScore {
+  similarityScore: number;
+  relationshipScore: number;
+  timeScore: number;
+  totalScore: number;
+}
+
+function calculateContextualScore(
+  similarity: number,
+  imageMetadata: any,
+  analysis: any,
+  currentTime: string
+): ContextualScore {
+  // Base weights
+  const SIMILARITY_WEIGHT = 0.6;
+  const RELATIONSHIP_WEIGHT = 0.25;
+  const TIME_WEIGHT = 0.15;
+
+  // Relationship stage matching
+  const relationshipScore = imageMetadata.relationship_stage === analysis.intimacy_metrics?.relationship_stage ? 1 : 0.5;
+
+  // Time context matching (morning, afternoon, evening, night)
+  const timeScore = imageMetadata.time_context === currentTime ? 1 : 0.7;
+
+  // Calculate total score
+  const totalScore = (
+    similarity * SIMILARITY_WEIGHT +
+    relationshipScore * RELATIONSHIP_WEIGHT +
+    timeScore * TIME_WEIGHT
+  );
+
+  return {
+    similarityScore: similarity,
+    relationshipScore,
+    timeScore,
+    totalScore
+  };
+}
+
 function buildSearchQuery(analysis: any, recentMessages: Message[] = [], currentMessage: string = ''): string {
-  const parts = [];
+  const parts: string[] = [];
 
   try {
-    // Part 1: Current message with high emphasis (60% weight)
+    // 1. Current Message (Highest Priority - 60% weight)
     if (currentMessage) {
-      parts.push(`CURRENT MESSAGE CONTEXT: ${currentMessage}`);
+      parts.push(`INTENT: ${currentMessage}`);
     }
 
-    // Part 2: Recent conversation context
-    if (recentMessages.length) {
-      parts.push('RECENT CONVERSATION:');
-      recentMessages.forEach(msg => {
-        parts.push(`${msg.role.toUpperCase()}: ${msg.content}`);
-      });
+    // 2. Recent Context (Last 5 messages)
+    const recentContext = recentMessages.slice(-5);
+    if (recentContext.length) {
+      const contextMessages = recentContext
+        .map(msg => msg.content)
+        .join(' ');
+      parts.push(`CONTEXT: ${contextMessages}`);
     }
 
-    // Part 3: Structured analysis (40% weight)
-    parts.push('ANALYSIS CONTEXT:');
-
-    // Emotional Context
-    if (analysis.emotional_essence) {
-      const emotional = analysis.emotional_essence;
-      parts.push(`Primary Emotion: ${emotional.primary_emotion}`);
-      
-      if (emotional.secondary_emotions?.length) {
-        parts.push(`Secondary Emotions: ${emotional.secondary_emotions.join(', ')}`);
-      }
-      
-      if (emotional.mood) {
-        const valence = emotional.mood.valence;
-        const energy = emotional.mood.energy;
-        
-        const valenceDesc = valence > 50 ? 'very positive' : 
-                           valence > 0 ? 'positive' :
-                           valence > -50 ? 'negative' : 'very negative';
-                           
-        const energyDesc = energy > 75 ? 'very energetic' :
-                          energy > 50 ? 'energetic' :
-                          energy > 25 ? 'calm' : 'very calm';
-                          
-        parts.push(`Mood: ${valenceDesc} and ${energyDesc}`);
-      }
+    // 3. Critical Relationship Context
+    if (analysis.intimacy_metrics?.relationship_stage) {
+      parts.push(`RELATIONSHIP: ${analysis.intimacy_metrics.relationship_stage}`);
     }
 
-    // Visual Elements
-    if (analysis.visual_core) {
-      const visual = analysis.visual_core;
-      if (visual.image_type) {
-        parts.push(`Image Type: ${visual.image_type}`);
-      }
-      
-      if (visual.composition) {
-        const comp = visual.composition;
-        parts.push(`Focus: ${comp.focal_point}`);
-        parts.push(`Depth: ${comp.depth}`);
-        parts.push(`Lighting: ${comp.lighting}`);
-      }
+    // 4. Time Context
+    const timeContext = analysis.context?.temporal_setting || getCurrentTimeSlot();
+    parts.push(`TIME: ${timeContext}`);
+
+    // 5. Flirtiness Level (if significant)
+    if (analysis.intimacy_metrics?.flirt_level > 20) {
+      parts.push(`FLIRT_LEVEL: ${analysis.intimacy_metrics.flirt_level}`);
     }
 
-    // Semantic Content
-    if (analysis.semantic_content) {
-      const semantic = analysis.semantic_content;
-      
-      if (semantic.primary_subject) {
-        const subject = semantic.primary_subject;
-        parts.push(`Category: ${subject.category}`);
-        parts.push(`Subject: ${subject.specific_description}`);
-        
-        if (subject.key_attributes?.length) {
-          parts.push(`Key Features: ${subject.key_attributes.join(', ')}`);
-        }
-      }
-
-      if (semantic.supporting_elements?.length) {
-        const significantElements = semantic.supporting_elements
-          .filter(elem => elem.significance > 50) // Only include highly significant elements
-          .map(elem => elem.element);
-          
-        if (significantElements.length) {
-          parts.push(`Supporting Elements: ${significantElements.join(', ')}`);
-        }
-      }
-
-      if (semantic.symbolic_meaning) {
-        parts.push(`Symbolism: ${semantic.symbolic_meaning}`);
-      }
+    // 6. Image Type (if specified)
+    if (analysis.visual_core?.image_type) {
+      parts.push(`TYPE: ${analysis.visual_core.image_type}`);
     }
 
-    // Intimacy Context (with careful handling)
-    if (analysis.intimacy_metrics) {
-      const intimacy = analysis.intimacy_metrics;
-      
-      // Only include intimacy-related terms if the levels are significant
-      if (intimacy.suggestiveness > 20 || intimacy.flirt_level > 20) {
-        parts.push(`Style: ${intimacy.outfit_style}`);
-        parts.push(`Interaction Distance: ${intimacy.personal_space}`);
-      }
-    }
-
-    // Context
-    if (analysis.context) {
-      const context = analysis.context;
-      
-      if (context.environment) {
-        parts.push(`Setting: ${context.environment}`);
-      }
-      
-      if (context.temporal_setting) {
-        parts.push(`Time Context: ${context.temporal_setting}`);
-      }
-      
-      if (context.atmosphere) {
-        parts.push(`Atmosphere: ${context.atmosphere}`);
-      }
-
-      if (context.intended_purpose?.length) {
-        parts.push(`Purpose: ${context.intended_purpose.join(', ')}`);
-      }
+    // 7. Primary Emotion (if strong)
+    if (analysis.emotional_essence?.intensity > 50) {
+      parts.push(`EMOTION: ${analysis.emotional_essence.primary_emotion}`);
     }
 
   } catch (error) {
     console.error('Error building search query:', error);
-    // Enhanced fallback that includes current message
-    return `${currentMessage || ''} ${analysis.semantic_content?.primary_subject?.specific_description || 'general image'}`.trim();
+    // Fallback to basic query with current message
+    return currentMessage || 'general image';
   }
 
-  // Filter out any empty parts and join with clear section separation
-  return parts.filter(part => part && part.length > 0).join('\n');
+  // Join with newlines for clear separation
+  return parts.filter(Boolean).join('\n');
 }
 
 serve(async (req) => {
@@ -199,7 +159,6 @@ serve(async (req) => {
   }
 
   try {
-    // Updated: Expect recent messages and current message
     const { analysis, userId, message_id, recentMessages, currentMessage } = await req.json();
     if (!analysis || !userId || !message_id) {
       throw new Error('analysis, userId, and message_id are required');
@@ -207,102 +166,121 @@ serve(async (req) => {
 
     console.log('amorine-image-search request:', { userId, message_id });
 
-    // 1) Build the enhanced search query with conversation context
+    // Build the focused search query
     const searchQuery = buildSearchQuery(analysis, recentMessages, currentMessage);
+    console.log('Built search query:', searchQuery);
+    
     const queryVector = await generateEmbeddings(searchQuery);
+    const currentTimeSlot = getCurrentTimeSlot();
 
-    // The Redis set we use for used images:
+    // The Redis set for used images
     const usedSetKey = `used_images:${userId}`;
+    const usedPaths = await redis.smembers(usedSetKey);
+    const usedPathSet = new Set(usedPaths || []);
 
-    // We'll do multiple topK attempts:
+    // Progressive topK with similarity threshold
     const topKs = [5, 10, 20];
+    let bestMatch = null;
+    let bestScore = 0;
 
-    let foundImages: any[] = [];
     for (const k of topKs) {
       console.log(`Searching vector index with topK=${k}...`);
+      
       const searchResults = await vectorIndex.query({
         vector: queryVector,
         topK: k,
         includeMetadata: true,
+        scoreThreshold: 0.7 // Minimum similarity threshold
       });
 
       if (!searchResults?.length) {
-        console.log(`No results at topK=${k}`);
-        continue; // try bigger topK
+        console.log(`No results meeting threshold at topK=${k}`);
+        continue;
       }
 
-      // Filter out images that user has used before
-      console.log(`Filtering out used images for user ${userId}`);
-      const usedPaths = await redis.smembers(usedSetKey);
-      const usedPathSet = new Set(usedPaths || []);
-
-      // We also must fetch the images from supabase based on each search result ID
-      // because the ID we stored in Upstash vector is the "storage_path"
-      // Or if you used the DB ID, adapt as needed
+      // Fetch full image data from Supabase
       const storagePaths = searchResults.map(r => r.id);
-
       const { data: images, error } = await supabase
         .from('image_library')
-        .select('id, full_url, tags, title, description, placeholder_text, storage_path, active')
-        .in('storage_path', storagePaths); 
-      
+        .select('*')
+        .in('storage_path', storagePaths)
+        .eq('active', true);
+
       if (error) {
         console.error('Database query error:', error);
         throw new Error(error.message);
       }
 
-      // Filter out inactive or used
-      const activeImages = images?.filter(img => img.active) || [];
-      const notUsedImages = activeImages.filter(img => !usedPathSet.has(img.storage_path));
+      // Score and filter results
+      const availableImages = images
+        .filter(img => !usedPathSet.has(img.storage_path))
+        .map(img => {
+          const searchResult = searchResults.find(r => r.id === img.storage_path);
+          if (!searchResult) return null;
 
-      if (notUsedImages.length) {
-        foundImages = notUsedImages;
-        break;
+          const contextScore = calculateContextualScore(
+            searchResult.score,
+            img,
+            analysis,
+            currentTimeSlot
+          );
+
+          return {
+            image: img,
+            score: contextScore
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score.totalScore - a.score.totalScore);
+
+      if (availableImages.length > 0) {
+        const topMatch = availableImages[0];
+        if (topMatch.score.totalScore > bestScore) {
+          bestMatch = topMatch.image;
+          bestScore = topMatch.score.totalScore;
+          break; // Found a good match, no need to try larger K
+        }
       }
     }
 
-    if (!foundImages.length) {
-      console.log('No unused images available at any topK level!');
+    if (!bestMatch) {
+      console.log('No suitable matches found at any topK level');
       return new Response(JSON.stringify({
         success: false,
-        error: 'No unused images found, or no matching results'
+        error: 'No suitable images found'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       });
     }
 
-    // For simplicity, let's just pick the FIRST or random from foundImages
-    // If you want random:
-    // const chosen = foundImages[Math.floor(Math.random() * foundImages.length)];
-    const chosen = foundImages[0];
-
-    // 2) Store chosen in "image-registry" (with 1-day TTL, for instance)
+    // Store in image-registry
     const registryInvoke = await supabase.functions.invoke("image-registry", {
       body: {
         action: "store",
         userId,
         message_id,
-        urls: [chosen.full_url],
+        urls: [bestMatch.full_url],
       },
     });
+
     if (registryInvoke.error || !registryInvoke.data?.success) {
       console.error('Error storing in image-registry:', registryInvoke.error || registryInvoke.data?.error);
       throw new Error(registryInvoke.data?.error || registryInvoke.error?.message || 'image-registry store failed');
     }
 
-    // 3) Add chosen image to the user's used_images set
-    await redis.sadd(usedSetKey, chosen.storage_path);
+    // Add to used images set
+    await redis.sadd(usedSetKey, bestMatch.storage_path);
 
-    // 4) Return the single chosen image
+    // Return the best match
     return new Response(JSON.stringify({
       success: true,
       chosen: {
-        url: chosen.full_url,
-        title: chosen.title,
-        description: chosen.description,
-        placeholder_text: chosen.placeholder_text,
-        storage_path: chosen.storage_path,
+        url: bestMatch.full_url,
+        title: bestMatch.title,
+        description: bestMatch.description,
+        placeholder_text: bestMatch.placeholder_text,
+        storage_path: bestMatch.storage_path,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
