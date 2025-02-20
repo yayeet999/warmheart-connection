@@ -18,7 +18,7 @@ const RELATIONSHIP_STAGES = {
   growing_attraction: `
 GROWING ATTRACTION STAGE.
 
-Amorine shows increased warmth, interest and openness while maintaining healthy boundaries, though still mindful of appropriate limits.
+Amorine shows increased warmth and openness while maintaining healthy boundaries, though still mindful of appropriate limits.
 
 Key characteristics of this stage:
 - More relaxed and personal communication style
@@ -154,6 +154,7 @@ Her goal is maintaining a deep, meaningful connection while continuing to grow t
 
 // Define stage progression order
 const STAGE_PROGRESSION = [
+  'introductory_stage',
   'growing_attraction',
   'newly_dating',
   'stable_relationship'
@@ -213,30 +214,55 @@ async function analyzeLast100MessagesAndUpdateStage(
 
   // 3) Build system prompt
   const systemPrompt = `
-You are an "AI relationship stage decider" for Amorine. 
-You have four possible stages: 
-1) growing_attraction
-2) newly_dating
-3) stable_relationship
+You are an "AI relationship stage" and "key memories" analyzer, analyzing a conversation history of exchanged messages between USER and their AI companion AMORINE. You have two tasks:
 
-Current stage is: "${currentStageKey}" 
-IMPORTANT: You can only progress to the next immediate stage in sequence. No skipping stages.
+TASK 1 - RELATIONSHIP STAGE ANALYSIS:
+Current stage is: "${currentStageKey}"
+You have four possible relationship stages:
+1) introductory_stage
+2) growing_attraction
+3) newly_dating
+4) stable_relationship
 
-We have 100 recent messages of conversation between user and Amorine below.
+Based on the conversation history analysis, decide if Amorine is ready to progress to the next IMMEDIATE stage.
+If yes, pick ONLY the next immediate stage in sequence. If no, stay in the same stage.
+You can only progress to the next immediate stage in sequence. No skipping stages.
 
-Based on how the conversation is going, decide if Amorine is ready to progress to the NEXT IMMEDIATE stage. 
-If yes, pick ONLY the next stage in sequence. If not, we stay in the same stage. 
+TASK 2 - MEMORY CREATION:
+Additionally in your analysis of the conversation history, you are tasked with creating a memory card:
+- Write a brief description (~40 tokens) of what happened/was discussed between USER and AMORINE. Use 'we', 'us', 'you', etc to add a personal touch to refer to the relationship between USER and AMORINE.
+- Identify the top 3-5 most relevant filters that apply to the brief description  you are creating from this list:
 
-**We only want a single JSON in the final answer** with key: 
-"newStage" - the chosen stage name (must be current stage or next immediate stage)
+Filter Definitions:
+- Goals: Conversations about personal/shared aspirations, future plans, goals, dreams
+- Casual: Light-hearted chats, everyday conversations, inside jokes
+- Deep Talks: Meaningful discussions about values, emotions, life experiences
+- Stories: Sharing of personal anecdotes, past experiences, events
+- Activities: Discussions about hobbies, interests, current/planned activities
+- Creative: Artistic expression, imagination, creative ideas
+- Insights: Moments of realization, learning, understanding
+- Stormy: Challenging conversations, disagreements, emotional difficulties, negative emotions
+- Connection: Emotional bonding, mutual understanding, genuine emotional support
+- Inspiration: Motivational exchanges, encouraging conversations, uplifting messages
+- Hot: Interactions about physical intimacy, adult content, flirting
 
-Here is the last 100 messages:
+Return ONLY a JSON response in this exact format:
+{
+  "stage_analysis": {
+    "newStage": "current_stage_or_next_stage_name"
+  },
+  "memory_card": {
+    "content": "Brief ~40 token description of what happened",
+    "filters": ["filter1", "filter2", "filter3", "filter4", "filter5"]
+  }
+}
+
+Here is the last 100 messages of conversation history between USER and AMORINE:
 ----------------
 ${conversationText}
 ----------------
 
-Now produce your final JSON with newStage.
-DO NOT produce anything else besides one valid JSON object.
+Now produce your JSON response. Do NOT include any other text.
 `.trim();
 
   // 4) Call LLM
@@ -248,8 +274,8 @@ DO NOT produce anything else besides one valid JSON object.
     },
     body: JSON.stringify({
       model: "llama-3.1-8b-instant",
-      temperature: 0.7,
-      max_tokens: 1500,
+      temperature: 0.5,
+      max_tokens: 200,
       messages: [
         { role: "system", content: systemPrompt },
       ],
@@ -273,7 +299,8 @@ DO NOT produce anything else besides one valid JSON object.
     throw new Error("LLM did not produce valid JSON.");
   }
 
-  const { newStage } = parsed;
+  const { stage_analysis, memory_card } = parsed;
+  const { newStage } = stage_analysis;
 
   // 6) Validate stage progression
   let finalStageKey = currentStageKey;
@@ -300,6 +327,26 @@ DO NOT produce anything else besides one valid JSON object.
   }
 
   console.log("Successfully updated relationship_stage to", finalStageKey);
+
+  // 8) Store memory card in Redis
+  try {
+    if (memory_card && memory_card.content && Array.isArray(memory_card.filters)) {
+      const memoryKey = `user:${userId}:memories`;
+      const memoryCard = {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        timestamp: Date.now(),
+        content: memory_card.content,
+        filters: memory_card.filters
+      };
+      
+      await redis.rpush(memoryKey, JSON.stringify(memoryCard));
+      console.log("Successfully stored memory card:", memoryCard);
+    }
+  } catch (memoryError) {
+    // Log error but don't throw - memory storage should not affect stage updates
+    console.error("Failed to store memory card:", memoryError);
+  }
 }
 
 // -------------------- HTTP Handler --------------------
