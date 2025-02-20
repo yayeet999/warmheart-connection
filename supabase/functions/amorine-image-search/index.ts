@@ -56,10 +56,32 @@ async function generateEmbeddings(text: string): Promise<number[]> {
   return data.data[0].embedding;
 }
 
-function buildSearchQuery(analysis: any): string {
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+}
+
+function buildSearchQuery(analysis: any, recentMessages: Message[] = [], currentMessage: string = ''): string {
   const parts = [];
 
   try {
+    // Part 1: Current message with high emphasis (60% weight)
+    if (currentMessage) {
+      parts.push(`CURRENT MESSAGE CONTEXT: ${currentMessage}`);
+    }
+
+    // Part 2: Recent conversation context
+    if (recentMessages.length) {
+      parts.push('RECENT CONVERSATION:');
+      recentMessages.forEach(msg => {
+        parts.push(`${msg.role.toUpperCase()}: ${msg.content}`);
+      });
+    }
+
+    // Part 3: Structured analysis (40% weight)
+    parts.push('ANALYSIS CONTEXT:');
+
     // Emotional Context
     if (analysis.emotional_essence) {
       const emotional = analysis.emotional_essence;
@@ -70,7 +92,6 @@ function buildSearchQuery(analysis: any): string {
       }
       
       if (emotional.mood) {
-        // Convert -100 to 100 scale to descriptive terms for better search
         const valence = emotional.mood.valence;
         const energy = emotional.mood.energy;
         
@@ -164,12 +185,12 @@ function buildSearchQuery(analysis: any): string {
 
   } catch (error) {
     console.error('Error building search query:', error);
-    // Fallback to basic search if structure parsing fails
-    return `${analysis.semantic_content?.primary_subject?.specific_description || 'general image'}`;
+    // Enhanced fallback that includes current message
+    return `${currentMessage || ''} ${analysis.semantic_content?.primary_subject?.specific_description || 'general image'}`.trim();
   }
 
-  // Filter out any empty parts and join
-  return parts.filter(part => part && part.length > 0).join('. ');
+  // Filter out any empty parts and join with clear section separation
+  return parts.filter(part => part && part.length > 0).join('\n');
 }
 
 serve(async (req) => {
@@ -178,16 +199,16 @@ serve(async (req) => {
   }
 
   try {
-    // Expect: { analysis, userId, message_id }
-    const { analysis, userId, message_id } = await req.json();
+    // Updated: Expect recent messages and current message
+    const { analysis, userId, message_id, recentMessages, currentMessage } = await req.json();
     if (!analysis || !userId || !message_id) {
       throw new Error('analysis, userId, and message_id are required');
     }
 
     console.log('amorine-image-search request:', { userId, message_id });
 
-    // 1) Build the search query
-    const searchQuery = buildSearchQuery(analysis);
+    // 1) Build the enhanced search query with conversation context
+    const searchQuery = buildSearchQuery(analysis, recentMessages, currentMessage);
     const queryVector = await generateEmbeddings(searchQuery);
 
     // The Redis set we use for used images:
