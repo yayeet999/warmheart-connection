@@ -15,7 +15,6 @@ const vectorIndex = new Index({
   namespace: "amorine-image"
 });
 
-// Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -26,34 +25,34 @@ const corsHeaders = {
 };
 
 async function generateEmbeddings(text: string): Promise<number[]> {
-  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIApiKey) {
-    throw new Error('OpenAI API key not found');
+  const huggingFaceApiKey = Deno.env.get('HUGGING_FACE_API_KEY');
+  if (!huggingFaceApiKey) {
+    throw new Error('Hugging Face API key not found');
   }
 
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: "text-embedding-3-large",
-      input: text,
-      dimensions: 1024,
-    }),
-  });
+  const response = await fetch(
+    "https://api-inference.huggingface.co/pipeline/feature-extraction/BAAI/bge-large-en-v1.5",
+    {
+      headers: { 
+        Authorization: `Bearer ${huggingFaceApiKey}`,
+        "Content-Type": "application/json"
+      },
+      method: "POST",
+      body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
+    }
+  );
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
+    throw new Error(`Hugging Face API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
-  if (!data?.data?.[0]?.embedding) {
-    throw new Error('Invalid embedding response from OpenAI');
+  const embeddings = await response.json();
+  if (!Array.isArray(embeddings) || embeddings.length === 0) {
+    throw new Error('Invalid embedding response from Hugging Face');
   }
-  return data.data[0].embedding;
+
+  return embeddings[0];
 }
 
 interface Message {
@@ -104,19 +103,16 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
       parts.push(currentMessage);
     }
 
-    // Convert relationship stage to natural language
     if (analysis.intimacy_metrics?.relationship_stage) {
       const stage = analysis.intimacy_metrics.relationship_stage.toLowerCase()
         .replace(/_/g, ' ');
       parts.push(`Their relationship is in a ${stage} phase`);
     }
 
-    // Convert temporal context to natural language
     if (analysis.context?.temporal_setting) {
       parts.push(`It's ${analysis.context.temporal_setting.toLowerCase()}`);
     }
 
-    // Convert flirt level to descriptive language
     if (analysis.intimacy_metrics?.flirt_level > 0) {
       const flirtLevel = analysis.intimacy_metrics.flirt_level;
       if (flirtLevel > 80) {
@@ -128,7 +124,6 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
       }
     }
 
-    // Convert image type to natural description
     if (analysis.visual_core?.image_type) {
       const typeMap: { [key: string]: string } = {
         'portrait': 'Amorine takes a portrait photo',
@@ -141,17 +136,14 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
       parts.push(naturalType);
     }
 
-    // Convert emotion to natural language
     if (analysis.emotional_essence?.intensity > 50 && analysis.emotional_essence?.primary_emotion) {
       parts.push(`She appears ${analysis.emotional_essence.primary_emotion.toLowerCase()}`);
     }
 
-    // Add key words from analysis
     if (analysis.key_words?.length) {
       parts.push(`Key themes: ${analysis.key_words.join(', ')}`);
     }
 
-    // Add recent context if available
     if (recentMessages.length) {
       const contextMessages = recentMessages
         .slice(-3)
