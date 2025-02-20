@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -23,37 +24,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-async function generateEmbeddings(text: string): Promise<number[]> {
-  const huggingFaceApiKey = Deno.env.get('HUGGING_FACE_API_KEY');
-  if (!huggingFaceApiKey) {
-    throw new Error('Hugging Face API key not found');
-  }
-
-  const response = await fetch(
-    "https://api-inference.huggingface.co/pipeline/feature-extraction/BAAI/bge-large-en-v1.5",
-    {
-      headers: { 
-        Authorization: `Bearer ${huggingFaceApiKey}`,
-        "Content-Type": "application/json"
-      },
-      method: "POST",
-      body: JSON.stringify({ inputs: text, options: { wait_for_model: true } }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Hugging Face API error: ${JSON.stringify(error)}`);
-  }
-
-  const embeddings = await response.json();
-  if (!Array.isArray(embeddings) || embeddings.length === 0) {
-    throw new Error('Invalid embedding response from Hugging Face');
-  }
-
-  return embeddings[0];
-}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -174,8 +144,6 @@ serve(async (req) => {
 
     const searchQuery = buildSearchQuery(analysis, recentMessages, currentMessage);
     console.log('Built search query:', searchQuery);
-    
-    const queryVector = await generateEmbeddings(searchQuery);
 
     const timeContext = analysis.context?.temporal_setting || '';
 
@@ -191,7 +159,7 @@ serve(async (req) => {
       console.log(`Searching vector index with topK=${k}...`);
       
       const searchResults = await vectorIndex.query({
-        vector: queryVector,
+        data: searchQuery,
         topK: k,
         includeMetadata: true,
         scoreThreshold: 0.7
