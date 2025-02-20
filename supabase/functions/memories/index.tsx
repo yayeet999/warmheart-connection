@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -12,14 +13,15 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Max-Age": "86400",
+  "Content-Type": "application/json",
 };
 
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { 
-      status: 204, // No content for OPTIONS
-      headers: corsHeaders 
+      status: 200,
+      headers: corsHeaders
     });
   }
 
@@ -64,12 +66,7 @@ serve(async (req) => {
         hasMore,
         total: totalMemories
       }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json" 
-        } 
-      }
+      { headers: corsHeaders }
     );
 
   } catch (error) {
@@ -80,11 +77,8 @@ serve(async (req) => {
         error: error.message 
       }),
       { 
-        status: 500, 
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json" 
-        } 
+        status: 500,
+        headers: corsHeaders
       }
     );
   }
