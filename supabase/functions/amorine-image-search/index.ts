@@ -153,6 +153,15 @@ function buildSearchQuery(analysis: any, recentMessages: Message[] = [], current
   return parts.filter(Boolean).join('\n');
 }
 
+function getCurrentTimeSlot(): string {
+  const hour = new Date().getHours();
+  
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "afternoon";
+  if (hour >= 17 && hour < 22) return "evening";
+  return "night";
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
