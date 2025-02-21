@@ -1,3 +1,4 @@
+
 project_id = "medzxzfdadwzpuqimeih"
 
 [functions.chat]
@@ -47,3 +48,7 @@ verify_jwt = true
 
 [functions.memories]
 verify_jwt = true
+
+[functions.voice_convert]
+verify_jwt = true
+
