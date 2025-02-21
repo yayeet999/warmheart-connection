@@ -1,119 +1,134 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// Replace with your own environment variables:
+const llamaApiUrl = Deno.env.get("LLAMA_API_URL") || "https://api.groq.com/openai/v1/chat/completions";
+const llamaApiKey = Deno.env.get("GROQ_API_KEY") || "";
+const elevenLabsKey = Deno.env.get("ELEVENLABS_API_KEY") || "";
+const elevenLabsVoiceId = Deno.env.get("ELEVENLABS_DEFAULT_VOICEID") || "EXAMPLE_VOICE_ID";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Helper to lightly transform text for speech using Llama:
+async function transformTextForSpeech(originalText: string): Promise<string> {
+  /*
+    We’ll prompt Llama to do minimal changes:
+    1) Remove emoticons and typical text smileys
+    2) Replace "lol", "omg", "lmao" with more neutral equivalents or remove them
+    3) Insert '---' between sentences
+  */
+  const systemPrompt = `
+You are a text transformer. Remove ASCII emoticons (e.g. :P, :D, etc). Replace slang words like "lol", "omg", "lmao" with mild standard synonyms or remove them. Keep the meaning and tone. Then insert '---' in place of every sentence boundary for better TTS pacing. Return final text only, nothing else. 
+`;
+
+  // We'll call Llama-3.1-8b-instant at llamaApiUrl
+  const requestBody = {
+    model: "llama-3.1-8b-instant",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: originalText },
+    ],
+    temperature: 0.2,
+    max_tokens: 50,
+  };
+
+  const resp = await fetch(llamaApiUrl, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${llamaApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!resp.ok) {
+    console.error("Llama transform error:", await resp.text());
+    throw new Error("Failed to transform text with Llama");
+  }
+
+  const data = await resp.json();
+  const cleaned = data.choices?.[0]?.message?.content?.trim() || originalText;
+  return cleaned;
 }
 
-async function generateSpeechWithElevenLabs(text: string): Promise<string> {
-  const CHUNK_SIZE = 5000;  // Safe chunk size for text
-  const API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
-  const VOICE_ID = Deno.env.get('ELEVENLABS_DEFAULT_VOICEID') || 'EXAVITQu4vr4xnSDxMaL'; // Default to "Sarah" voice
+// Helper to call ElevenLabs with the cleaned text:
+async function generateSpeechWithElevenLabs(text: string) {
+  // Make sure you have a valid voiceId, or pick whichever voice you want
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}`;
+  const requestBody = {
+    text,
+    model_id: "eleven_multilingual_v2",
+    // Adjust or remove settings to your liking:
+    output_format: "mp3_44100_192",
+    voice_settings: {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0.7,
+      speed: 1.0,
+    },
+  };
 
-  // Safety check for text length
-  if (text.length > CHUNK_SIZE) {
-    console.log(`Large text detected (${text.length} chars), truncating to ${CHUNK_SIZE} chars`);
-    text = text.substring(0, CHUNK_SIZE);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "audio/mpeg",
+      "Content-Type": "application/json",
+      "xi-api-key": elevenLabsKey,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("ElevenLabs API error:", err);
+    throw new Error(`ElevenLabs TTS error: ${err}`);
   }
 
-  try {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-      {
-        method: 'POST',
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': API_KEY!,
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-          }
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ElevenLabs API error:', errorText);
-      throw new Error(`ElevenLabs API error: ${response.status}`);
-    }
-
-    // Get the audio data as ArrayBuffer
-    const arrayBuffer = await response.arrayBuffer();
-    
-    // Convert to Uint8Array
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Convert to base64 in chunks to prevent stack overflow
-    const chunks: string[] = [];
-    const chunkSize = 32768; // Safe chunk size for base64 conversion
-    
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.slice(i, i + chunkSize);
-      chunks.push(String.fromCharCode.apply(null, [...chunk]));
-    }
-
-    // Join chunks and convert to base64
-    const base64Audio = btoa(chunks.join(''));
-    return base64Audio;
-
-  } catch (error) {
-    console.error('Error in generateSpeechWithElevenLabs:', error);
-    throw new Error(`Failed to generate speech: ${error.message}`);
-  }
+  // Return raw audio data as base64
+  const arrayBuffer = await res.arrayBuffer();
+  // Convert arrayBuffer to base64
+  const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  return base64Audio;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { text } = await req.json();
-
-    if (!text) {
-      throw new Error('No text provided');
+    if (!text || typeof text !== "string") {
+      throw new Error("Missing 'text' field (string) in request body");
     }
 
-    console.log(`Processing text-to-speech request: ${text.substring(0, 100)}...`);
-    
-    const audioBase64 = await generateSpeechWithElevenLabs(text);
-    
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: { audioBase64 }
-      }),
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        } 
-      }
-    );
+    // Step 1) Transform with Llama
+    const cleanedText = await transformTextForSpeech(text);
 
+    // Step 2) TTS with ElevenLabs
+    const audioBase64 = await generateSpeechWithElevenLabs(cleanedText);
+
+    // Return JSON with base64
+    const responseJson = {
+      success: true,
+      cleanedText,
+      audioBase64, // so the client can create a Blob
+    };
+
+    return new Response(JSON.stringify(responseJson), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
   } catch (error) {
-    console.error('voice_convert error:', error);
-    
+    console.error("voice_convert error:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: error.message 
-      }),
-      { 
-        status: 500,
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

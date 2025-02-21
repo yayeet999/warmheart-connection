@@ -748,18 +748,16 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 },
               });
 
-              const data = response.data;
-              
-              if (!data?.success || !data?.data?.audioBase64) {
-                console.error("voice_convert error or missing audio:", data);
+              if (!response || response.error || !response.data?.audioBase64) {
+                console.error("voice_convert error or missing audio");
                 toast({
                   title: "Voice conversion error",
-                  description: data?.error || "Could not convert to voice",
+                  description: response?.data?.error || "Could not convert to voice",
                   variant: "destructive",
                 });
               } else {
                 // Build a Blob URL from base64
-                const base64 = data.data.audioBase64;
+                const base64 = response.data.audioBase64;
                 const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
                 const blob = new Blob([audioBytes], { type: "audio/mpeg" });
                 const audioUrl = URL.createObjectURL(blob);
@@ -767,7 +765,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 // ephemeral ID
                 const noteId = Date.now();
                 // We'll attach to the last AI message's index
-                const aiIndex = messages.length; // The index where the last AI message was added
+                const aiIndex = messages.length + chatResponse.messages.length - 1;
 
                 setVoiceNotes((prev) => [
                   ...prev,
