@@ -82,7 +82,6 @@ const DateSeparator = ({ date }: { date: string }) => {
 
 // =============================
 // ImageSet COMPONENT
-// (fetches stored URLs from "image-registry" function)
 // =============================
 function ImageSet({ message_id, onImageClick }: { message_id: string, onImageClick: (src: string) => void }) {
   const [urls, setUrls] = useState<string[] | null>(null);
@@ -129,7 +128,6 @@ function ImageSet({ message_id, onImageClick }: { message_id: string, onImageCli
     );
   }
   if (!urls) {
-    // Still loading
     return (
       <div className="mt-2 text-sm text-gray-400">Loading images...</div>
     );
@@ -147,14 +145,14 @@ function ImageSet({ message_id, onImageClick }: { message_id: string, onImageCli
   );
 }
 
-// An individual image display
+// Individual image
 const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: string) => void }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   if (hasError) {
     return (
-      <div className="relative w-full max-w-[300px] rounded-2xl bg-gray-50/80 backdrop-blur-sm p-4 text-sm text-gray-500 text-center">
+      <div className="relative w-full max-w-[300px] rounded-2xl bg-gray-50/80 p-4 text-sm text-gray-500 text-center">
         Unable to load image
       </div>
     );
@@ -163,9 +161,7 @@ const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: 
   return (
     <div className="relative w-full max-w-[300px] my-1 cursor-pointer" onClick={() => onImageClick(src)}>
       {!isLoaded && (
-        <div
-          className="absolute inset-0 image-skeleton rounded-2xl"
-        />
+        <div className="absolute inset-0 image-skeleton rounded-2xl" />
       )}
       <img
         src={src}
@@ -186,6 +182,17 @@ const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: 
 };
 
 // =============================
+// VoiceNote Player COMPONENT
+// =============================
+function VoiceNotePlayer({ audioSrc }: { audioSrc: string }) {
+  return (
+    <div className="rounded-lg shadow-sm bg-white border p-3 mt-2 inline-flex items-center gap-2 max-w-[280px]">
+      <audio controls src={audioSrc} className="w-full" />
+    </div>
+  );
+}
+
+// =============================
 // MAIN CHAT COMPONENT
 // =============================
 const ChatInterface = () => {
@@ -204,13 +211,20 @@ const ChatInterface = () => {
   const [hasMore, setHasMore] = useState(true);
   const [messageCount, setMessageCount] = useState(0);
 
-  // "Image request mode" toggle
+  // "Image request mode"
   const [imageRequestMode, setImageRequestMode] = useState(false);
+  // **NEW** "Voice note mode"
+  const [voiceNoteMode, setVoiceNoteMode] = useState(false);
+
+  // Where we store ephemeral voice notes
+  // Each item: { id: number, audioSrc: string, aiMessageIndex: number }
+  const [voiceNotes, setVoiceNotes] = useState<
+    { id: number; audioSrc: string; aiIndex: number }[]
+  >([]);
 
   // Refs
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const shouldScrollToBottom = useRef(true);
 
   const navigate = useNavigate();
@@ -483,6 +497,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
   }, [messages, isLoadingMore]);
 
   // Textarea resizing
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const adjustTextAreaHeight = () => {
     const textArea = inputRef.current;
     if (textArea) {
@@ -500,7 +515,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
   // "Welcome to Amorine" for free tier
   const isFreeUser = userData?.subscription?.tier === "free";
 
-  // Send message
+  // Main send function
   const handleSend = async () => {
     if (!message.trim() || isLoading || isTokenDepleted) return;
 
@@ -542,7 +557,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setIsLoading(true);
     setIsTyping(true);
 
-    // push user message into local state
+    // push user message
     const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
     setMessageCount((prev) => prev + 1);
@@ -568,8 +583,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
-          // 2) store user message with metadata (including analysis + unique message_id)
-          const message_id = `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+          // 2) store user message
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -580,7 +594,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   metadata: {
                     type: "image_request",
                     analysis: imageContext.analysis,
-                    message_id,
+                    message_id: `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
                   },
                 },
                 action: "add",
@@ -588,12 +602,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             }
           );
           if (storeError) {
-            throw new Error("Failed to store image request in chat history");
+            throw new Error("Failed to store image request");
           }
 
-          setIsTyping(true);
-
-          // 3) call amorine-image-search (now including userId + message_id)
+          // 3) call amorine-image-search
+          const message_id = `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
           const { data: imageSearchResult, error: searchError } =
             await supabase.functions.invoke("amorine-image-search", {
               body: {
@@ -609,12 +622,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error(imageSearchResult?.error || "No matching images found");
           }
 
-          // 4) Use either the placeholder_text from the function, or fallback
-          let placeholderText =
-            imageSearchResult.chosen.placeholder_text ||
+          // fallback
+          let placeholderText = imageSearchResult.chosen.placeholder_text ||
             "Here’s an image for you! I hope you like it.";
 
-          // 5) store final AI message (with metadata referencing the same message_id)
+          // AI message
           const aiResponse = {
             type: "ai",
             content: placeholderText,
@@ -702,7 +714,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
-          // For each chunk in chatResponse, add to local state and store
+          // We'll store all AI messages as we did before
+          let combinedAiText = ""; // used if voiceNoteMode
           for (const msg of chatResponse.messages) {
             const aiResponse = {
               type: "ai",
@@ -710,7 +723,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               delay: msg.delay,
             };
             setMessages((prev) => [...prev, aiResponse]);
+            setMessageCount((prev) => prev + 1);
 
+            // store in chat history
             await supabase.functions.invoke("chat-history", {
               body: {
                 userId: session.user.id,
@@ -718,8 +733,58 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 action: "add",
               },
             });
+
+            // accumulate text
+            combinedAiText += msg.content + " ";
           }
-          setMessageCount((prev) => prev + 1);
+
+          // ========== Voice Note Step (IF enabled) ==========
+          if (voiceNoteMode) {
+            try {
+              // We'll call the newly created "voice_convert" function
+              const response = await supabase.functions.invoke("voice_convert", {
+                body: {
+                  text: combinedAiText.trim(),
+                },
+              });
+
+              if (!response || response.error || !response.data?.audioBase64) {
+                console.error("voice_convert error or missing audio");
+                toast({
+                  title: "Voice conversion error",
+                  description: response?.data?.error || "Could not convert to voice",
+                  variant: "destructive",
+                });
+              } else {
+                // Build a Blob URL from base64
+                const base64 = response.data.audioBase64;
+                const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                const blob = new Blob([audioBytes], { type: "audio/mpeg" });
+                const audioUrl = URL.createObjectURL(blob);
+
+                // ephemeral ID
+                const noteId = Date.now();
+                // We'll attach to the last AI message's index
+                const aiIndex = messages.length + chatResponse.messages.length - 1;
+
+                setVoiceNotes((prev) => [
+                  ...prev,
+                  { id: noteId, audioSrc: audioUrl, aiIndex }
+                ]);
+              }
+            } catch (err) {
+              console.error("Voice convert function failed:", err);
+              toast({
+                title: "Voice Convert Error",
+                description: "Check logs for details.",
+                variant: "destructive",
+              });
+            } finally {
+              // After one voice note, we automatically turn off voiceNoteMode
+              setVoiceNoteMode(false);
+            }
+          }
+          // ========== End Voice Note Step ==========
 
         } catch (error) {
           console.error("Error in text flow:", error);
@@ -756,15 +821,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
   };
 
   // RENDERING MESSAGES
-
-  // State for expanded image
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
-
   const handleImageClick = (src: string) => {
     setExpandedImageUrl(src);
   };
 
-  // We'll define a helper to see if we show a new date or timestamp
   const renderMessages = () => {
     let currentDate = "";
     let lastMessageTime = "";
@@ -804,7 +865,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
       // If it's an image_message, we break it into two bubbles:
       if (msg.metadata?.type === "image_message") {
-        // 1) The "image bubble"
+        // bubble 1: image
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -834,7 +895,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 <ImageSet message_id={msg.metadata.message_id} onImageClick={handleImageClick} />
               </div>
             </div>
-            {/* Timestamp */}
             <div
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
@@ -853,7 +913,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           </div>
         );
 
-        // 2) The "placeholder text bubble" as a separate message
+        // bubble 2: placeholder text
         rendered.push(
           <div
             key={`msg-${i}-text`}
@@ -883,7 +943,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 <p className="text-[15px] leading-relaxed">{msg.content}</p>
               </div>
             </div>
-            {/* Timestamp */}
             <div
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
@@ -933,7 +992,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   <p className="text-[15px] leading-relaxed">{msg.content}</p>
                 </div>
               </div>
-              {/* Timestamp */}
               <div
                 className={cn(
                   "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
@@ -950,6 +1008,17 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 {formatMessageDate(msg.timestamp)}
               </div>
             </div>
+
+            {/* If there's a voice note matched to this ai message index, show the player */}
+            {msg.type === "ai" && (
+              <>
+                {voiceNotes
+                  .filter((vn) => vn.aiIndex === i)
+                  .map((vn) => (
+                    <VoiceNotePlayer key={vn.id} audioSrc={vn.audioSrc} />
+                  ))}
+              </>
+            )}
           </div>
         );
       }
@@ -958,7 +1027,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     return rendered;
   };
 
-  // Stripe subscription for user
+  const [expandedImageUrl, setExpandedImageUrl2] = useState<string | null>(null); // rename just to not conflict
   const handleSubscribe = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout", {
@@ -980,18 +1049,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* =========================
-          FREE TIER WELCOME
-      ========================== */}
+      {/* FREE TIER WELCOME */}
       <Dialog
         open={showWelcomeDialog && isFreeUser}
         onOpenChange={setShowWelcomeDialog}
       >
         <DialogContent className="p-0 gap-0 w-[85vw] sm:w-[440px] max-w-[440px] overflow-hidden bg-dark-100/95 backdrop-blur-xl rounded-2xl">
           <div className="relative w-full h-[160px] sm:h-[200px] rounded-t-2xl overflow-hidden">
-            {/* Example top background image or gradient */}
             <img
-              src="/lovable-uploads/am_hero.png"
+              src="/lovable-uploads/am_hero"
               alt="Some hero"
               className="absolute inset-0 w-full h-full object-cover opacity-50"
             />
@@ -1006,14 +1072,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </DialogDescription>
             </DialogHeader>
 
-            {/* Simple "feature list" */}
             <div className="mt-4 space-y-2 text-white/90 text-sm sm:text-base font-serif leading-relaxed">
               <p>• Unlimited daily messages</p>
               <p>• Generate images on demand</p>
               <p>• Additional memory and persona depth</p>
             </div>
 
-            {/* CTA */}
             <DialogFooter className="mt-2 sm:mt-3">
               <Button
                 onClick={handleSubscribe}
@@ -1033,9 +1097,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* =========================
-          SUSPENSION DIALOG
-      ========================== */}
+      {/* SUSPENSION DIALOG */}
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
@@ -1060,9 +1122,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* =========================
-          DAILY-LIMIT REACHED
-      ========================== */}
+      {/* DAILY-LIMIT REACHED */}
       <Dialog
         open={showLimitReachedDialog}
         onOpenChange={() => {}}
@@ -1097,9 +1157,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* =========================
-          TOKEN-BALANCE DEPLETED
-      ========================== */}
+      {/* TOKEN-BALANCE DEPLETED */}
       <Dialog
         open={showTokenDepletedDialog}
         onOpenChange={setShowTokenDepletedDialog}
@@ -1134,9 +1192,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* =========================
-          MAIN CHAT CONTAINER
-      ========================== */}
+      {/* MAIN CHAT CONTAINER */}
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
@@ -1209,6 +1265,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 >
                   {imageRequestMode ? (
                     <ImageIcon className="w-5 h-5 text-blue-600" />
+                  ) : voiceNoteMode ? (
+                    <Mic className="w-5 h-5 text-pink-600" />
                   ) : (
                     <Plus className="w-5 h-5 text-gray-700" />
                   )}
@@ -1226,9 +1284,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   <Video className="w-4 h-4" />
                   <span>Get a Video (Coming soon)</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled className="flex items-center gap-2">
+                <DropdownMenuItem
+                  onClick={() => setVoiceNoteMode((prev) => !prev)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
                   <Mic className="w-4 h-4" />
-                  <span>Get a Voice Note (Coming soon)</span>
+                  <span>Get a Voice Note</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1260,7 +1321,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   : "Message Amorine..."
               }
               className={cn(
-                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[16px] leading-[1.3] tracking-[-0.24px] placeholder:text-gray-400 resize-none scrollbar-none",
+                "flex-1 p-3 max-h-[120px] rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:border-coral text-[16px] leading-[1.3] placeholder:text-gray-400 resize-none scrollbar-none",
                 (profile?.suicide_concern === 5 ||
                   profile?.violence_concern === 5 ||
                   isTokenDepleted)
@@ -1299,9 +1360,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </div>
       </div>
 
-      {/* =========================
-          SAFETY ACKNOWLEDGMENT
-      ========================== */}
+      {/* SAFETY ACKNOWLEDGMENT */}
       {userData?.userId && safetyDialog.type && (
         <SafetyAcknowledgmentDialog
           open={safetyDialog.open}
@@ -1311,9 +1370,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         />
       )}
 
-      {/* =========================
-          IMAGE EXPANSION OVERLAY
-      ========================== */}
+      {/* IMAGE EXPANSION OVERLAY */}
       {expandedImageUrl && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
