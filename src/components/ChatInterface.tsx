@@ -767,7 +767,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 // ephemeral ID
                 const noteId = Date.now();
                 // We'll attach to the last AI message's index
-                const aiIndex = messages.length + chatResponse.messages.length - 1;
+                const aiIndex = messages.length; // The index where the last AI message was added
 
                 setVoiceNotes((prev) => [
                   ...prev,
