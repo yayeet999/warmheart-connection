@@ -740,7 +740,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 try {
                   const response = await supabase.functions.invoke("voice_convert", {
                     body: {
-                      userId: session.user.id
+                      userId: session.user.id,
+                      text: msg.content  // Add this line
                     },
                   });
 
