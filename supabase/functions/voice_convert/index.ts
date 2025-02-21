@@ -64,7 +64,7 @@ async function generateSpeechWithElevenLabs(text: string) {
     // Adjust or remove settings to your liking:
     output_format: "mp3_44100_192",
     voice_settings: {
-      stability: 0.2,
+      stability: 0.5,
       similarity_boost: 0.75,
       style: 0.7,
       speed: 1.0,
