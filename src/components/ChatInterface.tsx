@@ -512,7 +512,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
 
-  // "Welcome to Amorine" for free tier
+  // "Welcome to Amorine" for free user
   const isFreeUser = userData?.subscription?.tier === "free";
 
   // Main send function
@@ -1027,7 +1027,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     return rendered;
   };
 
-  const [expandedImageUrl, setExpandedImageUrl2] = useState<string | null>(null); // rename just to not conflict
+  // FIX: We keep only the first definition of expandedImageUrl
+  // (Removed the second conflicting definition here)
+
   const handleSubscribe = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout", {
