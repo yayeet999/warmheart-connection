@@ -755,19 +755,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                       variant: "destructive",
                     });
                   } else {
-                    const base64 = voiceResponse.audioBase64;
-                    const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-                    const blob = new Blob([audioBytes], { type: "audio/mpeg" });
-                    const audioUrl = URL.createObjectURL(blob);
-
-                    const noteId = Date.now();
-                    const aiIndex = messages.length + chatResponse.messages.length - 1;
-
                     setVoiceNotes((prev) => [
-                      ...prev,
-                      { id: noteId, audioSrc: audioUrl, aiIndex }
-                    ]);
-                  }
+                        ...prev,
+                        {
+                          id: Date.now(),
+                          audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
+                          aiIndex: messages.length
+                        }
+                      ]);
+                    }
                 } catch (err) {
                   console.error("Voice convert function failed:", err);
                   toast({
