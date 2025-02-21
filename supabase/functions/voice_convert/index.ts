@@ -21,38 +21,44 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// UPDATED: Now we check up to the first 10 recent messages for the newest AI message with voice metadata.
+// Helper to get latest AI message from Redis
 async function getLatestAIMessage(userId: string): Promise<string | null> {
   try {
     const key = `user:${userId}:messages`;
-    // Grab the first 10 messages (indices 0..9). 0 is newest, 9 is older.
+    // Get the most recent messages to find one with voice metadata
     const messages = await redis.lrange(key, 0, 9);
-
+    
     if (!messages?.length) {
       console.error("No messages found for user:", userId);
       return null;
     }
 
+    console.log("Found messages in Redis:", messages.length);
+
+    // Look for the most recent AI message with voice metadata
     for (const msgStr of messages) {
       try {
-        const parsed = typeof msgStr === "string" ? JSON.parse(msgStr) : msgStr;
-        // We look for an AI message with the `voice` metadata
+        console.log("Checking message:", msgStr);
+        const parsed = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
+        console.log("Parsed message:", JSON.stringify(parsed));
+        
         if (parsed.type === "ai" && parsed.metadata?.voice === true) {
-          console.log("Found AI message with voice metadata. content length:", parsed.content?.length);
+          if (!parsed.content) {
+            console.error("Found AI message with voice metadata but no content");
+            continue;
+          }
+          console.log("Found valid AI message with voice metadata");
           return parsed.content;
         }
-      } catch (err) {
-        console.error("Error parsing a message from Redis:", err);
-        // Just keep going to check the next one
+      } catch (e) {
+        console.error("Error parsing message:", e);
       }
     }
 
-    // If no message in that top slice had metadata.voice === true
-    console.log("No AI message with voice metadata found in the recent 10 messages");
+    console.log("No AI message with voice metadata found in recent messages");
     return null;
-
   } catch (error) {
-    console.error("Redis error while fetching messages:", error);
+    console.error("Redis error:", error);
     return null;
   }
 }
@@ -177,15 +183,22 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await req.json();
-    if (!userId) {
-      throw new Error("Missing 'userId' field in request body");
+    console.log("Voice convert function called");
+    
+    const body = await req.json();
+    console.log("Received request body:", JSON.stringify(body));
+    
+    if (!body?.userId || typeof body.userId !== 'string') {
+      throw new Error("Request must include 'userId' field as a string");
     }
+
+    const { userId } = body;
+    console.log("Processing request for userId:", userId);
 
     // 1) Find the latest AI message that has voice metadata
     const text = await getLatestAIMessage(userId);
     if (!text) {
-      throw new Error("No valid AI message found to convert (no 'metadata.voice' = true).");
+      throw new Error("Could not find a valid AI message with voice metadata to convert. Please ensure the message exists and has voice metadata enabled.");
     }
 
     console.log("Found message to convert, length:", text.length);
