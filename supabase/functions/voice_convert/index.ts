@@ -17,41 +17,42 @@ const redis = new Redis({
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper to get latest AI message from Redis
+// UPDATED: Now we check up to the first 10 recent messages for the newest AI message with voice metadata.
 async function getLatestAIMessage(userId: string): Promise<string | null> {
   try {
-    // Get the most recent message
     const key = `user:${userId}:messages`;
-    const messages = await redis.lrange(key, 0, 0);
-    
+    // Grab the first 10 messages (indices 0..9). 0 is newest, 9 is older.
+    const messages = await redis.lrange(key, 0, 9);
+
     if (!messages?.length) {
       console.error("No messages found for user:", userId);
       return null;
     }
 
-    // Parse the message
-    try {
-      const parsed = typeof messages[0] === 'string' ? JSON.parse(messages[0]) : messages[0];
-      // We want the most recent AI message that HAS voice metadata
-      if (parsed.type === "ai" && parsed.metadata?.voice === true) {
-        console.log("Found AI message with voice metadata");
-        return parsed.content;
-      } else {
-        console.log("Message not eligible for voice conversion:", {
-          type: parsed.type,
-          hasVoiceMetadata: !!parsed.metadata?.voice
-        });
+    for (const msgStr of messages) {
+      try {
+        const parsed = typeof msgStr === "string" ? JSON.parse(msgStr) : msgStr;
+        // We look for an AI message with the `voice` metadata
+        if (parsed.type === "ai" && parsed.metadata?.voice === true) {
+          console.log("Found AI message with voice metadata. content length:", parsed.content?.length);
+          return parsed.content;
+        }
+      } catch (err) {
+        console.error("Error parsing a message from Redis:", err);
+        // Just keep going to check the next one
       }
-    } catch (e) {
-      console.error("Error parsing message:", e);
     }
 
+    // If no message in that top slice had metadata.voice === true
+    console.log("No AI message with voice metadata found in the recent 10 messages");
     return null;
+
   } catch (error) {
-    console.error("Redis error:", error);
+    console.error("Redis error while fetching messages:", error);
     return null;
   }
 }
@@ -61,14 +62,13 @@ async function transformTextForSpeech(originalText: string): Promise<string> {
   /*
     We'll prompt Llama to do minimal changes:
     1) Remove emoticons and typical text smileys
-    2) Replace "lol", "omg", "lmao" with more neutral equivalents or remove them
-    3) Insert '---' between sentences
+    2) Replace "lol", "omg", "lmao" with mild standard synonyms or remove them
+    3) We'll just do a general cleaning approach, returning the final text
   */
   const systemPrompt = `
-You are a text transformer. Remove ASCII emoticons (e.g. :P, :D, etc). Replace slang words like "lol", "omg", "lmao" with mild standard synonyms or remove them. Return final text only, nothing else. 
+You are a text transformer. Remove ASCII emoticons (e.g. :P, :D, etc). Replace slang words like "lol", "omg", "lmao" with mild standard synonyms or remove them. Return final text only, nothing else.
 `;
 
-  // We'll call Llama-3.1-8b-instant at llamaApiUrl
   const requestBody = {
     model: "llama-3.1-8b-instant",
     messages: [
@@ -101,12 +101,12 @@ You are a text transformer. Remove ASCII emoticons (e.g. :P, :D, etc). Replace s
 // Helper to call ElevenLabs with the cleaned text:
 async function generateSpeechWithElevenLabs(text: string) {
   console.log("Starting TTS with text length:", text.length);
-  
+
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}`;
   const requestBody = {
     text,
     model_id: "eleven_multilingual_v2",
-    output_format: "mp3_44100_128", // Reduced quality for safer handling
+    output_format: "mp3_44100_128",
     voice_settings: {
       stability: 0.5,
       similarity_boost: 0.75,
@@ -133,10 +133,9 @@ async function generateSpeechWithElevenLabs(text: string) {
 
   console.log("Got successful response from ElevenLabs");
 
-  // Stream and process the response in chunks
   const reader = res.body?.getReader();
   if (!reader) {
-    throw new Error("Failed to get response reader");
+    throw new Error("Failed to get response reader from ElevenLabs TTS");
   }
 
   const chunks: Uint8Array[] = [];
@@ -145,7 +144,7 @@ async function generateSpeechWithElevenLabs(text: string) {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    
+
     if (value) {
       chunks.push(value);
       totalSize += value.length;
@@ -155,10 +154,9 @@ async function generateSpeechWithElevenLabs(text: string) {
 
   console.log("Total chunks:", chunks.length, "Total size:", totalSize);
 
-  // Combine chunks efficiently
   const combinedArray = new Uint8Array(totalSize);
   let position = 0;
-  
+
   for (const chunk of chunks) {
     combinedArray.set(chunk, position);
     position += chunk.length;
@@ -166,13 +164,13 @@ async function generateSpeechWithElevenLabs(text: string) {
 
   console.log("Combined array size:", combinedArray.length);
 
-  // Use Deno's native base64 encoding
   const encoded = encode(combinedArray);
   console.log("Final base64 length:", encoded.length);
-  
+
   return encoded;
 }
 
+// Main handler
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -184,31 +182,29 @@ serve(async (req) => {
       throw new Error("Missing 'userId' field in request body");
     }
 
-    // Get latest AI message from Redis
+    // 1) Find the latest AI message that has voice metadata
     const text = await getLatestAIMessage(userId);
     if (!text) {
-      throw new Error("No valid AI message found to convert");
+      throw new Error("No valid AI message found to convert (no 'metadata.voice' = true).");
     }
 
     console.log("Found message to convert, length:", text.length);
 
-    // Step 1) Transform with Llama
+    // 2) Clean/transform the text
     const cleanedText = await transformTextForSpeech(text);
     console.log("Cleaned text length:", cleanedText.length);
 
-    // Step 2) TTS with ElevenLabs
+    // 3) TTS with ElevenLabs
     const audioBase64 = await generateSpeechWithElevenLabs(cleanedText);
     console.log("Audio base64 length:", audioBase64?.length || 0);
 
-    // Return JSON with base64
     const responseJson = {
       success: true,
       cleanedText,
       audioBase64,
     };
 
-    console.log("Response success:", responseJson.success);
-    console.log("Has audio data:", !!responseJson.audioBase64);
+    console.log("Voice convert successful; returning data.");
 
     return new Response(JSON.stringify(responseJson), {
       headers: {
@@ -220,7 +216,10 @@ serve(async (req) => {
     console.error("voice_convert error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
