@@ -760,7 +760,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                         {
                           id: Date.now(),
                           audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
-                          aiIndex: messages.length - 1  // This is the only change needed
+                          aiIndex: messages.length
                         }
                       ]);
                     }
