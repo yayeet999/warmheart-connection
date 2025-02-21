@@ -748,16 +748,18 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 },
               });
 
-              if (!response || response.error || !response.data?.audioBase64) {
-                console.error("voice_convert error or missing audio");
+              const data = response.data;
+              
+              if (!data?.success || !data?.data?.audioBase64) {
+                console.error("voice_convert error or missing audio:", data);
                 toast({
                   title: "Voice conversion error",
-                  description: response?.data?.error || "Could not convert to voice",
+                  description: data?.error || "Could not convert to voice",
                   variant: "destructive",
                 });
               } else {
                 // Build a Blob URL from base64
-                const base64 = response.data.audioBase64;
+                const base64 = data.data.audioBase64;
                 const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
                 const blob = new Blob([audioBytes], { type: "audio/mpeg" });
                 const audioUrl = URL.createObjectURL(blob);
