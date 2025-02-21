@@ -624,7 +624,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           // fallback
           let placeholderText = imageSearchResult.chosen.placeholder_text ||
-            "Here’s an image for you! I hope you like it.";
+            "Here's an image for you! I hope you like it.";
 
           // AI message
           const aiResponse = {
@@ -717,75 +717,76 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           // We'll store all AI messages as we did before
           let combinedAiText = ""; // used if voiceNoteMode
           for (const msg of chatResponse.messages) {
-            const aiResponse = {
-              type: "ai",
-              content: msg.content,
-              delay: msg.delay,
-            };
-            setMessages((prev) => [...prev, aiResponse]);
-            setMessageCount((prev) => prev + 1);
-
-            // store in chat history
-            await supabase.functions.invoke("chat-history", {
-              body: {
-                userId: session.user.id,
-                message: aiResponse,
-                action: "add",
-              },
-            });
-
-            // accumulate text
-            combinedAiText += msg.content + " ";
-          }
-
-          // ========== Voice Note Step (IF enabled) ==========
-          if (voiceNoteMode) {
             try {
-              // We'll call the newly created "voice_convert" function
-              const response = await supabase.functions.invoke("voice_convert", {
+              const aiResponse = {
+                type: "ai",
+                content: msg.content,
+                delay: msg.delay,
+                metadata: voiceNoteMode ? { voice: true } : undefined
+              };
+              setMessages((prev) => [...prev, aiResponse]);
+
+              // store in chat history
+              await supabase.functions.invoke("chat-history", {
                 body: {
-                  text: combinedAiText.trim(),
+                  userId: session.user.id,
+                  message: aiResponse,
+                  action: "add",
                 },
               });
 
-              if (!response || response.error || !response.data?.audioBase64) {
-                console.error("voice_convert error or missing audio");
-                toast({
-                  title: "Voice conversion error",
-                  description: response?.data?.error || "Could not convert to voice",
-                  variant: "destructive",
-                });
-              } else {
-                // Build a Blob URL from base64
-                const base64 = response.data.audioBase64;
-                const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-                const blob = new Blob([audioBytes], { type: "audio/mpeg" });
-                const audioUrl = URL.createObjectURL(blob);
+              // ========== Voice Note Step (IF enabled) ==========
+              if (voiceNoteMode) {
+                try {
+                  const response = await supabase.functions.invoke("voice_convert", {
+                    body: {
+                      userId: session.user.id
+                    },
+                  });
 
-                // ephemeral ID
-                const noteId = Date.now();
-                // We'll attach to the last AI message's index
-                const aiIndex = messages.length + chatResponse.messages.length - 1;
+                  const voiceResponse = response?.data;
 
-                setVoiceNotes((prev) => [
-                  ...prev,
-                  { id: noteId, audioSrc: audioUrl, aiIndex }
-                ]);
+                  if (!voiceResponse?.success || !voiceResponse?.audioBase64) {
+                    console.error("voice_convert error or missing audio:", voiceResponse);
+                    toast({
+                      title: "Voice conversion error",
+                      description: voiceResponse?.error || "Could not convert to voice",
+                      variant: "destructive",
+                    });
+                  } else {
+                    const base64 = voiceResponse.audioBase64;
+                    const audioBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                    const blob = new Blob([audioBytes], { type: "audio/mpeg" });
+                    const audioUrl = URL.createObjectURL(blob);
+
+                    const noteId = Date.now();
+                    const aiIndex = messages.length + chatResponse.messages.length - 1;
+
+                    setVoiceNotes((prev) => [
+                      ...prev,
+                      { id: noteId, audioSrc: audioUrl, aiIndex }
+                    ]);
+                  }
+                } catch (err) {
+                  console.error("Voice convert function failed:", err);
+                  toast({
+                    title: "Voice Convert Error",
+                    description: "Check logs for details.",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setVoiceNoteMode(false);
+                }
               }
-            } catch (err) {
-              console.error("Voice convert function failed:", err);
+            } catch (error) {
+              console.error("Error processing message:", error);
               toast({
-                title: "Voice Convert Error",
-                description: "Check logs for details.",
+                title: "Error",
+                description: "Failed to process message",
                 variant: "destructive",
               });
-            } finally {
-              // After one voice note, we automatically turn off voiceNoteMode
-              setVoiceNoteMode(false);
             }
           }
-          // ========== End Voice Note Step ==========
-
         } catch (error) {
           console.error("Error in text flow:", error);
           setMessages((prev) => [
@@ -842,6 +843,10 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     const rendered: JSX.Element[] = [];
 
     messages.forEach((msg, i) => {
+      if (msg.metadata?.voice === true) {
+        return;
+      }
+      
       let showDateSeparator = false;
       let showInitialTimestamp = false;
 
@@ -1026,9 +1031,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
     return rendered;
   };
-
-  // FIX: We keep only the first definition of expandedImageUrl
-  // (Removed the second conflicting definition here)
 
   const handleSubscribe = async () => {
     try {
