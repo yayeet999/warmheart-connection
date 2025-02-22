@@ -662,7 +662,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
       } else {
         // =============================
-        //    TEXT WORKFLOW
+        //    TEXT (or Voice) WORKFLOW
         // =============================
         // 1) store user message
         const { error: storeError } = await supabase.functions.invoke(
@@ -697,13 +697,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           console.error("Error calling vector-search-context:", err);
         }
 
-        // 3) call chat
+        // 3) call chat, passing an extra "voice" param if voiceNoteMode is on
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
               body: {
                 userId: session.user.id,
                 message: userMessageContent,
+                voice: voiceNoteMode, // tells the chat function to do TTS
               },
             });
           if (chatError) {
@@ -716,12 +717,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           for (const msg of chatResponse.messages) {
             try {
+              // If the chat function set metadata.voice = true, we hide text bubble & show audio
               const aiResponse = {
                 type: "ai",
                 content: msg.content,
                 delay: msg.delay,
-                metadata: voiceNoteMode ? { voice: true } : undefined,
+                metadata: msg.metadata, // may contain { voice: true, audioBase64 }
               };
+
               setMessages((prev) => [...prev, aiResponse]);
 
               // store in chat history
@@ -733,48 +736,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 },
               });
 
-              // ========== Voice Note Step (IF enabled) ==========
-              if (voiceNoteMode) {
-                try {
-                  const response = await supabase.functions.invoke("voice_convert", {
-                    body: {
-                      userId: session.user.id,
-                      text: msg.content, // Though the function doesn't directly use this yet
-                    },
-                  });
-
-                  const voiceResponse = response?.data;
-
-                  if (!voiceResponse?.success || !voiceResponse?.audioBase64) {
-                    console.error("voice_convert error or missing audio:", voiceResponse);
-                    toast({
-                      title: "Voice conversion error",
-                      description: voiceResponse?.error || "Could not convert to voice",
-                      variant: "destructive",
-                    });
-                  } else {
-                    // Attach new ephemeral voice note
-                    setVoiceNotes((prev) => [
-                      ...prev,
-                      {
-                        id: Date.now(),
-                        audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
-                        aiIndex: messages.length, // The index of the new AI message
-                      },
-                    ]);
-                  }
-                } catch (err) {
-                  console.error("Voice convert function failed:", err);
-                  toast({
-                    title: "Voice Convert Error",
-                    description: "Check logs for details.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  // Turn off voiceNoteMode after first generated message
-                  setVoiceNoteMode(false);
-                }
-              }
+              // We no longer call voice_convert here at all.
+              // The chat function already returned any needed TTS data in msg.metadata.
             } catch (error) {
               console.error("Error processing message:", error);
               toast({
@@ -796,6 +759,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           ]);
         } finally {
           setIsTyping(false);
+          // Turn off voiceNoteMode only after we get the AI response
+          setVoiceNoteMode(false);
         }
       }
     } catch (error) {
@@ -839,11 +804,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     const rendered: JSX.Element[] = [];
 
     messages.forEach((msg, i) => {
-      // --------------------------------------------------
-      // We REMOVE the line that used to skip voice messages:
-      // if (msg.metadata?.voice === true) { return; }
-      // --------------------------------------------------
-
       let showDateSeparator = false;
       let showInitialTimestamp = false;
 
@@ -865,9 +825,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
       }
 
-      // If it's an image_message, we break it into two bubbles:
+      // If it's an image_message, we break it into two bubbles
       if (msg.metadata?.type === "image_message") {
-        // bubble 1: image(s)
+        // bubble 1: images
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -965,7 +925,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
       } else {
         // Normal or voice-based message
-
         rendered.push(
           <div key={i}>
             <div
@@ -993,7 +952,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   )}
                 >
                   {
-                    // If metadata.voice === true, we skip showing text content
+                    // If the AI message has metadata.voice, we skip showing the text
                     msg.metadata?.voice
                       ? null
                       : <p className="text-[15px] leading-relaxed">{msg.content}</p>
@@ -1017,15 +976,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </div>
             </div>
 
-            {/* If there's a voice note matched to this ai message index, show the player */}
-            {msg.type === "ai" && (
-              <>
-                {voiceNotes
-                  .filter((vn) => vn.aiIndex === i)
-                  .map((vn) => (
-                    <VoiceNotePlayer key={vn.id} audioSrc={vn.audioSrc} />
-                  ))}
-              </>
+            {/* If there's a voice note in metadata, show the player */}
+            {msg.type === "ai" && msg.metadata?.voice && msg.metadata?.audioBase64 && (
+              <VoiceNotePlayer audioSrc={`data:audio/mpeg;base64,${msg.metadata.audioBase64}`} />
             )}
           </div>
         );
