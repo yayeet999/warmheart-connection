@@ -216,12 +216,6 @@ const ChatInterface = () => {
   // **NEW** "Voice note mode"
   const [voiceNoteMode, setVoiceNoteMode] = useState(false);
 
-  // Where we store ephemeral voice notes
-  // Each item: { id: number, audioSrc: string, aiIndex: number }
-  const [voiceNotes, setVoiceNotes] = useState<
-    { id: number; audioSrc: string; aiIndex: number }[]
-  >([]);
-
   // Refs
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -697,14 +691,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           console.error("Error calling vector-search-context:", err);
         }
 
-        // 3) call chat, passing an extra "voice" param if voiceNoteMode is on
+        // 3) call chat, passing "voice" if voiceNoteMode is on
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
               body: {
                 userId: session.user.id,
                 message: userMessageContent,
-                voice: voiceNoteMode, // tells the chat function to do TTS
+                voice: voiceNoteMode, // Tells the chat function to produce TTS
               },
             });
           if (chatError) {
@@ -717,14 +711,13 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
           for (const msg of chatResponse.messages) {
             try {
-              // If the chat function set metadata.voice = true, we hide text bubble & show audio
+              // If the chat function set metadata.voice = true, that includes audioBase64
               const aiResponse = {
                 type: "ai",
                 content: msg.content,
                 delay: msg.delay,
-                metadata: msg.metadata, // may contain { voice: true, audioBase64 }
+                metadata: msg.metadata, 
               };
-
               setMessages((prev) => [...prev, aiResponse]);
 
               // store in chat history
@@ -735,9 +728,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   action: "add",
                 },
               });
-
-              // We no longer call voice_convert here at all.
-              // The chat function already returned any needed TTS data in msg.metadata.
             } catch (error) {
               console.error("Error processing message:", error);
               toast({
@@ -759,7 +749,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           ]);
         } finally {
           setIsTyping(false);
-          // Turn off voiceNoteMode only after we get the AI response
+          // Turn off voiceNoteMode once we've handled this response
           setVoiceNoteMode(false);
         }
       }
@@ -825,9 +815,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
       }
 
-      // If it's an image_message, we break it into two bubbles
+      // If it's an image_message, we break it into two bubbles:
       if (msg.metadata?.type === "image_message") {
-        // bubble 1: images
+        // bubble 1: image(s)
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -952,7 +942,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   )}
                 >
                   {
-                    // If the AI message has metadata.voice, we skip showing the text
+                    // If AI message has metadata.voice, we skip showing text
                     msg.metadata?.voice
                       ? null
                       : <p className="text-[15px] leading-relaxed">{msg.content}</p>
