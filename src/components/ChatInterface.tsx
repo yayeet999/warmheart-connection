@@ -217,7 +217,7 @@ const ChatInterface = () => {
   const [voiceNoteMode, setVoiceNoteMode] = useState(false);
 
   // Where we store ephemeral voice notes
-  // Each item: { id: number, audioSrc: string, aiMessageIndex: number }
+  // Each item: { id: number, audioSrc: string, aiIndex: number }
   const [voiceNotes, setVoiceNotes] = useState<
     { id: number; audioSrc: string; aiIndex: number }[]
   >([]);
@@ -594,7 +594,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   metadata: {
                     type: "image_request",
                     analysis: imageContext.analysis,
-                    message_id: `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
+                    message_id: `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`,
                   },
                 },
                 action: "add",
@@ -622,8 +622,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error(imageSearchResult?.error || "No matching images found");
           }
 
-          // fallback
-          let placeholderText = imageSearchResult.chosen.placeholder_text ||
+          let placeholderText =
+            imageSearchResult.chosen.placeholder_text ||
             "Here's an image for you! I hope you like it.";
 
           // AI message
@@ -714,15 +714,13 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
-          // We'll store all AI messages as we did before
-          let combinedAiText = ""; // used if voiceNoteMode
           for (const msg of chatResponse.messages) {
             try {
               const aiResponse = {
                 type: "ai",
                 content: msg.content,
                 delay: msg.delay,
-                metadata: voiceNoteMode ? { voice: true } : undefined
+                metadata: voiceNoteMode ? { voice: true } : undefined,
               };
               setMessages((prev) => [...prev, aiResponse]);
 
@@ -741,7 +739,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   const response = await supabase.functions.invoke("voice_convert", {
                     body: {
                       userId: session.user.id,
-                      text: msg.content  // Add this line
+                      text: msg.content, // Though the function doesn't directly use this yet
                     },
                   });
 
@@ -755,15 +753,16 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                       variant: "destructive",
                     });
                   } else {
+                    // Attach new ephemeral voice note
                     setVoiceNotes((prev) => [
-                        ...prev,
-                        {
-                          id: Date.now(),
-                          audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
-                          aiIndex: messages.length
-                        }
-                      ]);
-                    }
+                      ...prev,
+                      {
+                        id: Date.now(),
+                        audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
+                        aiIndex: messages.length, // The index of the new AI message
+                      },
+                    ]);
+                  }
                 } catch (err) {
                   console.error("Voice convert function failed:", err);
                   toast({
@@ -772,6 +771,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                     variant: "destructive",
                   });
                 } finally {
+                  // Turn off voiceNoteMode after first generated message
                   setVoiceNoteMode(false);
                 }
               }
@@ -798,7 +798,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           setIsTyping(false);
         }
       }
-
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
@@ -840,10 +839,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     const rendered: JSX.Element[] = [];
 
     messages.forEach((msg, i) => {
-      if (msg.metadata?.voice === true) {
-        return;
-      }
-      
+      // --------------------------------------------------
+      // We REMOVE the line that used to skip voice messages:
+      // if (msg.metadata?.voice === true) { return; }
+      // --------------------------------------------------
+
       let showDateSeparator = false;
       let showInitialTimestamp = false;
 
@@ -867,7 +867,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
       // If it's an image_message, we break it into two bubbles:
       if (msg.metadata?.type === "image_message") {
-        // bubble 1: image
+        // bubble 1: image(s)
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -964,7 +964,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         );
 
       } else {
-        // Normal text message
+        // Normal or voice-based message
+
         rendered.push(
           <div key={i}>
             <div
@@ -991,7 +992,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                     swipedMessageId === i ? "translate-x-[-20px]" : ""
                   )}
                 >
-                  <p className="text-[15px] leading-relaxed">{msg.content}</p>
+                  {
+                    // If metadata.voice === true, we skip showing text content
+                    msg.metadata?.voice
+                      ? null
+                      : <p className="text-[15px] leading-relaxed">{msg.content}</p>
+                  }
                 </div>
               </div>
               <div
