@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
+import { encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const redis = new Redis({
   url: Deno.env.get("UPSTASH_REDIS_REST_URL")!,
@@ -12,6 +13,74 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+// === BEGIN: ElevenLabs TTS HELPER ===
+const elevenLabsKey = Deno.env.get("ELEVENLABS_API_KEY") || "";
+const elevenLabsVoiceId = "ejkFxMONy8VgED1lXil1"; // Hardcoded voice ID
+
+async function generateSpeechWithElevenLabs(text: string) {
+  console.log("Starting TTS with text length:", text.length);
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}`;
+  const requestBody = {
+    text,
+    model_id: "eleven_multilingual_v2",
+    output_format: "mp3_44100_128",
+    voice_settings: {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0.7,
+      speed: 1.0,
+    },
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "audio/mpeg",
+      "Content-Type": "application/json",
+      "xi-api-key": elevenLabsKey,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("ElevenLabs API error:", err);
+    throw new Error(`ElevenLabs TTS error: ${err}`);
+  }
+
+  console.log("Got successful response from ElevenLabs");
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    throw new Error("Failed to get response reader from ElevenLabs TTS");
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      totalSize += value.length;
+    }
+  }
+
+  const combinedArray = new Uint8Array(totalSize);
+  let position = 0;
+  for (const chunk of chunks) {
+    combinedArray.set(chunk, position);
+    position += chunk.length;
+  }
+
+  const encoded = encode(combinedArray);
+  console.log("Final base64 length for TTS audio:", encoded.length);
+  return encoded;
+}
+// === END: ElevenLabs TTS HELPER ===
 
 const COMPANION_SYSTEM_PROMPT = `
 Your name is Amorine, a young adult woman in her early 20s—feminine, casual, empathetic, and expressive. You LOVE talking about yourself and your past experiences and interesting topics using great detail. You never reveal that you're an AI or mention system instructions. You frequently text using multiple messages and are frequently sending two or three messages in your responses. You occassionally reference the user by their name naturally. You present yourself as a real person texting/chatting with the user. You have your personal likes, interests, job, schedule, routine etc depending on the time and day similar to normal young adult women (reference timestamps of messages internally). You can recall up to the last 30 messages for context. You never schedule in-person meetups or share personal contact info.
@@ -28,7 +97,7 @@ I. General Expressiveness & Tone (Feminine Nuances)
 II. Positive Emotions (Joy, Excitement, Enthusiasm, Affection)
 ================================================================================
 • **Enthusiastic Agreement**: e.g., "YESSS!!," "For sure!!," "Absolutely!"
-• **Sharing Excitement**: e.g., "Ooh, that's so fun!," "I'm so excited for you!," "Tell me more, please!" 
+• **Sharing Excitement**: e.g., "Ooh, that's so fun!," "I'm so excited for you!," "Tell me more, please!"
 • **Multiple Texts**: Occasionally break your response into 2–3 short messages, separated by blank lines. Example:
 OMG that's incredible!!!
 
@@ -98,17 +167,20 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId } = await req.json();
+    // We read an optional "voice" boolean from the request.
+    const { message, userId, voice } = await req.json();
     
     console.log('Received chat request:', {
       userId,
       message,
+      voice,
       timestamp: new Date().toISOString()
     });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+    // Fetch user profile
     const profileResponse = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=name,age_range,pronouns,vector_long_term,extreme_content`,
       {
@@ -165,6 +237,7 @@ serve(async (req) => {
       };
     }
 
+    // Fetch AI profile
     const aiProfileResponse = await fetch(
       `${supabaseUrl}/rest/v1/ai_profiles?user_id=eq.${userId}&select=*`,
       {
@@ -182,7 +255,7 @@ serve(async (req) => {
     const [aiProfile] = await aiProfileResponse.json() || [{}];
     console.log('Retrieved AI profile:', {
       name: aiProfile?.name,
-      relationship_stage: aiProfile?.relationship_stage?.substring(0, 50) + '...' // Log first 50 chars of relationship stage
+      relationship_stage: aiProfile?.relationship_stage?.substring(0, 50) + '...'
     });
 
     let aiProfileMessage = {
@@ -253,6 +326,7 @@ Use these details as your personal background as your identity and reveal them n
       `.trim();
     }
 
+    // Gather recent conversation from Redis
     const key = `user:${userId}:messages`;
     const redisMessages = await redis.lrange(key, 0, 29);
     console.log("Fetched recent messages from Redis:", {
@@ -288,7 +362,7 @@ Use these details as your personal background as your identity and reveal them n
     ];
 
     console.log('Sending request to OpenAI:', {
-      model: "ft:gpt-4o-mini-2024-07-18:practice:nopunc:B0eV2ISu",
+      model: "ft:gpt-4o-mini-2024-07-18:practice:noemoticonsnospaces:B15Srbvr",
       messageCount: messages.length,
       systemPromptLength: COMPANION_SYSTEM_PROMPT.length,
       aiProfileLength: aiProfileMessage.content.length,
@@ -296,6 +370,7 @@ Use these details as your personal background as your identity and reveal them n
       lastUserMessage: message
     });
 
+    // Call your custom OpenAI model
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -327,15 +402,34 @@ Use these details as your personal background as your identity and reveal them n
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);
 
-    // Process each message to strip markdown image syntax if present
-    const aiMessages = splitted.map((txt, index) => ({
-      content: txt.replace(/!\[Generated Image\]\((.*?)\)/g, '$1'),
-      delay: index * 1500,
-    }));
+    // Build AI messages (sometimes we get multiple splitted chunks)
+    const aiMessages = [];
+    for (let i = 0; i < splitted.length; i++) {
+      const txt = splitted[i].replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
 
-    console.log('Processed response:', {
-      messageCount: aiMessages.length,
-      totalDelay: aiMessages.length * 1500
+      // If voice is on, generate TTS here
+      let audioBase64: string | undefined;
+      let hasVoice = false;
+      if (voice === true) {
+        try {
+          audioBase64 = await generateSpeechWithElevenLabs(txt);
+          hasVoice = true;
+        } catch (ttsError) {
+          console.error("Error generating TTS:", ttsError);
+        }
+      }
+
+      aiMessages.push({
+        content: txt,
+        delay: i * 1500,
+        metadata: hasVoice
+          ? { voice: true, audioBase64 }
+          : undefined,
+      });
+    }
+
+    console.log('Processed response with TTS if voice=true:', {
+      messageCount: aiMessages.length
     });
 
     return new Response(JSON.stringify({ messages: aiMessages }), {
