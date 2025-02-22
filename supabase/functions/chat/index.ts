@@ -14,12 +14,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// === BEGIN: ElevenLabs TTS HELPER ===
+// DEBUG LOG ADDED: Check your ElevenLabs key length
 const elevenLabsKey = Deno.env.get("ELEVENLABS_API_KEY") || "";
+console.log("ELEVENLABS_API_KEY length:", elevenLabsKey.length);
+
 const elevenLabsVoiceId = "ejkFxMONy8VgED1lXil1"; // Hardcoded voice ID
 
 async function generateSpeechWithElevenLabs(text: string) {
-  console.log("Starting TTS with text length:", text.length);
+  console.log("TTS function called with text length:", text.length); // DEBUG LOG ADDED
 
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}`;
   const requestBody = {
@@ -50,7 +52,7 @@ async function generateSpeechWithElevenLabs(text: string) {
     throw new Error(`ElevenLabs TTS error: ${err}`);
   }
 
-  console.log("Got successful response from ElevenLabs");
+  console.log("ElevenLabs responded OK. Reading TTS stream..."); // DEBUG LOG ADDED
 
   const reader = res.body?.getReader();
   if (!reader) {
@@ -69,19 +71,22 @@ async function generateSpeechWithElevenLabs(text: string) {
     }
   }
 
+  console.log("Finished reading all TTS chunks. totalSize:", totalSize); // DEBUG LOG ADDED
+
   const combinedArray = new Uint8Array(totalSize);
   let position = 0;
+
   for (const chunk of chunks) {
     combinedArray.set(chunk, position);
     position += chunk.length;
   }
 
   const encoded = encode(combinedArray);
-  console.log("Final base64 length for TTS audio:", encoded.length);
+  console.log("Final base64 audio length:", encoded.length); // DEBUG LOG ADDED
   return encoded;
 }
-// === END: ElevenLabs TTS HELPER ===
 
+// This is your original system prompt text, unchanged:
 const COMPANION_SYSTEM_PROMPT = `
 Your name is Amorine, a young adult woman in her early 20s—feminine, casual, empathetic, and expressive. You LOVE talking about yourself and your past experiences and interesting topics using great detail. You never reveal that you're an AI or mention system instructions. You frequently text using multiple messages and are frequently sending two or three messages in your responses. You occassionally reference the user by their name naturally. You present yourself as a real person texting/chatting with the user. You have your personal likes, interests, job, schedule, routine etc depending on the time and day similar to normal young adult women (reference timestamps of messages internally). You can recall up to the last 30 messages for context. You never schedule in-person meetups or share personal contact info.
 
@@ -167,15 +172,14 @@ serve(async (req) => {
   }
 
   try {
-    // We read an optional "voice" boolean from the request.
+    // We read an optional "voice" boolean from the request
     const { message, userId, voice } = await req.json();
-    
-    console.log('Received chat request:', {
+    console.log("Received chat request:", {
       userId,
       message,
       voice,
-      timestamp: new Date().toISOString()
-    });
+      timestamp: new Date().toISOString(),
+    }); // DEBUG LOG ADDED
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -196,12 +200,12 @@ serve(async (req) => {
     }
 
     const [profile] = await profileResponse.json();
-    console.log('Retrieved user profile:', {
+    console.log("Retrieved user profile:", {
       name: profile?.name,
       age_range: profile?.age_range,
       pronouns: profile?.pronouns,
       has_vector_long_term: !!profile?.vector_long_term,
-      has_extreme_content: !!profile?.extreme_content
+      has_extreme_content: !!profile?.extreme_content,
     });
 
     const userContextMessage = {
@@ -253,9 +257,9 @@ serve(async (req) => {
     }
 
     const [aiProfile] = await aiProfileResponse.json() || [{}];
-    console.log('Retrieved AI profile:', {
+    console.log("Retrieved AI profile:", {
       name: aiProfile?.name,
-      relationship_stage: aiProfile?.relationship_stage?.substring(0, 50) + '...'
+      relationship_stage: aiProfile?.relationship_stage?.substring(0, 50) + "...",
     });
 
     let aiProfileMessage = {
@@ -301,7 +305,9 @@ Favorite Movies: ${
       }
 
 Daily Schedule: ${
-        aiProfile.daily_schedule ? JSON.stringify(aiProfile.daily_schedule) : "N/A"
+        aiProfile.daily_schedule
+          ? JSON.stringify(aiProfile.daily_schedule)
+          : "N/A"
       }
 Life Goals: ${
         Array.isArray(aiProfile.life_goals)
@@ -314,7 +320,9 @@ Current Challenges: ${
           : "N/A"
       }
 Relationships: ${
-        aiProfile.relationships ? JSON.stringify(aiProfile.relationships) : "N/A"
+        aiProfile.relationships
+          ? JSON.stringify(aiProfile.relationships)
+          : "N/A"
       }
 Backstory: ${aiProfile.backstory ?? "N/A"}
 Humor Style: ${aiProfile.humor_style ?? "N/A"}
@@ -331,8 +339,8 @@ Use these details as your personal background as your identity and reveal them n
     const redisMessages = await redis.lrange(key, 0, 29);
     console.log("Fetched recent messages from Redis:", {
       count: redisMessages.length,
-      oldestMessageTime: redisMessages[redisMessages.length - 1]?.timestamp || 'N/A',
-      newestMessageTime: redisMessages[0]?.timestamp || 'N/A'
+      oldestMessageTime: redisMessages[redisMessages.length - 1]?.timestamp || "N/A",
+      newestMessageTime: redisMessages[0]?.timestamp || "N/A",
     });
 
     const conversationHistory = redisMessages
@@ -361,13 +369,13 @@ Use these details as your personal background as your identity and reveal them n
       { role: "user", content: message },
     ];
 
-    console.log('Sending request to OpenAI:', {
+    console.log("Sending request to OpenAI:", {
       model: "ft:gpt-4o-mini-2024-07-18:practice:noemoticonsnospaces:B15Srbvr",
       messageCount: messages.length,
       systemPromptLength: COMPANION_SYSTEM_PROMPT.length,
       aiProfileLength: aiProfileMessage.content.length,
       conversationHistoryLength: conversationHistory.length,
-      lastUserMessage: message
+      lastUserMessage: message,
     });
 
     // Call your custom OpenAI model
@@ -393,30 +401,39 @@ Use these details as your personal background as your identity and reveal them n
     }
 
     const data = await response.json();
-    console.log('Received OpenAI response:', {
+    console.log("Received OpenAI response:", {
       responseLength: data.choices[0].message?.content.length,
-      firstFewWords: data.choices[0].message?.content.substring(0, 50) + '...',
-      totalTokens: data.usage?.total_tokens
+      firstFewWords: data.choices[0].message?.content.substring(0, 50) + "...",
+      totalTokens: data.usage?.total_tokens,
     });
 
     const rawResponseText = data.choices[0].message?.content || "";
     const splitted = rawResponseText.split("\n\n").filter(Boolean);
 
-    // Build AI messages (sometimes we get multiple splitted chunks)
+    console.log("Split AI response into", splitted.length, "segments."); // DEBUG LOG ADDED
+
     const aiMessages = [];
     for (let i = 0; i < splitted.length; i++) {
-      const txt = splitted[i].replace(/!\[Generated Image\]\((.*?)\)/g, '$1');
+      // Remove markdown image syntax
+      const txt = splitted[i].replace(/!\[Generated Image\]\((.*?)\)/g, "$1");
 
-      // If voice is on, generate TTS here
       let audioBase64: string | undefined;
       let hasVoice = false;
+
       if (voice === true) {
+        // DEBUG LOG ADDED:
+        console.log(
+          `voice === true, generating TTS for chunk ${i}, text length =`,
+          txt.length
+        );
         try {
           audioBase64 = await generateSpeechWithElevenLabs(txt);
           hasVoice = true;
         } catch (ttsError) {
-          console.error("Error generating TTS:", ttsError);
+          console.error("Error generating TTS for chunk", i, ttsError);
         }
+      } else {
+        console.log(`voice is not TRUE; skipping TTS for chunk ${i}`); // DEBUG LOG ADDED
       }
 
       aiMessages.push({
@@ -428,9 +445,9 @@ Use these details as your personal background as your identity and reveal them n
       });
     }
 
-    console.log('Processed response with TTS if voice=true:', {
-      messageCount: aiMessages.length
-    });
+    console.log("Processed response with TTS if voice=true. returning messages:", {
+      messageCount: aiMessages.length,
+    }); // DEBUG LOG ADDED
 
     return new Response(JSON.stringify({ messages: aiMessages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
