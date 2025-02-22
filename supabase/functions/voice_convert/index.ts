@@ -21,8 +21,56 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper to get latest AI message from Redis
+async function getLatestAIMessage(userId: string): Promise<string | null> {
+  try {
+    const key = `user:${userId}:messages`;
+    // Get the most recent messages to find one with voice metadata
+    const messages = await redis.lrange(key, 0, 9);
+    
+    if (!messages?.length) {
+      console.error("No messages found for user:", userId);
+      return null;
+    }
+
+    console.log("Found messages in Redis:", messages.length);
+
+    // Look for the most recent AI message with voice metadata
+    for (const msgStr of messages) {
+      try {
+        console.log("Checking message:", msgStr);
+        const parsed = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
+        console.log("Parsed message:", JSON.stringify(parsed));
+        
+        if (parsed.type === "ai" && parsed.metadata?.voice === true) {
+          if (!parsed.content) {
+            console.error("Found AI message with voice metadata but no content");
+            continue;
+          }
+          console.log("Found valid AI message with voice metadata");
+          return parsed.content;
+        }
+      } catch (e) {
+        console.error("Error parsing message:", e);
+      }
+    }
+
+    console.log("No AI message with voice metadata found in recent messages");
+    return null;
+  } catch (error) {
+    console.error("Redis error:", error);
+    return null;
+  }
+}
+
 // Helper to lightly transform text for speech using Llama:
 async function transformTextForSpeech(originalText: string): Promise<string> {
+  /*
+    We'll prompt Llama to do minimal changes:
+    1) Remove emoticons and typical text smileys
+    2) Replace "lol", "omg", "lmao" with mild standard synonyms or remove them
+    3) We'll just do a general cleaning approach, returning the final text
+  */
   const systemPrompt = `
 You are a text transformer. Remove ASCII emoticons (e.g. :P, :D, etc). Replace slang words like "lol", "omg", "lmao" with mild standard synonyms or remove them. Return final text only, nothing else.
 `;
@@ -91,8 +139,38 @@ async function generateSpeechWithElevenLabs(text: string) {
 
   console.log("Got successful response from ElevenLabs");
 
-  const buffer = await res.arrayBuffer();
-  const encoded = encode(new Uint8Array(buffer));
+  const reader = res.body?.getReader();
+  if (!reader) {
+    throw new Error("Failed to get response reader from ElevenLabs TTS");
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    if (value) {
+      chunks.push(value);
+      totalSize += value.length;
+      console.log("Received chunk of size:", value.length);
+    }
+  }
+
+  console.log("Total chunks:", chunks.length, "Total size:", totalSize);
+
+  const combinedArray = new Uint8Array(totalSize);
+  let position = 0;
+
+  for (const chunk of chunks) {
+    combinedArray.set(chunk, position);
+    position += chunk.length;
+  }
+
+  console.log("Combined array size:", combinedArray.length);
+
+  const encoded = encode(combinedArray);
   console.log("Final base64 length:", encoded.length);
 
   return encoded;
@@ -113,18 +191,23 @@ serve(async (req) => {
     if (!body?.userId || typeof body.userId !== 'string') {
       throw new Error("Request must include 'userId' field as a string");
     }
-    if (!body?.text || typeof body.text !== 'string') {
-      throw new Error("Request must include 'text' field as a string");
+
+    const { userId } = body;
+    console.log("Processing request for userId:", userId);
+
+    // 1) Find the latest AI message that has voice metadata
+    const text = await getLatestAIMessage(userId);
+    if (!text) {
+      throw new Error("Could not find a valid AI message with voice metadata to convert. Please ensure the message exists and has voice metadata enabled.");
     }
 
-    const { userId, text } = body;
-    console.log("Processing request for userId:", userId, "with text length:", text.length);
+    console.log("Found message to convert, length:", text.length);
 
-    // Clean/transform the text
+    // 2) Clean/transform the text
     const cleanedText = await transformTextForSpeech(text);
     console.log("Cleaned text length:", cleanedText.length);
 
-    // TTS with ElevenLabs
+    // 3) TTS with ElevenLabs
     const audioBase64 = await generateSpeechWithElevenLabs(cleanedText);
     console.log("Audio base64 length:", audioBase64?.length || 0);
 
