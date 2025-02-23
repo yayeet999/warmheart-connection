@@ -35,6 +35,9 @@ import {
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
+/* -------------------------------
+   Helpers
+---------------------------------*/
 const formatMessageDate = (timestamp?: string) => {
   if (!timestamp) return "";
   try {
@@ -77,14 +80,13 @@ const DateSeparator = ({ date }: { date: string }) => {
   }
 };
 
-// Individual image
-const ImageMessage = ({
+function ImageMessage({
   src,
   onImageClick,
 }: {
   src: string;
   onImageClick: (src: string) => void;
-}) => {
+}) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -120,7 +122,7 @@ const ImageMessage = ({
       />
     </div>
   );
-};
+}
 
 function ImageSet({
   message_id,
@@ -194,20 +196,15 @@ function ImageSet({
   );
 }
 
-// VoiceNote Player
-function VoiceNotePlayer({ audioSrc }: { audioSrc: string }) {
-  return (
-    <div className="rounded-lg shadow-sm bg-white border p-3 mt-2 inline-flex items-center gap-2 max-w-[280px]">
-      <audio controls src={audioSrc} className="w-full" />
-    </div>
-  );
-}
-
+/* --------------------------------------------------------------------------------
+   MAIN CHAT INTERFACE
+-----------------------------------------------------------------------------------*/
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Dialog states
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [showLimitReachedDialog, setShowLimitReachedDialog] = useState(false);
   const [showTokenDepletedDialog, setShowTokenDepletedDialog] = useState(false);
@@ -220,14 +217,8 @@ const ChatInterface = () => {
 
   // "Image request mode"
   const [imageRequestMode, setImageRequestMode] = useState(false);
-
-  // **NEW** "Voice note mode"
+  // "Voice note mode" (UI only; does nothing)
   const [voiceNoteMode, setVoiceNoteMode] = useState(false);
-
-  // Each voice note: { id: number, audioSrc: string, aiIndex: number }
-  const [voiceNotes, setVoiceNotes] = useState<
-    { id: number; audioSrc: string; aiIndex: number }[]
-  >([]);
 
   // Refs
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -236,14 +227,12 @@ const ChatInterface = () => {
 
   const navigate = useNavigate();
 
+  // For swipe detection
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
-  const handleTouchStart = (
-    e: React.TouchEvent,
-    messageId: number
-  ) => {
+  const handleTouchStart = (e: React.TouchEvent, messageId: number) => {
     touchStartX.current = e.touches[0].clientX;
     if (swipedMessageId !== messageId) {
       setSwipedMessageId(null);
@@ -265,6 +254,7 @@ const ChatInterface = () => {
     }
   };
 
+  // Clears messages on sign-out
   useEffect(() => {
     const {
       data: { subscription },
@@ -281,6 +271,7 @@ const ChatInterface = () => {
     };
   }, []);
 
+  // Check auth
   useEffect(() => {
     const checkAuth = async () => {
       const {
@@ -299,6 +290,7 @@ const ChatInterface = () => {
     checkAuth();
   }, [navigate]);
 
+  // Subscription tier, userId
   const { data: userData } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
@@ -333,6 +325,7 @@ const ChatInterface = () => {
     },
   });
 
+  // If 'pro' tier, check token balance
   const { data: tokenData } = useQuery({
     queryKey: ["token-balance", userData?.userId],
     queryFn: async () => {
@@ -350,6 +343,7 @@ const ChatInterface = () => {
   const isTokenDepleted =
     userData?.subscription?.tier === "pro" && tokenData?.token_balance < 1;
 
+  // Safety checks
   const { data: profile } = useQuery({
     queryKey: ["profile", userData?.userId],
     queryFn: async () => {
@@ -416,6 +410,7 @@ National Domestic Violence Hotline:
 If you're having thoughts of harming others, please seek professional help immediately.
 If there is an immediate danger to anyone's safety, contact emergency services (911).`;
 
+  // Retrieving Chat History
   const fetchMessages = async (pageNum = 0) => {
     if (!userData?.userId) {
       console.log("No user ID available yet");
@@ -445,6 +440,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
 
+  // Load initial messages
   useEffect(() => {
     const loadInitialMessages = async () => {
       if (!userData?.userId) return;
@@ -529,6 +525,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       return;
     }
 
+    // Check daily-limit
     const { data: limitData, error: limitError } =
       await supabase.functions.invoke("check-message-limits", {
         body: {
@@ -551,15 +548,18 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setIsLoading(true);
     setIsTyping(true);
 
+    // push user message
     const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
     setMessageCount((prev) => prev + 1);
 
     try {
+      // IMAGE flow if imageRequestMode is on
       if (imageRequestMode) {
         setImageRequestMode(false);
 
         try {
+          // 1) Analyze context
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
@@ -572,6 +572,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
+          // 2) store user message
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -595,6 +596,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Failed to store image request");
           }
 
+          // 3) call amorine-image-search
           const message_id = `img_${Date.now()}_${Math.floor(
             Math.random() * 1000000
           )}`;
@@ -619,6 +621,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             imageSearchResult.chosen.placeholder_text ||
             "Here's an image for you! I hope you like it.";
 
+          // AI message
           const aiResponse = {
             type: "ai",
             content: placeholderText,
@@ -637,6 +640,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             },
           });
           setMessageCount((prev) => prev + 1);
+
         } catch (error) {
           console.error("Error in image generation flow:", error);
           setMessages((prev) => [
@@ -652,6 +656,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         }
 
       } else {
+        // TEXT workflow
+        // 1) store user message
         const { error: storeError } = await supabase.functions.invoke(
           "chat-history",
           {
@@ -666,6 +672,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           throw new Error("Failed to store user message");
         }
 
+        // 2) Attempt vector-search
         try {
           const { data: vectorData, error: vectorError } =
             await supabase.functions.invoke("vector-search-context", {
@@ -683,6 +690,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           console.error("Error calling vector-search-context:", err);
         }
 
+        // 3) call chat
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
@@ -699,13 +707,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
+          // We'll store all AI messages
           for (const msg of chatResponse.messages) {
             try {
               const aiResponse = {
                 type: "ai",
                 content: msg.content,
                 delay: msg.delay,
-                metadata: voiceNoteMode ? { voice: true } : undefined
+                // voice note removed; do nothing
               };
               setMessages((prev) => [...prev, aiResponse]);
 
@@ -716,60 +725,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   action: "add",
                 },
               });
-
-              // ======== Adjusted: fetch the actual audio as a Blob if voiceNoteMode is on ========
-              if (voiceNoteMode) {
-                try {
-                  // Instead of supabase.functions.invoke returning base64,
-                  // we directly fetch the function endpoint for raw audio:
-                  const voiceConvertURL = `${import.meta.env.VITE_SUPABASE_FUNCTION_URL}/voice_convert`; 
-                  // e.g. "https://<PROJECT>.functions.supabase.co/voice_convert"
-                  // Make sure you define VITE_SUPABASE_FUNCTION_URL in your environment 
-                  // or replace with your function URL as needed.
-
-                  const vcRes = await fetch(voiceConvertURL, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${
-                        (await supabase.auth.getSession()).data.session
-                          ?.access_token ?? ""
-                      }`,
-                    },
-                    body: JSON.stringify({
-                      userId: session.user.id,
-                      text: msg.content,
-                    }),
-                  });
-                  if (!vcRes.ok) {
-                    throw new Error(
-                      `voice_convert function responded with status: ${vcRes.status}`
-                    );
-                  }
-                  // get raw audio data as blob
-                  const audioBlob = await vcRes.blob();
-                  const audioUrl = URL.createObjectURL(audioBlob);
-
-                  setVoiceNotes((prev) => [
-                    ...prev,
-                    {
-                      id: Date.now(),
-                      audioSrc: audioUrl,
-                      aiIndex: messages.length,
-                    },
-                  ]);
-                } catch (err) {
-                  console.error("Voice convert function failed:", err);
-                  toast({
-                    title: "Voice Convert Error",
-                    description: "Could not generate voice note.",
-                    variant: "destructive",
-                  });
-                } finally {
-                  // Turn off voiceNoteMode so it only applies to this single reply
-                  setVoiceNoteMode(false);
-                }
-              }
             } catch (error) {
               console.error("Error processing message:", error);
               toast({
@@ -833,10 +788,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     const rendered: JSX.Element[] = [];
 
     messages.forEach((msg, i) => {
-      if (msg.metadata?.voice === true) {
-        return;
-      }
-
+      // We remove any voice note rendering
       let showDateSeparator = false;
       let showInitialTimestamp = false;
 
@@ -858,7 +810,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
       }
 
+      // If it's an image_message
       if (msg.metadata?.type === "image_message") {
+        // bubble 1: image
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -906,6 +860,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           </div>
         );
 
+        // bubble 2: placeholder text
         rendered.push(
           <div
             key={`msg-${i}-text`}
@@ -952,7 +907,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             </div>
           </div>
         );
+
       } else {
+        // Normal text message
         rendered.push(
           <div key={i}>
             <div
@@ -998,16 +955,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 {formatMessageDate(msg.timestamp)}
               </div>
             </div>
-
-            {msg.type === "ai" && (
-              <>
-                {voiceNotes
-                  .filter((vn) => vn.aiIndex === i)
-                  .map((vn) => (
-                    <VoiceNotePlayer key={vn.id} audioSrc={vn.audioSrc} />
-                  ))}
-              </>
-            )}
           </div>
         );
       }
@@ -1018,12 +965,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   const handleSubscribe = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "create-checkout",
-        {
-          body: { userId: userData?.userId },
-        }
-      );
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { userId: userData?.userId },
+      });
       if (error) throw error;
       if (data.url) {
         window.location.href = data.url;
@@ -1040,6 +984,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
+      {/* FREE TIER WELCOME */}
       <Dialog
         open={showWelcomeDialog && isFreeUser}
         onOpenChange={setShowWelcomeDialog}
@@ -1087,6 +1032,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* SUSPENSION DIALOG */}
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
@@ -1111,6 +1057,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* DAILY-LIMIT REACHED */}
       <Dialog
         open={showLimitReachedDialog}
         onOpenChange={() => {}}
@@ -1145,6 +1092,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* TOKEN-BALANCE DEPLETED */}
       <Dialog
         open={showTokenDepletedDialog}
         onOpenChange={setShowTokenDepletedDialog}
@@ -1179,12 +1127,14 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
+      {/* MAIN LAYOUT */}
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
           "sm:pl-[100px]"
         )}
       >
+        {/* Sticky top bar */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
             <img
@@ -1196,6 +1146,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
+        {/* Messages area */}
         <div
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
@@ -1237,6 +1188,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Input area */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <DropdownMenu>
@@ -1267,6 +1219,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   <Video className="w-4 h-4" />
                   <span>Get a Video (Coming soon)</span>
                 </DropdownMenuItem>
+                {/* Voice note toggle does nothing */}
                 <DropdownMenuItem
                   onClick={() => setVoiceNoteMode((prev) => !prev)}
                   className="flex items-center gap-2 cursor-pointer"
