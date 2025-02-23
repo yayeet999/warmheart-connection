@@ -35,9 +35,6 @@ import {
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
 
-// =============================
-// UTILS
-// =============================
 const formatMessageDate = (timestamp?: string) => {
   if (!timestamp) return "";
   try {
@@ -80,33 +77,85 @@ const DateSeparator = ({ date }: { date: string }) => {
   }
 };
 
-// =============================
-// ImageSet COMPONENT
-// =============================
-function ImageSet({ message_id, onImageClick }: { message_id: string, onImageClick: (src: string) => void }) {
+// Individual image
+const ImageMessage = ({
+  src,
+  onImageClick,
+}: {
+  src: string;
+  onImageClick: (src: string) => void;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="relative w-full max-w-[300px] rounded-2xl bg-gray-50/80 p-4 text-sm text-gray-500 text-center">
+        Unable to load image
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative w-full max-w-[300px] my-1 cursor-pointer"
+      onClick={() => onImageClick(src)}
+    >
+      {!isLoaded && (
+        <div className="absolute inset-0 image-skeleton rounded-2xl" />
+      )}
+      <img
+        src={src}
+        alt="Generated"
+        className={cn(
+          "w-full rounded-2xl transition-all duration-300 object-contain",
+          isLoaded ? "loaded" : "opacity-0"
+        )}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => {
+          setHasError(true);
+          setIsLoaded(true);
+        }}
+      />
+    </div>
+  );
+};
+
+function ImageSet({
+  message_id,
+  onImageClick,
+}: {
+  message_id: string;
+  onImageClick: (src: string) => void;
+}) {
   const [urls, setUrls] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Grab current user from supabase (for userId)
   const { data: sessionData } = useQuery({
     queryKey: ["session"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       return session;
-    }
+    },
   });
 
   useEffect(() => {
     async function fetchUrls() {
       try {
         if (!sessionData?.user?.id) return;
-        const { data, error } = await supabase.functions.invoke("image-registry", {
-          body: {
-            action: "get",
-            userId: sessionData.user.id,
-            message_id
+        const { data, error } = await supabase.functions.invoke(
+          "image-registry",
+          {
+            body: {
+              action: "get",
+              userId: sessionData.user.id,
+              message_id,
+            },
           }
-        });
+        );
         if (error || !data?.success) {
           setError(data?.error || "Failed to retrieve images");
           return;
@@ -145,81 +194,20 @@ function ImageSet({ message_id, onImageClick }: { message_id: string, onImageCli
   );
 }
 
-// Individual image
-const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: string) => void }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  if (hasError) {
-    return (
-      <div className="relative w-full max-w-[300px] rounded-2xl bg-gray-50/80 p-4 text-sm text-gray-500 text-center">
-        Unable to load image
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative w-full max-w-[300px] my-1 cursor-pointer" onClick={() => onImageClick(src)}>
-      {!isLoaded && (
-        <div className="absolute inset-0 image-skeleton rounded-2xl" />
-      )}
-      <img
-        src={src}
-        alt="Generated"
-        className={cn(
-          "w-full rounded-2xl transition-all duration-300 object-contain",
-          isLoaded ? "loaded" : "opacity-0"
-        )}
-        loading="lazy"
-        onLoad={() => setIsLoaded(true)}
-        onError={() => {
-          setHasError(true);
-          setIsLoaded(true);
-        }}
-      />
-    </div>
-  );
-};
-
-// =============================
-// VoiceNote Player COMPONENT
-// =============================
+// VoiceNote Player
 function VoiceNotePlayer({ audioSrc }: { audioSrc: string }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const togglePlay = () => {
-    const audioElement = audioRef.current;
-    if (!audioElement) return;
-
-    if (audioElement.paused) {
-      audioElement.play();
-      setIsPlaying(true);
-    } else {
-      audioElement.pause();
-      setIsPlaying(false);
-    }
-  };
-
   return (
     <div className="rounded-lg shadow-sm bg-white border p-3 mt-2 inline-flex items-center gap-2 max-w-[280px]">
-      <button onClick={togglePlay} className="bg-gray-100 hover:bg-gray-200 rounded-full p-2">
-        {isPlaying ? 'Pause' : 'Play'}
-      </button>
-      <audio ref={audioRef} src={audioSrc} className="w-full" />
+      <audio controls src={audioSrc} className="w-full" />
     </div>
   );
 }
 
-// =============================
-// MAIN CHAT COMPONENT
-// =============================
 const ChatInterface = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Dialog states
   const [showWelcomeDialog, setShowWelcomeDialog] = useState(true);
   const [showLimitReachedDialog, setShowLimitReachedDialog] = useState(false);
   const [showTokenDepletedDialog, setShowTokenDepletedDialog] = useState(false);
@@ -232,11 +220,11 @@ const ChatInterface = () => {
 
   // "Image request mode"
   const [imageRequestMode, setImageRequestMode] = useState(false);
+
   // **NEW** "Voice note mode"
   const [voiceNoteMode, setVoiceNoteMode] = useState(false);
 
-  // Where we store ephemeral voice notes
-  // Each item: { id: number, audioSrc: string, aiMessageIndex: number }
+  // Each voice note: { id: number, audioSrc: string, aiIndex: number }
   const [voiceNotes, setVoiceNotes] = useState<
     { id: number; audioSrc: string; aiIndex: number }[]
   >([]);
@@ -248,12 +236,14 @@ const ChatInterface = () => {
 
   const navigate = useNavigate();
 
-  // For swipe detection on mobile
   const [swipedMessageId, setSwipedMessageId] = useState<number | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
-  const handleTouchStart = (e: React.TouchEvent, messageId: number) => {
+  const handleTouchStart = (
+    e: React.TouchEvent,
+    messageId: number
+  ) => {
     touchStartX.current = e.touches[0].clientX;
     if (swipedMessageId !== messageId) {
       setSwipedMessageId(null);
@@ -275,7 +265,6 @@ const ChatInterface = () => {
     }
   };
 
-  // Clears messages on sign-out
   useEffect(() => {
     const {
       data: { subscription },
@@ -292,7 +281,6 @@ const ChatInterface = () => {
     };
   }, []);
 
-  // Check if user is logged in
   useEffect(() => {
     const checkAuth = async () => {
       const {
@@ -311,7 +299,6 @@ const ChatInterface = () => {
     checkAuth();
   }, [navigate]);
 
-  // Grab subscription tier, userId
   const { data: userData } = useQuery({
     queryKey: ["user-data"],
     queryFn: async () => {
@@ -346,7 +333,6 @@ const ChatInterface = () => {
     },
   });
 
-  // Token-balance checks (for "pro" tier)
   const { data: tokenData } = useQuery({
     queryKey: ["token-balance", userData?.userId],
     queryFn: async () => {
@@ -364,7 +350,6 @@ const ChatInterface = () => {
   const isTokenDepleted =
     userData?.subscription?.tier === "pro" && tokenData?.token_balance < 1;
 
-  // Safety concerns, extreme content checks
   const { data: profile } = useQuery({
     queryKey: ["profile", userData?.userId],
     queryFn: async () => {
@@ -405,7 +390,6 @@ const ChatInterface = () => {
     }
   }, [profile]);
 
-  // Safety resources
   const SUICIDE_RESOURCES = `National Suicide Prevention Lifeline (24/7):
 1-800-273-8255
 
@@ -432,7 +416,6 @@ National Domestic Violence Hotline:
 If you're having thoughts of harming others, please seek professional help immediately.
 If there is an immediate danger to anyone's safety, contact emergency services (911).`;
 
-  // Retrieve Chat History
   const fetchMessages = async (pageNum = 0) => {
     if (!userData?.userId) {
       console.log("No user ID available yet");
@@ -475,7 +458,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     loadInitialMessages();
   }, [userData?.userId]);
 
-  // Infinity scroll
   const loadMoreMessages = async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
@@ -503,7 +485,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setIsLoadingMore(false);
   };
 
-  // Auto-scroll
   const scrollToBottom = () => {
     if (shouldScrollToBottom.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -515,7 +496,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   }, [messages, isLoadingMore]);
 
-  // Textarea resizing
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const adjustTextAreaHeight = () => {
     const textArea = inputRef.current;
@@ -531,10 +511,8 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
 
-  // "Welcome to Amorine" for free user
   const isFreeUser = userData?.subscription?.tier === "free";
 
-  // Main send function
   const handleSend = async () => {
     if (!message.trim() || isLoading || isTokenDepleted) return;
 
@@ -551,16 +529,13 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       return;
     }
 
-    // Check daily-limit
-    const { data: limitData, error: limitError } = await supabase.functions.invoke(
-      "check-message-limits",
-      {
+    const { data: limitData, error: limitError } =
+      await supabase.functions.invoke("check-message-limits", {
         body: {
           userId: session.user.id,
           tier: userData?.subscription?.tier || "free",
         },
-      }
-    );
+      });
     if (limitError || !limitData.canSendMessage) {
       setShowLimitReachedDialog(true);
       return;
@@ -576,20 +551,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setIsLoading(true);
     setIsTyping(true);
 
-    // push user message
     const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
     setMessageCount((prev) => prev + 1);
 
     try {
       if (imageRequestMode) {
-        // =============================
-        //    IMAGE WORKFLOW
-        // =============================
         setImageRequestMode(false);
 
         try {
-          // 1) Analyze context
           const { data: imageContext, error: imageContextError } =
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
@@ -602,7 +572,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid image analysis");
           }
 
-          // 2) store user message
           const { error: storeError } = await supabase.functions.invoke(
             "chat-history",
             {
@@ -613,7 +582,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   metadata: {
                     type: "image_request",
                     analysis: imageContext.analysis,
-                    message_id: `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
+                    message_id: `img_${Date.now()}_${Math.floor(
+                      Math.random() * 1000000
+                    )}`
                   },
                 },
                 action: "add",
@@ -624,8 +595,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Failed to store image request");
           }
 
-          // 3) call amorine-image-search
-          const message_id = `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+          const message_id = `img_${Date.now()}_${Math.floor(
+            Math.random() * 1000000
+          )}`;
           const { data: imageSearchResult, error: searchError } =
             await supabase.functions.invoke("amorine-image-search", {
               body: {
@@ -638,14 +610,15 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Image search failed");
           }
           if (!imageSearchResult?.success || !imageSearchResult.chosen) {
-            throw new Error(imageSearchResult?.error || "No matching images found");
+            throw new Error(
+              imageSearchResult?.error || "No matching images found"
+            );
           }
 
-          // fallback
-          let placeholderText = imageSearchResult.chosen.placeholder_text ||
+          let placeholderText =
+            imageSearchResult.chosen.placeholder_text ||
             "Here's an image for you! I hope you like it.";
 
-          // AI message
           const aiResponse = {
             type: "ai",
             content: placeholderText,
@@ -664,7 +637,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             },
           });
           setMessageCount((prev) => prev + 1);
-
         } catch (error) {
           console.error("Error in image generation flow:", error);
           setMessages((prev) => [
@@ -680,10 +652,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         }
 
       } else {
-        // =============================
-        //    TEXT WORKFLOW
-        // =============================
-        // 1) store user message
         const { error: storeError } = await supabase.functions.invoke(
           "chat-history",
           {
@@ -698,7 +666,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           throw new Error("Failed to store user message");
         }
 
-        // 2) Attempt vector-search
         try {
           const { data: vectorData, error: vectorError } =
             await supabase.functions.invoke("vector-search-context", {
@@ -716,7 +683,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           console.error("Error calling vector-search-context:", err);
         }
 
-        // 3) call chat
         try {
           const { data: chatResponse, error: chatError } =
             await supabase.functions.invoke("chat", {
@@ -733,8 +699,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             throw new Error("Invalid chat response format");
           }
 
-          // We'll store all AI messages as we did before
-          let combinedAiText = ""; // used if voiceNoteMode
           for (const msg of chatResponse.messages) {
             try {
               const aiResponse = {
@@ -745,7 +709,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               };
               setMessages((prev) => [...prev, aiResponse]);
 
-              // store in chat history
               await supabase.functions.invoke("chat-history", {
                 body: {
                   userId: session.user.id,
@@ -754,43 +717,56 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 },
               });
 
-              // ========== Voice Note Step (IF enabled) ==========
+              // ======== Adjusted: fetch the actual audio as a Blob if voiceNoteMode is on ========
               if (voiceNoteMode) {
                 try {
-                  const response = await supabase.functions.invoke("voice_convert", {
-                    body: {
-                      userId: session.user.id,
-                      text: msg.content  // Add this line
+                  // Instead of supabase.functions.invoke returning base64,
+                  // we directly fetch the function endpoint for raw audio:
+                  const voiceConvertURL = `${import.meta.env.VITE_SUPABASE_FUNCTION_URL}/voice_convert`; 
+                  // e.g. "https://<PROJECT>.functions.supabase.co/voice_convert"
+                  // Make sure you define VITE_SUPABASE_FUNCTION_URL in your environment 
+                  // or replace with your function URL as needed.
+
+                  const vcRes = await fetch(voiceConvertURL, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${
+                        (await supabase.auth.getSession()).data.session
+                          ?.access_token ?? ""
+                      }`,
                     },
+                    body: JSON.stringify({
+                      userId: session.user.id,
+                      text: msg.content,
+                    }),
                   });
+                  if (!vcRes.ok) {
+                    throw new Error(
+                      `voice_convert function responded with status: ${vcRes.status}`
+                    );
+                  }
+                  // get raw audio data as blob
+                  const audioBlob = await vcRes.blob();
+                  const audioUrl = URL.createObjectURL(audioBlob);
 
-                  const voiceResponse = response?.data;
-
-                  if (!voiceResponse?.success || !voiceResponse?.audioBase64) {
-                    console.error("voice_convert error or missing audio:", voiceResponse);
-                    toast({
-                      title: "Voice conversion error",
-                      description: voiceResponse?.error || "Could not convert to voice",
-                      variant: "destructive",
-                    });
-                  } else {
-                    setVoiceNotes((prev) => [
-                        ...prev,
-                        {
-                          id: Date.now(),
-                          audioSrc: `data:audio/mpeg;base64,${voiceResponse.audioBase64}`,
-                          aiIndex: messages.length
-                        }
-                      ]);
-                    }
+                  setVoiceNotes((prev) => [
+                    ...prev,
+                    {
+                      id: Date.now(),
+                      audioSrc: audioUrl,
+                      aiIndex: messages.length,
+                    },
+                  ]);
                 } catch (err) {
                   console.error("Voice convert function failed:", err);
                   toast({
                     title: "Voice Convert Error",
-                    description: "Check logs for details.",
+                    description: "Could not generate voice note.",
                     variant: "destructive",
                   });
                 } finally {
+                  // Turn off voiceNoteMode so it only applies to this single reply
                   setVoiceNoteMode(false);
                 }
               }
@@ -817,7 +793,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           setIsTyping(false);
         }
       }
-
     } catch (error) {
       console.error("Error:", error);
       setMessages((prev) => [
@@ -837,7 +812,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     }
   };
 
-  // RENDERING MESSAGES
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const handleImageClick = (src: string) => {
     setExpandedImageUrl(src);
@@ -862,7 +836,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       if (msg.metadata?.voice === true) {
         return;
       }
-      
+
       let showDateSeparator = false;
       let showInitialTimestamp = false;
 
@@ -884,9 +858,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
       }
 
-      // If it's an image_message, we break it into two bubbles:
       if (msg.metadata?.type === "image_message") {
-        // bubble 1: image
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -934,7 +906,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           </div>
         );
 
-        // bubble 2: placeholder text
         rendered.push(
           <div
             key={`msg-${i}-text`}
@@ -981,9 +952,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             </div>
           </div>
         );
-
       } else {
-        // Normal text message
         rendered.push(
           <div key={i}>
             <div
@@ -1030,7 +999,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               </div>
             </div>
 
-            {/* If there's a voice note matched to this ai message index, show the player */}
             {msg.type === "ai" && (
               <>
                 {voiceNotes
@@ -1050,9 +1018,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   const handleSubscribe = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { userId: userData?.userId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "create-checkout",
+        {
+          body: { userId: userData?.userId },
+        }
+      );
       if (error) throw error;
       if (data.url) {
         window.location.href = data.url;
@@ -1069,7 +1040,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
 
   return (
     <>
-      {/* FREE TIER WELCOME */}
       <Dialog
         open={showWelcomeDialog && isFreeUser}
         onOpenChange={setShowWelcomeDialog}
@@ -1117,7 +1087,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* SUSPENSION DIALOG */}
       <Dialog open={showSuspensionDialog} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" hideCloseButton>
           <DialogHeader>
@@ -1142,7 +1111,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* DAILY-LIMIT REACHED */}
       <Dialog
         open={showLimitReachedDialog}
         onOpenChange={() => {}}
@@ -1177,10 +1145,9 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* TOKEN-BALANCE DEPLETED */}
       <Dialog
         open={showTokenDepletedDialog}
-        onOpenChange={() => setShowTokenDepletedDialog}
+        onOpenChange={setShowTokenDepletedDialog}
         modal={true}
       >
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
@@ -1212,14 +1179,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </DialogContent>
       </Dialog>
 
-      {/* MAIN CHAT CONTAINER */}
       <div
         className={cn(
           "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
           "sm:pl-[100px]"
         )}
       >
-        {/* Sticky top bar */}
         <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
             <img
@@ -1231,7 +1196,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
-        {/* Messages area */}
         <div
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
@@ -1273,7 +1237,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
         <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <DropdownMenu>
@@ -1380,7 +1343,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         </div>
       </div>
 
-      {/* SAFETY ACKNOWLEDGMENT */}
       {userData?.userId && safetyDialog.type && (
         <SafetyAcknowledgmentDialog
           open={safetyDialog.open}
@@ -1390,7 +1352,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         />
       )}
 
-      {/* IMAGE EXPANSION OVERLAY */}
       {expandedImageUrl && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
