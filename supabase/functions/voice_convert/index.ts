@@ -27,7 +27,7 @@ async function getLatestAIMessage(userId: string): Promise<string | null> {
     const key = `user:${userId}:messages`;
     // Get the most recent messages to find one with voice metadata
     const messages = await redis.lrange(key, 0, 9);
-    
+
     if (!messages?.length) {
       console.error("No messages found for user:", userId);
       return null;
@@ -41,7 +41,7 @@ async function getLatestAIMessage(userId: string): Promise<string | null> {
         console.log("Checking message:", msgStr);
         const parsed = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
         console.log("Parsed message:", JSON.stringify(parsed));
-        
+
         if (parsed.type === "ai" && parsed.metadata?.voice === true) {
           if (!parsed.content) {
             console.error("Found AI message with voice metadata but no content");
@@ -128,7 +128,6 @@ async function generateSpeechWithElevenLabs(text: string) {
       "Content-Type": "application/json",
       "xi-api-key": elevenLabsKey,
     },
-    body: JSON.stringify(requestBody),
   });
 
   if (!res.ok) {
@@ -184,30 +183,28 @@ serve(async (req) => {
 
   try {
     console.log("Voice convert function called");
-    
+
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
-    
-    if (!body?.userId || typeof body.userId !== 'string') {
-      throw new Error("Request must include 'userId' field as a string");
+
+    if (!body?.userId || typeof body.userId !== 'string' || !body?.text || typeof body.text !== 'string') {
+      return new Response(
+        JSON.stringify({ error: "Request must include 'userId' and 'text' fields as strings" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        }
+      );
     }
 
-    const { userId } = body;
+    const { userId, text } = body;
     console.log("Processing request for userId:", userId);
 
-    // 1) Find the latest AI message that has voice metadata
-    const text = await getLatestAIMessage(userId);
-    if (!text) {
-      throw new Error("Could not find a valid AI message with voice metadata to convert. Please ensure the message exists and has voice metadata enabled.");
-    }
-
-    console.log("Found message to convert, length:", text.length);
-
-    // 2) Clean/transform the text
+    // 1) Clean/transform the text
     const cleanedText = await transformTextForSpeech(text);
     console.log("Cleaned text length:", cleanedText.length);
 
-    // 3) TTS with ElevenLabs
+    // 2) TTS with ElevenLabs
     const audioBase64 = await generateSpeechWithElevenLabs(cleanedText);
     console.log("Audio base64 length:", audioBase64?.length || 0);
 
