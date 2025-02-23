@@ -185,9 +185,28 @@ const ImageMessage = ({ src, onImageClick }: { src: string, onImageClick: (src: 
 // VoiceNote Player COMPONENT
 // =============================
 function VoiceNotePlayer({ audioSrc }: { audioSrc: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const togglePlay = () => {
+    const audioElement = audioRef.current;
+    if (!audioElement) return;
+
+    if (audioElement.paused) {
+      audioElement.play();
+      setIsPlaying(true);
+    } else {
+      audioElement.pause();
+      setIsPlaying(false);
+    }
+  };
+
   return (
     <div className="rounded-lg shadow-sm bg-white border p-3 mt-2 inline-flex items-center gap-2 max-w-[280px]">
-      <audio controls src={audioSrc} className="w-full" />
+      <button onClick={togglePlay} className="bg-gray-100 hover:bg-gray-200 rounded-full p-2">
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <audio ref={audioRef} src={audioSrc} className="w-full" />
     </div>
   );
 }
@@ -1161,7 +1180,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       {/* TOKEN-BALANCE DEPLETED */}
       <Dialog
         open={showTokenDepletedDialog}
-        onOpenChange={setShowTokenDepletedDialog}
+        onOpenChange={() => setShowTokenDepletedDialog}
         modal={true}
       >
         <DialogContent className="p-0 gap-0 w-[95vw] md:w-[85vw] lg:w-[75vw] max-w-[1200px] h-auto md:h-auto lg:aspect-video">
