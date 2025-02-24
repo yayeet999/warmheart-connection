@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import TypingIndicator from "./TypingIndicator";
 import { SafetyAcknowledgmentDialog } from "./SafetyAcknowledgmentDialog";
+import { VoiceMessageBubble } from "./VoiceMessageBubble";
 
 /* -------------------------------
    Helpers
@@ -538,7 +539,80 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       return;
     }
 
-    const userMessageContent = message.trim();
+    // Add voice mode handling here
+    if (voiceNoteMode) {
+      try {
+        const userMessageContent = message.trim();
+        setMessage("");
+        resetTextAreaHeight();
+        setIsLoading(true);
+        setIsTyping(true);
+
+        // Store user message
+        const userMessage = { type: "user", content: userMessageContent };
+        setMessages((prev) => [...prev, userMessage]);
+        setMessageCount((prev) => prev + 1);
+
+        const { error: storeError } = await supabase.functions.invoke(
+          "chat-history",
+          {
+            body: {
+              userId: session.user.id,
+              message: userMessage,
+              action: "add",
+            },
+          }
+        );
+        if (storeError) throw new Error("Failed to store user message");
+
+        // Get voice response
+        const { data: voiceResponse } = await supabase.functions.invoke("voice-chat", {
+          body: { userId: session.user.id, message: userMessageContent }
+        });
+
+        if (!voiceResponse?.messages?.[0]?.content) {
+          throw new Error("Invalid voice response");
+        }
+
+        // Add AI message with text that will be converted to voice
+        const aiMessage = {
+          type: "ai",
+          content: voiceResponse.messages[0].content,
+          metadata: {
+            type: "voice_message",
+            text: voiceResponse.messages[0].content
+          }
+        };
+
+        setMessages((prev) => [...prev, aiMessage]);
+        setMessageCount((prev) => prev + 1);
+
+        // Store AI message
+        await supabase.functions.invoke("chat-history", {
+          body: {
+            userId: session.user.id,
+            message: aiMessage,
+            action: "add",
+          },
+        });
+
+      } catch (error) {
+        console.error("Voice flow error:", error);
+        toast({
+          title: "Error",
+          description: "Failed to process voice message",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    // TEXT workflow
+    // 1) store user message
+    const userMessage = { type: "user", content: message.trim() };
     setMessage("");
     resetTextAreaHeight();
     requestAnimationFrame(() => {
@@ -549,7 +623,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     setIsTyping(true);
 
     // push user message
-    const userMessage = { type: "user", content: userMessageContent };
     setMessages((prev) => [...prev, userMessage]);
     setMessageCount((prev) => prev + 1);
 
@@ -564,7 +637,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             await supabase.functions.invoke("image-context-analyzer", {
               body: {
                 userId: session.user.id,
-                message: userMessageContent,
+                message: message.trim(),
               },
             });
           if (imageContextError) throw new Error("Image analysis failed");
@@ -678,7 +751,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             await supabase.functions.invoke("vector-search-context", {
               body: {
                 userId: session.user.id,
-                message: userMessageContent,
+                message: message.trim(),
               },
             });
           if (vectorError) {
@@ -696,7 +769,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             await supabase.functions.invoke("chat", {
               body: {
                 userId: session.user.id,
-                message: userMessageContent,
+                message: message.trim(),
               },
             });
           if (chatError) {
@@ -788,31 +861,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
     const rendered: JSX.Element[] = [];
 
     messages.forEach((msg, i) => {
-      // We remove any voice note rendering
-      let showDateSeparator = false;
-      let showInitialTimestamp = false;
-
-      try {
-        if (msg.timestamp) {
-          const messageDate = new Date(msg.timestamp).toDateString();
-          if (messageDate !== currentDate) {
-            showDateSeparator = true;
-            currentDate = messageDate;
-          }
-          showInitialTimestamp = shouldShowInitialTimestamp(msg, i);
-          lastMessageTime = msg.timestamp;
-        }
-      } catch (error) {
-        console.error("Error processing date:", error);
-      }
-
+      const showDateSeparator = shouldShowInitialTimestamp(msg, i);
       if (showDateSeparator && msg.timestamp) {
         rendered.push(<DateSeparator key={`date-sep-${i}`} date={msg.timestamp} />);
       }
 
-      // If it's an image_message
       if (msg.metadata?.type === "image_message") {
-        // bubble 1: image
         rendered.push(
           <div
             key={`msg-${i}-image`}
@@ -846,7 +900,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
                 msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                showInitialTimestamp
+                showDateSeparator
                   ? "opacity-100"
                   : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
               )}
@@ -860,7 +914,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           </div>
         );
 
-        // bubble 2: placeholder text
         rendered.push(
           <div
             key={`msg-${i}-text`}
@@ -894,7 +947,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
               className={cn(
                 "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
                 msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                showInitialTimestamp
+                showDateSeparator
                   ? "opacity-100"
                   : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
               )}
@@ -908,8 +961,25 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           </div>
         );
 
+      } else if (msg.metadata?.type === "voice_message") {
+        rendered.push(
+          <VoiceMessageBubble key={i} message={msg} />
+        );
+        if (showDateSeparator && msg.timestamp) {
+          rendered.push(
+            <div
+              key={`time-${i}`}
+              className={cn(
+                "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                "opacity-100"
+              )}
+            >
+              {formatMessageDate(msg.timestamp)}
+            </div>
+          );
+        }
       } else {
-        // Normal text message
         rendered.push(
           <div key={i}>
             <div
@@ -943,7 +1013,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 className={cn(
                   "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
                   msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                  showInitialTimestamp
+                  showDateSeparator
                     ? "opacity-100"
                     : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
                 )}
@@ -1219,7 +1289,6 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                   <Video className="w-4 h-4" />
                   <span>Get a Video (Coming soon)</span>
                 </DropdownMenuItem>
-                {/* Voice note toggle does nothing */}
                 <DropdownMenuItem
                   onClick={() => setVoiceNoteMode((prev) => !prev)}
                   className="flex items-center gap-2 cursor-pointer"
