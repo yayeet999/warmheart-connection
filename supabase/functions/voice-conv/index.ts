@@ -1,14 +1,38 @@
+// @deno-types="https://deno.land/x/xhr@0.1.0/mod.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @deno-types="https://deno.land/std@0.168.0/http/server.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @deno-types="https://esm.sh/@supabase/supabase-js@2.39.3"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+// TypeScript ignore - Deno global declaration
+// @ts-ignore
+const env = Deno?.env?.get;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Max-Age': '86400',
+  'Access-Control-Expose-Headers': 'Content-Type, Content-Length'
 };
+
+// Helper function to convert ArrayBuffer to base64
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  // Standard base64 encoding
+  return btoa(binary);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: corsHeaders
+    });
   }
 
   try {
@@ -18,13 +42,13 @@ serve(async (req) => {
       throw new Error('Invalid request parameters: text is required');
     }
 
-    const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
+    // @ts-ignore - Deno env is defined at runtime
+    const elevenlabsApiKey = env('ELEVENLABS_API_KEY');
     if (!elevenlabsApiKey) {
-      throw new Error('ElevenLabs API key not found in environment variables');
+      throw new Error('ElevenLabs API key not found');
     }
 
-    // Using a specific voice ID for Amorine
-    const voiceId = "21m00Tcm4TlvDq8ikWAM"; // Replace with your actual voice ID
+    const voiceId = "21m00Tcm4TlvDq8ikWAM";
 
     console.log('Converting text to speech:', {
       textLength: text.length,
@@ -60,17 +84,22 @@ serve(async (req) => {
 
     // Get the audio data
     const audioData = await response.arrayBuffer();
+    
+    // Convert to base64
+    const base64Audio = arrayBufferToBase64(audioData);
 
     console.log('Successfully generated voice audio');
 
-    // Return the audio data with appropriate headers
-    return new Response(audioData, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': audioData.byteLength.toString()
+    // Return base64 encoded audio
+    return new Response(
+      JSON.stringify(base64Audio),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Voice conversion error:', error);
