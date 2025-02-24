@@ -1,3 +1,4 @@
+
 import { useRef, useState, useEffect } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,36 +41,28 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
           throw new Error(response.error.message);
         }
 
-        // Convert base64 string directly to binary data
+        if (!response.data || !response.data.audio) {
+          throw new Error('Invalid response format from voice conversion');
+        }
+
+        // Convert base64 string to binary data
         try {
-          // The response data is the raw base64 string
-          const base64Data = response.data;
-          
-          // Decode the base64 string to binary
-          const binaryString = atob(base64Data);
+          const binaryString = atob(response.data.audio);
           const bytes = new Uint8Array(binaryString.length);
           
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
           }
           
-          // Create a blob directly from the binary data
           const blob = new Blob([bytes], { type: 'audio/mpeg' });
           const url = URL.createObjectURL(blob);
           
           audioRef.current.src = url;
           await audioRef.current.load();
           
-          // Log success for debugging
           console.log('Audio loaded successfully');
         } catch (decodeError) {
           console.error('Error decoding audio data:', decodeError);
-          console.error('Response data type:', typeof response.data);
-          console.error('Response data preview:', 
-            typeof response.data === 'string' 
-              ? response.data.substring(0, 100) + '...' 
-              : JSON.stringify(response.data).substring(0, 100) + '...'
-          );
           throw new Error('Failed to decode audio data');
         }
         
