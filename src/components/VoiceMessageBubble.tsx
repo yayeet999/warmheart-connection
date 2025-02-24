@@ -31,23 +31,41 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
       setError(null);
       
       try {
+        console.log('Fetching audio for text:', message.metadata.text);
+        
         const response = await supabase.functions.invoke('voice-conv', {
           body: { text: message.metadata.text }
         });
 
         if (!mounted) return;
 
+        console.log('Raw response:', response);
+
         if (response.error) {
+          console.error('Supabase function error:', response.error);
           throw new Error(response.error.message);
         }
 
-        if (!response.data || !response.data.audio) {
-          throw new Error('Invalid response format from voice conversion');
+        if (!response.data) {
+          console.error('No data in response:', response);
+          throw new Error('No data received from voice conversion');
+        }
+
+        console.log('Response data type:', typeof response.data);
+        console.log('Response data:', response.data);
+
+        // If response.data is a string, use it directly
+        const audioBase64 = typeof response.data === 'string' ? response.data : response.data.audio;
+
+        if (!audioBase64) {
+          console.error('No audio data found in response');
+          throw new Error('No audio data received');
         }
 
         // Convert base64 string to binary data
         try {
-          const binaryString = atob(response.data.audio);
+          console.log('Converting base64 to binary, length:', audioBase64.length);
+          const binaryString = atob(audioBase64);
           const bytes = new Uint8Array(binaryString.length);
           
           for (let i = 0; i < binaryString.length; i++) {

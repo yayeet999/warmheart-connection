@@ -22,16 +22,23 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 200,
+    return new Response(null, {
+      status: 204,
       headers: corsHeaders
     });
   }
 
   try {
+    console.log('Received request:', req.method);
     const { text } = await req.json();
     
+    console.log('Received text for conversion:', {
+      textPreview: text?.substring(0, 50),
+      textLength: text?.length
+    });
+
     if (!text || typeof text !== 'string') {
       throw new Error('Invalid request parameters: text is required');
     }
@@ -43,10 +50,7 @@ serve(async (req) => {
 
     const voiceId = "21m00Tcm4TlvDq8ikWAM";
 
-    console.log('Converting text to speech:', {
-      textLength: text.length,
-      timestamp: new Date().toISOString()
-    });
+    console.log('Making request to ElevenLabs API');
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -72,21 +76,22 @@ serve(async (req) => {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error('ElevenLabs API error:', error);
       throw new Error(`ElevenLabs API error: ${error}`);
     }
 
     const audioData = await response.arrayBuffer();
     const base64Audio = arrayBufferToBase64(audioData);
 
-    console.log('Successfully generated voice audio');
+    console.log('Successfully generated audio, base64 length:', base64Audio.length);
 
-    // Return JSON with the base64 audio data
+    // Return the base64 audio directly as a string
     return new Response(
-      JSON.stringify({ audio: base64Audio }),
+      base64Audio,
       {
         headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json'
+          'Content-Type': 'text/plain'
         }
       }
     );
@@ -104,4 +109,4 @@ serve(async (req) => {
       }
     );
   }
-}); 
+});
