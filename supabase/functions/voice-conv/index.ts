@@ -90,13 +90,13 @@ serve(async (req) => {
 
     console.log('Successfully generated voice audio');
 
-    // Return base64 encoded audio
+    // Return base64 encoded audio - return just the string without wrapping it in additional JSON
     return new Response(
-      JSON.stringify(base64Audio),
+      base64Audio,
       {
         headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json'
+          'Content-Type': 'text/plain'
         }
       }
     );
