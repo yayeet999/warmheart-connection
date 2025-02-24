@@ -54,7 +54,10 @@ Remember: Your response will be SPOKEN, so write as you would naturally speak in
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -293,7 +296,6 @@ Use these details as your personal background as your identity and reveal them n
     const aiMessage = data.choices[0].message.content;
     console.log('Generated voice response:', aiMessage);
 
-    // Instead of returning multiple messages, we return a single optimized voice response
     return new Response(
       JSON.stringify({
         success: true,
@@ -318,4 +320,4 @@ Use these details as your personal background as your identity and reveal them n
       }
     );
   }
-}); 
+});
