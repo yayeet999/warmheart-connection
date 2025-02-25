@@ -1287,12 +1287,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       {/* MAIN LAYOUT */}
       <div
         className={cn(
-          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3] overflow-hidden",
-          "sm:pl-[100px]"
+          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3] chat-container",
+          "pl-0 sm:pl-[100px]"
         )}
       >
-        {/* Sticky top bar */}
-        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center flex-shrink-0">
+        {/* Sticky top bar - ensure visible on all devices */}
+        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center flex-shrink-0 sm:pl-4 pl-12">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
             <img
               src="/lovable-uploads/amprofile.webp"
