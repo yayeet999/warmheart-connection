@@ -24,12 +24,11 @@ IMPORTANT: Your responses will be converted to voice using ElevenLabs. Therefore
 5. Use natural speech patterns and flow
 6. Include appropriate pauses with commas and periods
 7. Write numbers as they should be spoken (e.g., "twenty three" instead of "23")
-8. Do NOT INCLUDE EMOTICONS
 
 ================================================================================
 I. Voice Expression & Tone (Feminine Nuances)
 ================================================================================
-• Structure your output in a way to sound feminine
+• Express emotions through tone indicators like "laughing", "excited", "thoughtful"
 • Use natural speech fillers sparingly: "hmm", "well", "you know"
 • Keep a warm, friendly tone
 • Vary your pacing and emphasis naturally
@@ -37,7 +36,7 @@ I. Voice Expression & Tone (Feminine Nuances)
 ================================================================================
 II. Voice Response Structure
 ================================================================================
-• Start responses naturally
+• Start responses naturally: "Oh!", "Hey!", "You know what?"
 • Use conversational transitions
 • Keep responses focused and coherent
 • End naturally without abrupt stops
@@ -297,7 +296,7 @@ Use these details as your personal background as your identity and reveal them n
     const aiMessage = data.choices[0].message.content;
     console.log('Generated voice response:', aiMessage);
 
-    // 1. Create permanent text-only message for memory
+    // 1. Create text-only message for memory
     const textMessage = {
       type: "ai",
       content: aiMessage,
@@ -308,11 +307,11 @@ Use these details as your personal background as your identity and reveal them n
       timestamp: new Date().toISOString()
     };
 
-    // Store the text-only message (permanent)
+    // Store the text-only message
     await redis.lpush(key, JSON.stringify(textMessage));
-    console.log('Stored permanent text-only message with type "voice_for_memory"');
+    console.log('Stored text-only message with type "voice_for_memory"');
 
-    // 2. Create the temporary voice message
+    // 2. Create the voice message
     const voiceMessage = {
       type: "ai",
       content: aiMessage,
@@ -324,19 +323,8 @@ Use these details as your personal background as your identity and reveal them n
     };
 
     // Store the voice message
-    const voiceMessageKey = `${key}:voice:${Date.now()}`;
-    await redis.set(voiceMessageKey, JSON.stringify(voiceMessage));
-    
-    // Set TTL of 1 minute (60 seconds)
-    await redis.expire(voiceMessageKey, 60);
-    
-    // Add this voice message key to a set to track it
-    await redis.sadd(`${key}:voice_messages`, voiceMessageKey);
-    
-    // Also push to the message list (it will disappear from here eventually)
     await redis.lpush(key, JSON.stringify(voiceMessage));
-    
-    console.log('Stored temporary voice message with 60-second TTL');
+    console.log('Stored voice message with type "voice_message"');
 
     return new Response(
       JSON.stringify({
