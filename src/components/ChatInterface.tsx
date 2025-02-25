@@ -101,17 +101,17 @@ function ImageMessage({
 
   return (
     <div
-      className="relative w-full max-w-[300px] my-1 cursor-pointer"
+      className="relative w-full max-w-[300px] cursor-pointer p-0 m-0"
       onClick={() => onImageClick(src)}
     >
       {!isLoaded && (
-        <div className="absolute inset-0 image-skeleton rounded-2xl" />
+        <div className="absolute inset-0 image-skeleton" />
       )}
       <img
         src={src}
         alt="Generated"
         className={cn(
-          "w-full rounded-2xl transition-all duration-300 object-contain",
+          "w-full transition-all duration-300 object-cover",
           isLoaded ? "loaded" : "opacity-0"
         )}
         loading="lazy"
@@ -189,7 +189,7 @@ function ImageSet({
   }
 
   return (
-    <div className="flex flex-wrap gap-3 mt-2">
+    <div className="flex flex-wrap gap-0 overflow-hidden">
       {urls.map((u, i) => (
         <ImageMessage key={i} src={u} onImageClick={onImageClick} />
       ))}
@@ -886,7 +886,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
             >
               <div
                 className={cn(
-                  "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                  "message-bubble-image max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200 p-0 overflow-hidden",
                   msg.type === "ai"
                     ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
                     : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
