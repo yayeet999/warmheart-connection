@@ -48,7 +48,7 @@ serve(async (req) => {
       throw new Error('ElevenLabs API key not found');
     }
 
-    const voiceId = "4CIYrbmNPVR1wKjbyJPs";
+    const voiceId = "0TfZ4rvne3QI7UjDxVkM";
 
     console.log('Making request to ElevenLabs API');
 
@@ -63,7 +63,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_multilingual_v2",
+          model_id: "eleven_flash_v2_5",
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
