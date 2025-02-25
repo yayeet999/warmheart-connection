@@ -497,9 +497,19 @@ If there is an immediate danger to anyone's safety, contact emergency services (
   const adjustTextAreaHeight = () => {
     const textArea = inputRef.current;
     if (textArea) {
+      // First save the scroll position of the chat container
+      const chatContainer = chatContainerRef.current;
+      const scrollPos = chatContainer ? chatContainer.scrollTop : 0;
+      
+      // Now adjust the textarea height
       textArea.style.height = "auto";
       const newHeight = Math.min(Math.max(textArea.scrollHeight, 24), 120);
       textArea.style.height = `${newHeight}px`;
+      
+      // Restore the scroll position if necessary
+      if (chatContainer && chatContainer.scrollTop !== scrollPos) {
+        chatContainer.scrollTop = scrollPos;
+      }
     }
   };
   const resetTextAreaHeight = () => {
@@ -962,20 +972,97 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         );
 
       } else if (msg.metadata?.type === "voice_message") {
-        rendered.push(
-          <VoiceMessageBubble key={i} message={msg} />
+        // Check if this voice message has expired in localStorage
+        const expiredVoiceMessages = JSON.parse(
+          localStorage.getItem("expiredVoiceMessages") || "[]"
         );
-        if (showDateSeparator && msg.timestamp) {
+        
+        // Generate the same message ID that VoiceMessageBubble uses
+        const generateVoiceMessageId = (message) => {
+          const timestamp = message.timestamp || new Date().toISOString();
+          const contentPrefix = message.content.substring(0, 20); // First 20 chars of content
+          return `voice-${timestamp}-${contentPrefix}`.replace(/[^a-zA-Z0-9]/g, '-');
+        };
+        
+        const messageId = generateVoiceMessageId(msg);
+        const isExpired = expiredVoiceMessages.includes(messageId);
+        
+        if (isExpired) {
+          // If the voice message is expired, render the text content instead
+          rendered.push(
+            <div 
+              key={`msg-${i}-voice-expired`}
+              className="group flex flex-col"
+              role="button"
+              tabIndex={0}
+              onTouchStart={(e) => handleTouchStart(e, i)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={() => handleTouchEnd(i)}
+            >
+              <div
+                className={cn(
+                  "flex",
+                  msg.type === "ai" ? "justify-start" : "justify-end",
+                  "items-end space-x-2 mb-1"
+                )}
+              >
+                <div
+                  className={cn(
+                    "message-bubble max-w-[85%] sm:max-w-[80%] shadow-sm transition-transform duration-200",
+                    msg.type === "ai"
+                      ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg"
+                      : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg",
+                    swipedMessageId === i ? "translate-x-[-20px]" : ""
+                  )}
+                >
+                  <p className="text-[15px] leading-relaxed">{msg.content}</p>
+                </div>
+              </div>
+              <div
+                className={cn(
+                  "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                  msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                  showDateSeparator
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+                )}
+                style={{
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
+            </div>
+          );
+        } else {
+          // If not expired, render the VoiceMessageBubble as before
           rendered.push(
             <div
-              key={`time-${i}`}
-              className={cn(
-                "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
-                msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
-                "opacity-100"
-              )}
+              key={`msg-${i}-voice`}
+              className="group flex flex-col"
+              role="button"
+              tabIndex={0}
+              onTouchStart={(e) => handleTouchStart(e, i)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={() => handleTouchEnd(i)}
             >
-              {formatMessageDate(msg.timestamp)}
+              <VoiceMessageBubble key={i} message={msg} />
+              <div
+                className={cn(
+                  "text-[11px] text-gray-400 px-2 transition-opacity duration-200",
+                  msg.type === "ai" ? "text-left ml-2" : "text-right mr-2",
+                  showDateSeparator
+                    ? "opacity-100"
+                    : "opacity-0 group-hover:opacity-100 group-focus:opacity-100"
+                )}
+                style={{
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {formatMessageDate(msg.timestamp)}
+              </div>
             </div>
           );
         }
@@ -1200,12 +1287,12 @@ If there is an immediate danger to anyone's safety, contact emergency services (
       {/* MAIN LAYOUT */}
       <div
         className={cn(
-          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3]",
+          "flex flex-col h-screen transition-all duration-300 ease-in-out bg-[#F7F6F3] overflow-hidden",
           "sm:pl-[100px]"
         )}
       >
         {/* Sticky top bar */}
-        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center">
+        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 flex flex-col items-center justify-center flex-shrink-0">
           <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-md mb-1 overflow-hidden">
             <img
               src="/lovable-uploads/amprofile.webp"
@@ -1216,10 +1303,11 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <span className="text-sm font-medium text-gray-800">Amorine</span>
         </div>
 
-        {/* Messages area */}
+        {/* Messages area - fixed height with overflow */}
         <div
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
+          className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent relative"
+          style={{ overscrollBehavior: 'contain' }}
           onScroll={(e) => {
             const target = e.currentTarget;
             if (target.scrollTop === 0 && hasMore && !isLoadingMore) {
@@ -1258,43 +1346,61 @@ If there is an immediate danger to anyone's safety, contact emergency services (
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
-        <div className="p-4 bg-white border-t border-gray-200">
+        {/* Input area - fixed at bottom */}
+        <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0">
           <div className="max-w-4xl mx-auto flex items-end space-x-2 px-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="p-0 w-10 h-10 flex items-center justify-center shrink-0"
+                  className="p-0 w-12 h-12 flex items-center justify-center shrink-0 rounded-full hover:bg-gray-100/80 transition-colors"
                 >
                   {imageRequestMode ? (
-                    <ImageIcon className="w-5 h-5 text-blue-600" />
+                    <ImageIcon className="w-6 h-6 text-blue-600" />
                   ) : voiceNoteMode ? (
-                    <Mic className="w-5 h-5 text-pink-600" />
+                    <Mic className="w-6 h-6 text-pink-600" />
                   ) : (
-                    <Plus className="w-5 h-5 text-gray-700" />
+                    <Plus className="w-7 h-7 text-gray-700" />
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={6} className="p-1">
+              <DropdownMenuContent align="start" sideOffset={6} className="p-2 rounded-xl shadow-lg border border-gray-100">
                 <DropdownMenuItem
-                  onClick={() => setImageRequestMode((prev) => !prev)}
-                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    // If image mode is already on, turn it off
+                    // If it's off, turn it on AND turn off voice mode
+                    if (imageRequestMode) {
+                      setImageRequestMode(false);
+                    } else {
+                      setImageRequestMode(true);
+                      setVoiceNoteMode(false);
+                    }
+                  }}
+                  className="flex items-center gap-3 cursor-pointer py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <ImageIcon className="w-4 h-4" />
-                  <span>Get an Image</span>
+                  <ImageIcon className={`${imageRequestMode ? "w-5 h-5 text-blue-600" : "w-5 h-5 text-gray-700"}`} />
+                  <span className={`${imageRequestMode ? "font-medium" : ""}`}>Get an Image</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled className="flex items-center gap-2">
-                  <Video className="w-4 h-4" />
+                <DropdownMenuItem disabled className="flex items-center gap-3 py-3 px-4 rounded-lg text-gray-400">
+                  <Video className="w-5 h-5" />
                   <span>Get a Video (Coming soon)</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setVoiceNoteMode((prev) => !prev)}
-                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    // If voice mode is already on, turn it off
+                    // If it's off, turn it on AND turn off image mode
+                    if (voiceNoteMode) {
+                      setVoiceNoteMode(false);
+                    } else {
+                      setVoiceNoteMode(true);
+                      setImageRequestMode(false);
+                    }
+                  }}
+                  className="flex items-center gap-3 cursor-pointer py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <Mic className="w-4 h-4" />
-                  <span>Get a Voice Note</span>
+                  <Mic className={`${voiceNoteMode ? "w-5 h-5 text-pink-600" : "w-5 h-5 text-gray-700"}`} />
+                  <span className={`${voiceNoteMode ? "font-medium" : ""}`}>Get a Voice Note</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1341,6 +1447,7 @@ If there is an immediate danger to anyone's safety, contact emergency services (
                 transition: "height 0.2s ease",
                 msOverflowStyle: "none",
                 scrollbarWidth: "none",
+                overflowY: "auto"
               }}
             />
 
