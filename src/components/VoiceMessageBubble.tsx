@@ -1,7 +1,8 @@
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VoiceMessageBubbleProps {
   message: {
@@ -10,7 +11,6 @@ interface VoiceMessageBubbleProps {
     metadata?: {
       type: "voice_message";
       text: string;
-      audio?: string;
     };
   };
 }
@@ -18,34 +18,99 @@ interface VoiceMessageBubbleProps {
 export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Create audio source when component mounts if we have audio data
-  useState(() => {
-    if (message.metadata?.audio && audioRef.current) {
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchAudio = async () => {
+      if (!message.metadata?.text || !audioRef.current) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
       try {
-        const blob = new Blob(
-          [Buffer.from(message.metadata.audio, 'base64')], 
-          { type: 'audio/mpeg' }
-        );
-        const url = URL.createObjectURL(blob);
-        audioRef.current.src = url;
+        console.log('Fetching audio for text:', message.metadata.text);
         
-        return () => {
-          if (audioRef.current?.src) {
-            URL.revokeObjectURL(audioRef.current.src);
-            audioRef.current.src = '';
+        const response = await supabase.functions.invoke('voice-conv', {
+          body: { text: message.metadata.text }
+        });
+
+        if (!mounted) return;
+
+        console.log('Raw response:', response);
+
+        if (response.error) {
+          console.error('Supabase function error:', response.error);
+          throw new Error(response.error.message);
+        }
+
+        if (!response.data) {
+          console.error('No data in response:', response);
+          throw new Error('No data received from voice conversion');
+        }
+
+        console.log('Response data type:', typeof response.data);
+        console.log('Response data:', response.data);
+
+        // If response.data is a string, use it directly
+        const audioBase64 = typeof response.data === 'string' ? response.data : response.data.audio;
+
+        if (!audioBase64) {
+          console.error('No audio data found in response');
+          throw new Error('No audio data received');
+        }
+
+        // Convert base64 string to binary data
+        try {
+          console.log('Converting base64 to binary, length:', audioBase64.length);
+          const binaryString = atob(audioBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
           }
-        };
+          
+          const blob = new Blob([bytes], { type: 'audio/mpeg' });
+          const url = URL.createObjectURL(blob);
+          
+          audioRef.current.src = url;
+          await audioRef.current.load();
+          
+          console.log('Audio loaded successfully');
+        } catch (decodeError) {
+          console.error('Error decoding audio data:', decodeError);
+          throw new Error('Failed to decode audio data');
+        }
+        
+        setError(null);
       } catch (err) {
-        console.error('Error setting up audio:', err);
-        setError('Failed to load audio');
+        console.error('Error fetching audio:', err);
+        setError(err.message || 'Failed to load audio');
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    }
-  }, [message.metadata?.audio]);
+    };
+
+    fetchAudio();
+
+    return () => {
+      mounted = false;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        if (audioRef.current.src) {
+          URL.revokeObjectURL(audioRef.current.src);
+          audioRef.current.src = '';
+        }
+      }
+    };
+  }, [message.metadata?.text]);
 
   const handlePlayPause = () => {
-    if (!audioRef.current || error) return;
+    if (!audioRef.current || isLoading) return;
 
     if (isPlaying) {
       audioRef.current.pause();
@@ -66,17 +131,21 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
     )}>
       <button
         onClick={handlePlayPause}
-        disabled={!!error}
+        disabled={isLoading || !!error}
         className={cn(
           "p-2 rounded-full transition-colors",
           message.type === "ai"
             ? "hover:bg-muted-foreground/10"
             : "hover:bg-primary-foreground/10",
-          error && "opacity-50 cursor-not-allowed"
+          (isLoading || error) && "opacity-50 cursor-not-allowed"
         )}
         aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
       >
-        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        {isLoading ? (
+          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : (
+          isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
+        )}
       </button>
       <div className="flex-1">
         <div className="text-sm">{message.content}</div>
@@ -97,4 +166,4 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
       </div>
     </div>
   );
-};
+}; 
