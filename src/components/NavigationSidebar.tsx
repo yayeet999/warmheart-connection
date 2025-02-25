@@ -54,11 +54,13 @@ const NavigationSidebar = () => {
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className={cn(
-            "fixed z-50 rounded-full transition-all duration-300",
+            "fixed rounded-full transition-all duration-300",
             "backdrop-blur-md bg-white/90 shadow-lg active:scale-95",
-            "p-3 top-4 left-4",
+            "p-3",
+            location.pathname === "/chat" ? "left-4 top-[4.5rem]" : "top-4 left-4",
             isExpanded ? "translate-x-[220px]" : "translate-x-0"
           )}
+          style={{ zIndex: 60 }}
           aria-label="Toggle menu"
         >
           {isExpanded ? (
@@ -73,7 +75,7 @@ const NavigationSidebar = () => {
       <nav
         className={cn(
           "fixed left-0 top-0 h-full bg-white/95 backdrop-blur-md shadow-lg",
-          "flex flex-col items-start py-8 px-4 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-40",
+          "flex flex-col items-start py-8 px-4 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           "touch-none", // Prevents iOS overscroll
           isMobile ? (
             isExpanded ? "w-[250px] translate-x-0" : "w-[250px] -translate-x-full"
@@ -81,6 +83,9 @@ const NavigationSidebar = () => {
             "w-[100px] translate-x-0 hover:shadow-xl border-r border-gray-100"
           )
         )}
+        style={{ 
+          zIndex: location.pathname === "/chat" ? 55 : 40 // Higher than chat content but lower than toggle button
+        }}
       >
         <div className="flex flex-col gap-2 w-full">
           {navItems.map(({ icon: Icon, path, label }) => (
