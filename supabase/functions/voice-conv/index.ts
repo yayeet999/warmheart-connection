@@ -63,11 +63,12 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_multilingual_v2",
+          model_id: "eleven_flash_v2",
           voice_settings: {
-            stability: 0.5,
+            stability: 0.7,
             similarity_boost: 0.75,
-            style: 0.5,
+            style: 0.2,
+            speed: 0.3,
             use_speaker_boost: true
           }
         })
