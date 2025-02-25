@@ -214,46 +214,79 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
   // Handle play completion and count tracking
   const handlePlayEnd = () => {
     setIsPlaying(false);
+    // We still track play count for analytics purposes, but no longer expire based on it
     const newPlayCount = playCount + 1;
     setPlayCount(newPlayCount);
     
-    // If played twice, expire the voice message
-    if (newPlayCount >= 2) {
-      expireVoiceMessage();
-    }
+    // Remove the condition that expires the message after two plays
+    // The message will now only expire after the 30-second timer
   };
 
   return (
     <div className={cn(
-      "flex items-start gap-2 p-4 rounded-lg",
-      message.type === "ai" 
-        ? "bg-muted ml-4" 
-        : "bg-primary text-primary-foreground mr-4"
+      "flex flex-col mb-2",
+      message.type === "ai" ? "items-start" : "items-end"
     )}>
-      {showVoice && (
-        <button
-          onClick={handlePlayPause}
-          disabled={isLoading || !!error}
-          className={cn(
-            "p-2 rounded-full transition-colors",
-            message.type === "ai"
-              ? "hover:bg-muted-foreground/10"
-              : "hover:bg-primary-foreground/10",
-            (isLoading || error) && "opacity-50 cursor-not-allowed"
-          )}
-          aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
-        >
-          {isLoading ? (
-            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
-            isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
-          )}
-        </button>
-      )}
-      <div className="flex-1">
-        <div className="text-sm">{message.content}</div>
+      <div className={cn(
+        "flex items-center gap-2 rounded-2xl py-2 px-3 max-w-[220px]",
+        message.type === "ai" 
+          ? "bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg" 
+          : "bg-gradient-primary text-white rounded-t-2xl rounded-bl-2xl rounded-br-lg"
+      )}>
+        {showVoice && (
+          <button
+            onClick={handlePlayPause}
+            disabled={isLoading || !!error}
+            className={cn(
+              "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+              message.type === "ai"
+                ? "bg-gray-100 text-blue-600 hover:bg-gray-200"
+                : "bg-white/20 text-white hover:bg-white/30",
+              (isLoading || error) && "opacity-50 cursor-not-allowed"
+            )}
+            aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
+          >
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
+            )}
+          </button>
+        )}
+        
+        {showVoice && (
+          <div className="flex-1 flex items-center">
+            <div className={cn(
+              "h-[24px] w-full relative",
+              message.type === "ai" ? "text-blue-600" : "text-white"
+            )}>
+              {/* Waveform visualization */}
+              <div className="flex items-center justify-between h-full gap-[2px]">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={cn(
+                      "rounded-full w-[3px]",
+                      isPlaying ? "animate-pulse" : "",
+                      message.type === "ai" ? "bg-blue-600" : "bg-white"
+                    )}
+                    style={{ 
+                      height: `${Math.max(30, Math.min(100, 40 + Math.sin(i / 1.5) * 60))}%`,
+                      opacity: isPlaying ? 0.8 : 0.5
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {showVoice && error && (
-          <div className="text-xs text-red-500 mt-1">{error}</div>
+          <div className={cn(
+            "text-xs mt-1 absolute bottom-[-18px] left-3",
+            message.type === "ai" ? "text-red-500" : "text-red-300"
+          )}>
+            {error}
+          </div>
         )}
         {showVoice && (
           <audio
@@ -269,6 +302,9 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
           />
         )}
       </div>
+      
+      {/* The actual content text is now hidden visually but still accessible to screen readers */}
+      <span className="sr-only">{message.content}</span>
     </div>
   );
 };
