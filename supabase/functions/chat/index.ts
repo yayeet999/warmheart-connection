@@ -303,7 +303,7 @@ Use these details as your personal background as your identity and reveal them n
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "ft:gpt-4o-mini-2024-07-18:practice:nopunc:B0eV2ISu",
+        model: "ft:gpt-4o-mini-2024-07-18:practice:022425newdata2:B4hPjLtJ",
         temperature: 0.7,
         frequency_penalty: 0.3,
         presence_penalty: 0.3,
