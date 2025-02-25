@@ -565,22 +565,23 @@ If there is an immediate danger to anyone's safety, contact emergency services (
         );
         if (storeError) throw new Error("Failed to store user message");
 
-        // Get voice response
+        // Get voice response with audio
         const { data: voiceResponse } = await supabase.functions.invoke("voice-chat", {
           body: { userId: session.user.id, message: userMessageContent }
         });
 
-        if (!voiceResponse?.messages?.[0]?.content) {
+        if (!voiceResponse?.messages?.[0]) {
           throw new Error("Invalid voice response");
         }
 
-        // Add AI message with text that will be converted to voice
+        // Add AI message with text and audio
         const aiMessage = {
           type: "ai",
           content: voiceResponse.messages[0].content,
           metadata: {
             type: "voice_message",
-            text: voiceResponse.messages[0].content
+            text: voiceResponse.messages[0].content,
+            audio: voiceResponse.messages[0].audio
           }
         };
 
