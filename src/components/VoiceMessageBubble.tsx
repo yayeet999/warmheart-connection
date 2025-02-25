@@ -1,244 +1,210 @@
-import { useRef, useState, useEffect } from "react";
-import { Pause, Play } from "lucide-react";
+
+import { useState, useEffect, useRef } from "react";
+import { Pause, Play, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
-interface VoiceMessageBubbleProps {
-  message: {
-    content: string;
-    type: "ai" | "user";
-    metadata?: {
-      type: "voice_message";
-      text: string;
-    };
-    timestamp?: string;
-  };
-}
-
-// Create a unique ID for each voice message
-const generateVoiceMessageId = (message: VoiceMessageBubbleProps["message"]) => {
-  const timestamp = message.timestamp || new Date().toISOString();
-  const contentPrefix = message.content.substring(0, 20); // First 20 chars of content
-  return `voice-${timestamp}-${contentPrefix}`.replace(/[^a-zA-Z0-9]/g, '-');
-};
-
-export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
+export const VoiceMessageBubble = ({ message }: { message: any }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [playCount, setPlayCount] = useState(0);
-  const [showVoice, setShowVoice] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const messageId = useRef(generateVoiceMessageId(message));
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animationRef = useRef<number | null>(null);
+  
+  // For tracking if this component instance has already requested audio
+  const hasRequestedAudio = useRef(false);
 
-  // Check if this voice message should be shown
+  const { data: sessionData } = useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      return session;
+    },
+  });
+
   useEffect(() => {
-    // Get the expired voice messages from localStorage
-    const expiredVoiceMessages = JSON.parse(
-      localStorage.getItem("expiredVoiceMessages") || "[]"
-    );
-    
-    // If this message is in the expired list, don't show the voice controls
-    if (expiredVoiceMessages.includes(messageId.current)) {
-      setShowVoice(false);
-    } else {
-      // Set a 30-second timer to hide the voice controls
-      timerRef.current = setTimeout(() => {
-        expireVoiceMessage();
-      }, 30000); // 30 seconds
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
-
-  // Function to expire the voice message
-  const expireVoiceMessage = () => {
-    setShowVoice(false);
-    
-    // Get current expired messages
-    const expiredVoiceMessages = JSON.parse(
-      localStorage.getItem("expiredVoiceMessages") || "[]"
-    );
-    
-    // Add this message ID if not already in the list
-    if (!expiredVoiceMessages.includes(messageId.current)) {
-      expiredVoiceMessages.push(messageId.current);
-      localStorage.setItem(
-        "expiredVoiceMessages",
-        JSON.stringify(expiredVoiceMessages)
-      );
-    }
-    
-    // Clean up audio resources
-    if (audioRef.current && audioRef.current.src) {
-      audioRef.current.pause();
-      URL.revokeObjectURL(audioRef.current.src);
-      audioRef.current.src = '';
-    }
-  };
-
-  // Only fetch audio if the voice component should be shown
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchAudio = async () => {
-      if (!message.metadata?.text || !audioRef.current || !showVoice) return;
+    // Only fetch audio if we haven't already and we have the required metadata
+    if (
+      !hasRequestedAudio.current && 
+      message.metadata?.text && 
+      audioRef.current &&
+      sessionData?.user?.id
+    ) {
+      hasRequestedAudio.current = true;
       
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        console.log('Fetching audio for text:', message.metadata.text);
-        
-        const response = await supabase.functions.invoke('voice-conv', {
-          body: { text: message.metadata.text }
-        });
-
-        if (!mounted) return;
-
-        if (response.error) {
-          console.error('Supabase function error:', response.error);
-          throw new Error(response.error.message);
-        }
-
-        if (!response.data) {
-          console.error('No data in response:', response);
-          throw new Error('No data received from voice conversion');
-        }
-
-        // If response.data is a string, use it directly
-        const audioBase64 = typeof response.data === 'string' ? response.data : response.data.audio;
-
-        if (!audioBase64) {
-          console.error('No audio data found in response');
-          throw new Error('No audio data received');
-        }
-
-        // Convert base64 string to binary data
+      const fetchAudio = async () => {
         try {
-          console.log('Converting base64 to binary, length:', audioBase64.length);
-          const binaryString = atob(audioBase64);
-          const bytes = new Uint8Array(binaryString.length);
+          setLoading(true);
           
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          const blob = new Blob([bytes], { type: 'audio/mpeg' });
-          const url = URL.createObjectURL(blob);
-          
-          audioRef.current.src = url;
-          await audioRef.current.load();
-          
-          console.log('Audio loaded successfully');
-        } catch (decodeError) {
-          console.error('Error decoding audio data:', decodeError);
-          throw new Error('Failed to decode audio data');
-        }
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching audio:', err);
-        setError(err.message || 'Failed to load audio');
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
+          // Use the message_id if available, otherwise just use the text
+          const response = await supabase.functions.invoke("voice-conv", {
+            body: { 
+              text: message.metadata.text,
+              userId: sessionData.user.id,
+              message_id: message.metadata.message_id 
+            },
+          });
 
-    if (showVoice) {
+          if (!response.data?.audioUrl) {
+            throw new Error("No audio URL in response");
+          }
+
+          setAudioUrl(response.data.audioUrl);
+          
+          // If the audio was from cache, we can update the UI immediately
+          if (response.data.fromCache) {
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Error fetching audio:", err);
+          setError("Failed to load audio");
+          setLoading(false);
+        }
+      };
+
       fetchAudio();
     }
+  }, [message.metadata?.text, message.metadata?.message_id, sessionData?.user?.id]);
 
-    return () => {
-      mounted = false;
-      if (audioRef.current) {
-        audioRef.current.pause();
-        if (audioRef.current.src) {
-          URL.revokeObjectURL(audioRef.current.src);
-          audioRef.current.src = '';
-        }
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    const audio = audioRef.current;
+
+    // Set up event listeners
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+      setLoading(false);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setProgress(0);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [message.metadata?.text, showVoice]);
 
-  const handlePlayPause = () => {
-    if (!audioRef.current || isLoading || !showVoice) return;
+    const handleError = () => {
+      console.error("Audio playback error");
+      setError("Error playing audio");
+      setLoading(false);
+    };
 
+    // Add event listeners
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+
+    // Clean up event listeners
+    return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [audioUrl]);
+
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    
     if (isPlaying) {
       audioRef.current.pause();
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
     } else {
-      audioRef.current.play().catch(error => {
-        console.error('Error playing audio:', error);
-        setError('Failed to play audio');
+      audioRef.current.play().catch(err => {
+        console.error("Play error:", err);
+        setError("Failed to play audio");
       });
+      
+      // Start the progress animation
+      animationRef.current = requestAnimationFrame(updateProgress);
     }
+    
+    setIsPlaying(!isPlaying);
   };
 
-  // Handle play completion and count tracking
-  const handlePlayEnd = () => {
-    setIsPlaying(false);
-    const newPlayCount = playCount + 1;
-    setPlayCount(newPlayCount);
+  const updateProgress = () => {
+    if (!audioRef.current) return;
     
-    // If played twice, expire the voice message
-    if (newPlayCount >= 2) {
-      expireVoiceMessage();
+    const currentProgress = (audioRef.current.currentTime / duration) * 100;
+    setProgress(currentProgress);
+    
+    if (isPlaying) {
+      animationRef.current = requestAnimationFrame(updateProgress);
     }
   };
 
   return (
-    <div className={cn(
-      "flex items-start gap-2 p-4 rounded-lg",
-      message.type === "ai" 
-        ? "bg-muted ml-4" 
-        : "bg-primary text-primary-foreground mr-4"
-    )}>
-      {showVoice && (
-        <button
-          onClick={handlePlayPause}
-          disabled={isLoading || !!error}
-          className={cn(
-            "p-2 rounded-full transition-colors",
-            message.type === "ai"
-              ? "hover:bg-muted-foreground/10"
-              : "hover:bg-primary-foreground/10",
-            (isLoading || error) && "opacity-50 cursor-not-allowed"
-          )}
-          aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
-        >
-          {isLoading ? (
-            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
-            isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
-          )}
-        </button>
-      )}
-      <div className="flex-1">
-        <div className="text-sm">{message.content}</div>
-        {showVoice && error && (
-          <div className="text-xs text-red-500 mt-1">{error}</div>
-        )}
-        {showVoice && (
-          <audio
-            ref={audioRef}
-            preload="auto"
-            onEnded={handlePlayEnd}
-            onPause={() => setIsPlaying(false)}
-            onPlay={() => setIsPlaying(true)}
-            onError={(e) => {
-              console.error('Audio error:', e);
-              setError('Failed to play audio');
-            }}
-          />
-        )}
+    <div className="group flex flex-col">
+      <div className="flex justify-start items-end space-x-2 mb-1">
+        <div className="message-bubble bg-white text-gray-800 rounded-t-2xl rounded-br-2xl rounded-bl-lg max-w-[85%] sm:max-w-[80%] shadow-sm">
+          <div className="p-4">
+            <p className="text-[15px] leading-relaxed mb-3">{message.content}</p>
+            
+            <div className="flex items-center space-x-3 mt-2">
+              <Button
+                onClick={togglePlayPause}
+                disabled={loading || !!error}
+                size="sm"
+                variant="outline"
+                className="h-9 w-9 rounded-full p-0 flex items-center justify-center"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+              
+              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-coral-500 to-plum-500 transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              
+              <div className="text-xs text-gray-500 min-w-[35px]">
+                {loading ? "--:--" : formatTime(duration)}
+              </div>
+            </div>
+            
+            {error && (
+              <div className="text-red-500 text-xs mt-2">{error}</div>
+            )}
+          </div>
+        </div>
       </div>
+      
+      {/* Hidden audio element */}
+      {audioUrl && (
+        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      )}
     </div>
   );
+};
+
+// Helper function to format time in MM:SS
+const formatTime = (seconds: number): string => {
+  if (!seconds || isNaN(seconds)) return "00:00";
+  
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
