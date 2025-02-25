@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,20 +11,83 @@ interface VoiceMessageBubbleProps {
       type: "voice_message";
       text: string;
     };
+    timestamp?: string;
   };
 }
+
+// Create a unique ID for each voice message
+const generateVoiceMessageId = (message: VoiceMessageBubbleProps["message"]) => {
+  const timestamp = message.timestamp || new Date().toISOString();
+  const contentPrefix = message.content.substring(0, 20); // First 20 chars of content
+  return `voice-${timestamp}-${contentPrefix}`.replace(/[^a-zA-Z0-9]/g, '-');
+};
 
 export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playCount, setPlayCount] = useState(0);
+  const [showVoice, setShowVoice] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageId = useRef(generateVoiceMessageId(message));
 
+  // Check if this voice message should be shown
+  useEffect(() => {
+    // Get the expired voice messages from localStorage
+    const expiredVoiceMessages = JSON.parse(
+      localStorage.getItem("expiredVoiceMessages") || "[]"
+    );
+    
+    // If this message is in the expired list, don't show the voice controls
+    if (expiredVoiceMessages.includes(messageId.current)) {
+      setShowVoice(false);
+    } else {
+      // Set a 30-second timer to hide the voice controls
+      timerRef.current = setTimeout(() => {
+        expireVoiceMessage();
+      }, 30000); // 30 seconds
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  // Function to expire the voice message
+  const expireVoiceMessage = () => {
+    setShowVoice(false);
+    
+    // Get current expired messages
+    const expiredVoiceMessages = JSON.parse(
+      localStorage.getItem("expiredVoiceMessages") || "[]"
+    );
+    
+    // Add this message ID if not already in the list
+    if (!expiredVoiceMessages.includes(messageId.current)) {
+      expiredVoiceMessages.push(messageId.current);
+      localStorage.setItem(
+        "expiredVoiceMessages",
+        JSON.stringify(expiredVoiceMessages)
+      );
+    }
+    
+    // Clean up audio resources
+    if (audioRef.current && audioRef.current.src) {
+      audioRef.current.pause();
+      URL.revokeObjectURL(audioRef.current.src);
+      audioRef.current.src = '';
+    }
+  };
+
+  // Only fetch audio if the voice component should be shown
   useEffect(() => {
     let mounted = true;
 
     const fetchAudio = async () => {
-      if (!message.metadata?.text || !audioRef.current) return;
+      if (!message.metadata?.text || !audioRef.current || !showVoice) return;
       
       setIsLoading(true);
       setError(null);
@@ -39,8 +101,6 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
 
         if (!mounted) return;
 
-        console.log('Raw response:', response);
-
         if (response.error) {
           console.error('Supabase function error:', response.error);
           throw new Error(response.error.message);
@@ -50,9 +110,6 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
           console.error('No data in response:', response);
           throw new Error('No data received from voice conversion');
         }
-
-        console.log('Response data type:', typeof response.data);
-        console.log('Response data:', response.data);
 
         // If response.data is a string, use it directly
         const audioBase64 = typeof response.data === 'string' ? response.data : response.data.audio;
@@ -95,7 +152,9 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
       }
     };
 
-    fetchAudio();
+    if (showVoice) {
+      fetchAudio();
+    }
 
     return () => {
       mounted = false;
@@ -107,10 +166,10 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
         }
       }
     };
-  }, [message.metadata?.text]);
+  }, [message.metadata?.text, showVoice]);
 
   const handlePlayPause = () => {
-    if (!audioRef.current || isLoading) return;
+    if (!audioRef.current || isLoading || !showVoice) return;
 
     if (isPlaying) {
       audioRef.current.pause();
@@ -122,6 +181,18 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
     }
   };
 
+  // Handle play completion and count tracking
+  const handlePlayEnd = () => {
+    setIsPlaying(false);
+    const newPlayCount = playCount + 1;
+    setPlayCount(newPlayCount);
+    
+    // If played twice, expire the voice message
+    if (newPlayCount >= 2) {
+      expireVoiceMessage();
+    }
+  };
+
   return (
     <div className={cn(
       "flex items-start gap-2 p-4 rounded-lg",
@@ -129,41 +200,45 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
         ? "bg-muted ml-4" 
         : "bg-primary text-primary-foreground mr-4"
     )}>
-      <button
-        onClick={handlePlayPause}
-        disabled={isLoading || !!error}
-        className={cn(
-          "p-2 rounded-full transition-colors",
-          message.type === "ai"
-            ? "hover:bg-muted-foreground/10"
-            : "hover:bg-primary-foreground/10",
-          (isLoading || error) && "opacity-50 cursor-not-allowed"
-        )}
-        aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
-      >
-        {isLoading ? (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
-        )}
-      </button>
+      {showVoice && (
+        <button
+          onClick={handlePlayPause}
+          disabled={isLoading || !!error}
+          className={cn(
+            "p-2 rounded-full transition-colors",
+            message.type === "ai"
+              ? "hover:bg-muted-foreground/10"
+              : "hover:bg-primary-foreground/10",
+            (isLoading || error) && "opacity-50 cursor-not-allowed"
+          )}
+          aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
+        >
+          {isLoading ? (
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : (
+            isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
+          )}
+        </button>
+      )}
       <div className="flex-1">
         <div className="text-sm">{message.content}</div>
-        {error && (
+        {showVoice && error && (
           <div className="text-xs text-red-500 mt-1">{error}</div>
         )}
-        <audio
-          ref={audioRef}
-          preload="auto"
-          onEnded={() => setIsPlaying(false)}
-          onPause={() => setIsPlaying(false)}
-          onPlay={() => setIsPlaying(true)}
-          onError={(e) => {
-            console.error('Audio error:', e);
-            setError('Failed to play audio');
-          }}
-        />
+        {showVoice && (
+          <audio
+            ref={audioRef}
+            preload="auto"
+            onEnded={handlePlayEnd}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            onError={(e) => {
+              console.error('Audio error:', e);
+              setError('Failed to play audio');
+            }}
+          />
+        )}
       </div>
     </div>
   );
-}; 
+};
