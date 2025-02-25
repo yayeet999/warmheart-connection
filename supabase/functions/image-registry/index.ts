@@ -39,14 +39,11 @@ serve(async (req: Request) => {
         created_at: new Date().toISOString(),
       };
 
-      // Store without TTL for permanent storage
-      await redis.set(key, JSON.stringify(value));
-      console.log(`Stored URLs for message_id ${message_id} permanently:`, value);
+      // Set a 1-day TTL (24 hours = 86400 seconds)
+      await redis.set(key, JSON.stringify(value), { ex: 86400 });
+      console.log(`Stored URLs for message_id ${message_id} with 1-day TTL:`, value);
       
-      return new Response(JSON.stringify({ 
-        success: true,
-        message: "Image URLs stored permanently"
-      }), {
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -103,10 +100,7 @@ serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          data: parsed
-        }),
+        JSON.stringify({ success: true, urls: parsed.urls }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
@@ -115,15 +109,12 @@ serve(async (req: Request) => {
 
     throw new Error(`Invalid action: ${action}`);
   } catch (error) {
-    console.error("Error processing request:", error);
+    console.error("image-registry error:", error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message
-      }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      JSON.stringify({ error: error.message || "Internal server error" }),
+      { 
+        status: 400, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
       }
     );
   }
