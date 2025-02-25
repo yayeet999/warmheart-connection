@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -105,7 +106,7 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           success: true,
-          data: parsed
+          urls: parsed.urls
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
