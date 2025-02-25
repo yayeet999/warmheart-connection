@@ -296,22 +296,22 @@ Use these details as your personal background as your identity and reveal them n
     const aiMessage = data.choices[0].message.content;
     console.log('Generated voice response:', aiMessage);
 
-    // 1. Create text-only message for memory
-    const textMessage = {
+    // 1. Store a memory-only version in the regular message list
+    const memoryMessage = {
       type: "ai",
       content: aiMessage,
       metadata: {
         type: "voice_for_memory",
-        text: aiMessage
       },
       timestamp: new Date().toISOString()
     };
+    
+    // Add to regular messages list
+    await redis.lpush(key, JSON.stringify(memoryMessage));
+    console.log('Stored memory-only message with type "voice_for_memory"');
 
-    // Store the text-only message
-    await redis.lpush(key, JSON.stringify(textMessage));
-    console.log('Stored text-only message with type "voice_for_memory"');
-
-    // 2. Create the voice message
+    // 2. Store a temporary voice message in a separate Redis key with TTL
+    const timestamp = new Date().toISOString();
     const voiceMessage = {
       type: "ai",
       content: aiMessage,
@@ -319,12 +319,30 @@ Use these details as your personal background as your identity and reveal them n
         type: "voice_message",
         text: aiMessage
       },
-      timestamp: new Date().toISOString()
+      timestamp: timestamp
     };
-
-    // Store the voice message
-    await redis.lpush(key, JSON.stringify(voiceMessage));
-    console.log('Stored voice message with type "voice_message"');
+    
+    // Create a unique key for this voice message
+    const voiceKey = `user:${userId}:voice_message:${Date.now()}`;
+    
+    // Store the voice message with 60 second TTL
+    await redis.setex(voiceKey, 60, JSON.stringify(voiceMessage));
+    
+    // Also add a reference to this voice message in the main message list
+    // We'll use a special placeholder message that tells the UI to look up the voice message
+    const voicePlaceholder = {
+      type: "ai",
+      content: aiMessage,
+      metadata: {
+        type: "voice_message",
+        text: aiMessage,
+        voiceKey: voiceKey
+      },
+      timestamp: timestamp
+    };
+    
+    await redis.lpush(key, JSON.stringify(voicePlaceholder));
+    console.log('Stored voice message placeholder with 60 second TTL');
 
     return new Response(
       JSON.stringify({
