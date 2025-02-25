@@ -29,7 +29,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <AuthProvider>
-            <div className="min-h-screen bg-softgray">
+            <div className="min-h-screen bg-softgray scrollable-page">
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
