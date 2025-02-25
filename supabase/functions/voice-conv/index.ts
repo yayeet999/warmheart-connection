@@ -1,170 +1,111 @@
 
+// @deno-types="https://deno.land/x/xhr@0.1.0/mod.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @deno-types="https://deno.land/std@0.168.0/http/server.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
-
-const redis = new Redis({
-  url: Deno.env.get("UPSTASH_REDIS_REST_URL")!,
-  token: Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!,
-});
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Max-Age': '86400',
+  'Access-Control-Expose-Headers': 'Content-Type, Content-Length'
 };
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { 
-      status: 200,
-      headers: corsHeaders 
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
     });
   }
 
   try {
-    const { text, userId, message_id } = await req.json();
+    console.log('Received request:', req.method);
+    const { text } = await req.json();
     
-    console.log('Voice conversion request:', {
-      textLength: text?.length || 0,
-      userId: userId || 'not provided',
-      message_id: message_id || 'not provided'
+    console.log('Received text for conversion:', {
+      textPreview: text?.substring(0, 50),
+      textLength: text?.length
     });
 
-    // If we have both userId and message_id, check the temporary voice storage
-    if (userId && message_id) {
-      const voiceKey = `user:${userId}:voice_pending:${message_id}`;
-      const voiceData = await redis.get(voiceKey);
-      
-      if (voiceData) {
-        console.log('Found pending voice message:', { key: voiceKey });
-        
-        // Parse the voice data
-        const parsedVoiceData = JSON.parse(typeof voiceData === 'string' ? voiceData : '{}');
-        
-        // Check if it's already been processed
-        if (parsedVoiceData.voice_status === 'completed') {
-          console.log('Voice message already processed:', { message_id });
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              audioUrl: parsedVoiceData.audioUrl,
-              fromCache: true
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        // Update the status to processing
-        await redis.set(
-          voiceKey,
-          JSON.stringify({
-            ...parsedVoiceData,
-            voice_status: 'processing'
-          }),
-          { ex: 60 } // Reset TTL to 60 seconds
-        );
-        
-        // Use the text from the temporary storage if not provided
-        if (!text && parsedVoiceData.content) {
-          console.log('Using text from pending voice message');
-          text = parsedVoiceData.content;
-        }
-      } else {
-        console.log('No pending voice message found:', { key: voiceKey });
-      }
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid request parameters: text is required');
     }
 
-    // Proceed with normal voice conversion
-    if (!text) {
-      throw new Error("No text provided for voice conversion");
+    const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
+    if (!elevenlabsApiKey) {
+      throw new Error('ElevenLabs API key not found');
     }
 
-    // Get the ElevenLabs API key and voice ID from environment variables
-    const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    const voiceId = Deno.env.get("ELEVENLABS_DEFAULT_VOICEID") || "EXAVITQu4vr4xnSDxMaL"; // Sarah as default
-    
-    if (!apiKey) {
-      throw new Error("ElevenLabs API key not found in environment variables");
-    }
+    const voiceId = "21m00Tcm4TlvDq8ikWAM";
 
-    console.log('Sending text to ElevenLabs:', {
-      textLength: text.length,
-      voiceId
-    });
+    console.log('Making request to ElevenLabs API');
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': elevenlabsApiKey
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_monolingual_v1",
+          model_id: "eleven_multilingual_v2",
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
-          },
-        }),
+            style: 0.5,
+            use_speaker_boost: true
+          }
+        })
       }
     );
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('ElevenLabs error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorBody
-      });
-      throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
+      const error = await response.text();
+      console.error('ElevenLabs API error:', error);
+      throw new Error(`ElevenLabs API error: ${error}`);
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(audioBuffer))
-    );
-    
-    const audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
-    
-    // If we have both userId and message_id, update the temporary voice storage
-    if (userId && message_id) {
-      const voiceKey = `user:${userId}:voice_pending:${message_id}`;
-      
-      // Update with completed status and audio URL
-      await redis.set(
-        voiceKey,
-        JSON.stringify({
-          content: text,
-          timestamp: new Date().toISOString(),
-          voice_status: 'completed',
-          audioUrl: audioUrl
-        }),
-        { ex: 60 } // Keep for 60 more seconds after completion
-      );
-      
-      console.log('Updated voice message status to completed:', { key: voiceKey });
-    }
+    const audioData = await response.arrayBuffer();
+    const base64Audio = arrayBufferToBase64(audioData);
 
-    console.log('Voice conversion successful:', {
-      audioSizeBytes: audioBuffer.byteLength
-    });
+    console.log('Successfully generated audio, base64 length:', base64Audio.length);
 
+    // Return the base64 audio directly as a string
     return new Response(
-      JSON.stringify({ success: true, audioUrl }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      base64Audio,
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/plain'
+        }
+      }
     );
 
   } catch (error) {
-    console.error("Voice conversion error:", error);
+    console.error('Voice conversion error:', error);
     return new Response(
-      JSON.stringify({
-        error: error.message || "Internal server error",
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        stack: error.stack 
       }),
-      {
+      { 
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }

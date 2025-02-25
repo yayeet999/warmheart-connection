@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from "https://deno.land/x/upstash_redis@v1.22.0/mod.ts";
@@ -297,53 +296,12 @@ Use these details as your personal background as your identity and reveal them n
     const aiMessage = data.choices[0].message.content;
     console.log('Generated voice response:', aiMessage);
 
-    // Generate a unique message ID for voice processing
-    const messageId = `voice_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    
-    // 1. First, store the message in main chat history with voice_for_memory flag
-    const historyMessage = {
-      type: "ai",
-      content: aiMessage,
-      timestamp: new Date().toISOString(),
-      metadata: {
-        voice_for_memory: true,
-        message_id: messageId
-      }
-    };
-    
-    await redis.lpush(key, JSON.stringify(historyMessage));
-    
-    // 2. Then, store the message in temporary voice storage with TTL
-    const voiceKey = `user:${userId}:voice_pending:${messageId}`;
-    
-    await redis.setex(
-      voiceKey,
-      60, // 60 second TTL
-      JSON.stringify({
-        content: aiMessage,
-        timestamp: new Date().toISOString(),
-        voice_status: "pending"
-      })
-    );
-    
-    console.log('Voice message stored with temporary key:', {
-      historyKey: key,
-      voiceKey: voiceKey,
-      messageId: messageId,
-      ttl: 60
-    });
-
     return new Response(
       JSON.stringify({
         success: true,
         messages: [{
           content: aiMessage,
-          delay: 0,
-          metadata: {
-            type: "voice_message",
-            text: aiMessage,
-            message_id: messageId
-          }
+          delay: 0
         }]
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
