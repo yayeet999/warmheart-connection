@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -208,12 +209,48 @@ serve(async (req) => {
       });
     }
 
+    // Generate a fresh signed URL with 1-year expiration instead of using the stored URL
+    const ONE_YEAR_IN_SECONDS = 31536000; // 365 days * 24 hours * 60 minutes * 60 seconds
+    
+    // Extract bucket name and path from storage_path
+    // Assuming the format is similar to "pregenerated-images/amP3"
+    let bucketName = 'pregenerated-images'; // Default bucket name
+    let objectPath = bestMatch.storage_path;
+    
+    // If storage_path contains a bucket name (e.g., "bucket/path")
+    if (bestMatch.storage_path.includes('/')) {
+      const parts = bestMatch.storage_path.split('/');
+      bucketName = parts[0];
+      objectPath = parts.slice(1).join('/');
+    }
+    
+    console.log(`Generating signed URL for bucket: ${bucketName}, path: ${objectPath}`);
+    
+    const { data: freshSignedUrl, error: signedUrlError } = await supabase
+      .storage
+      .from(bucketName)
+      .createSignedUrl(objectPath, ONE_YEAR_IN_SECONDS);
+    
+    if (signedUrlError || !freshSignedUrl) {
+      console.error('Error generating signed URL:', signedUrlError);
+      throw new Error(signedUrlError?.message || 'Failed to generate signed URL');
+    }
+    
+    console.log(`Successfully generated fresh signed URL with 1-year expiration`);
+    
+    // Update the URL to use the fresh signed URL with longer expiration
+    const updatedMatch = {
+      ...bestMatch,
+      full_url: freshSignedUrl.signedUrl
+    };
+
+    // Register the image with the registry
     const registryInvoke = await supabase.functions.invoke("image-registry", {
       body: {
         action: "store",
         userId,
         message_id,
-        urls: [bestMatch.full_url],
+        urls: [updatedMatch.full_url],
       },
     });
 
@@ -227,11 +264,11 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       chosen: {
-        url: bestMatch.full_url,
-        title: bestMatch.title,
-        description: bestMatch.description,
-        placeholder_text: bestMatch.placeholder_text,
-        storage_path: bestMatch.storage_path,
+        url: updatedMatch.full_url,
+        title: updatedMatch.title,
+        description: updatedMatch.description,
+        placeholder_text: updatedMatch.placeholder_text,
+        storage_path: updatedMatch.storage_path,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
