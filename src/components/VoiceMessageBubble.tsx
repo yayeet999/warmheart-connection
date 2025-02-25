@@ -1,8 +1,11 @@
-
 import { useRef, useState, useEffect } from "react";
 import { Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+
+// Simple static cache to prevent duplicate conversions across component instances
+// This persists across rerenders but clears on page reload
+const processedMessages = new Set<string>();
 
 interface VoiceMessageBubbleProps {
   message: {
@@ -20,6 +23,9 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Create a simple message identifier
+  const messageId = `${message.type}-${message.content.substring(0, 20)}`;
 
   useEffect(() => {
     let mounted = true;
@@ -27,19 +33,26 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
     const fetchAudio = async () => {
       if (!message.metadata?.text || !audioRef.current) return;
       
+      // Skip if this message has already been processed
+      if (processedMessages.has(messageId)) {
+        console.log('Message already processed, skipping:', messageId);
+        return;
+      }
+      
       setIsLoading(true);
       setError(null);
       
       try {
         console.log('Fetching audio for text:', message.metadata.text);
         
+        // Mark as processed immediately to prevent duplicate requests
+        processedMessages.add(messageId);
+        
         const response = await supabase.functions.invoke('voice-conv', {
           body: { text: message.metadata.text }
         });
 
         if (!mounted) return;
-
-        console.log('Raw response:', response);
 
         if (response.error) {
           console.error('Supabase function error:', response.error);
@@ -50,9 +63,6 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
           console.error('No data in response:', response);
           throw new Error('No data received from voice conversion');
         }
-
-        console.log('Response data type:', typeof response.data);
-        console.log('Response data:', response.data);
 
         // If response.data is a string, use it directly
         const audioBase64 = typeof response.data === 'string' ? response.data : response.data.audio;
@@ -107,7 +117,7 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
         }
       }
     };
-  }, [message.metadata?.text]);
+  }, [message.metadata?.text, messageId]);
 
   const handlePlayPause = () => {
     if (!audioRef.current || isLoading) return;
@@ -166,4 +176,4 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
       </div>
     </div>
   );
-}; 
+};
