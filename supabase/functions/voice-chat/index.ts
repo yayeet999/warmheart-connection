@@ -296,6 +296,47 @@ Use these details as your personal background as your identity and reveal them n
     const aiMessage = data.choices[0].message.content;
     console.log('Generated voice response:', aiMessage);
 
+    // 1. Create permanent text-only message for memory
+    const textMessage = {
+      type: "ai",
+      content: aiMessage,
+      metadata: {
+        type: "voice_for_memory",
+        text: aiMessage
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    // Store the text-only message (permanent)
+    await redis.lpush(key, JSON.stringify(textMessage));
+    console.log('Stored permanent text-only message with type "voice_for_memory"');
+
+    // 2. Create the temporary voice message
+    const voiceMessage = {
+      type: "ai",
+      content: aiMessage,
+      metadata: {
+        type: "voice_message",
+        text: aiMessage
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    // Store the voice message
+    const voiceMessageKey = `${key}:voice:${Date.now()}`;
+    await redis.set(voiceMessageKey, JSON.stringify(voiceMessage));
+    
+    // Set TTL of 1 minute (60 seconds)
+    await redis.expire(voiceMessageKey, 60);
+    
+    // Add this voice message key to a set to track it
+    await redis.sadd(`${key}:voice_messages`, voiceMessageKey);
+    
+    // Also push to the message list (it will disappear from here eventually)
+    await redis.lpush(key, JSON.stringify(voiceMessage));
+    
+    console.log('Stored temporary voice message with 60-second TTL');
+
     return new Response(
       JSON.stringify({
         success: true,
