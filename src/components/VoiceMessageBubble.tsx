@@ -10,6 +10,7 @@ interface VoiceMessageBubbleProps {
     metadata?: {
       type: "voice_message";
       text: string;
+      audio?: string;
     };
     timestamp?: string;
   };
@@ -31,6 +32,7 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
   const [showVoice, setShowVoice] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageId = useRef(generateVoiceMessageId(message));
+  const [audioData, setAudioData] = useState<string | null>(message.metadata?.audio || null);
 
   // Check if this voice message should be shown
   useEffect(() => {
@@ -82,13 +84,30 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
     }
   };
 
-  // Only fetch audio if the voice component should be shown
+  // Only fetch audio if we need to (no audio in metadata) and the voice component should be shown
   useEffect(() => {
     let mounted = true;
 
     const fetchAudio = async () => {
       if (!message.metadata?.text || !audioRef.current || !showVoice) return;
+      if (audioData) {
+        // If we already have audio data (from metadata or previous fetch), use that
+        loadAudioFromData(audioData);
+        return;
+      }
       
+      // Check if we've already fetched this audio before
+      const storedAudioKey = `voice_audio_${messageId.current}`;
+      const storedAudio = localStorage.getItem(storedAudioKey);
+      
+      if (storedAudio) {
+        // Use cached audio from localStorage
+        setAudioData(storedAudio);
+        loadAudioFromData(storedAudio);
+        return;
+      }
+      
+      // Otherwise, fetch the audio
       setIsLoading(true);
       setError(null);
       
@@ -119,27 +138,12 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
           throw new Error('No audio data received');
         }
 
-        // Convert base64 string to binary data
-        try {
-          console.log('Converting base64 to binary, length:', audioBase64.length);
-          const binaryString = atob(audioBase64);
-          const bytes = new Uint8Array(binaryString.length);
-          
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          const blob = new Blob([bytes], { type: 'audio/mpeg' });
-          const url = URL.createObjectURL(blob);
-          
-          audioRef.current.src = url;
-          await audioRef.current.load();
-          
-          console.log('Audio loaded successfully');
-        } catch (decodeError) {
-          console.error('Error decoding audio data:', decodeError);
-          throw new Error('Failed to decode audio data');
-        }
+        // Store in localStorage for future use
+        localStorage.setItem(storedAudioKey, audioBase64);
+        setAudioData(audioBase64);
+        
+        // Convert and load audio
+        loadAudioFromData(audioBase64);
         
         setError(null);
       } catch (err) {
@@ -149,6 +153,32 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
         if (mounted) {
           setIsLoading(false);
         }
+      }
+    };
+
+    // Helper to convert base64 to blob and load into audio element
+    const loadAudioFromData = (base64Audio: string) => {
+      try {
+        console.log('Converting base64 to binary, length:', base64Audio.length);
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        
+        if (audioRef.current) {
+          audioRef.current.src = url;
+          audioRef.current.load();
+        }
+        
+        console.log('Audio loaded successfully');
+      } catch (decodeError) {
+        console.error('Error decoding audio data:', decodeError);
+        setError('Failed to decode audio data');
       }
     };
 
@@ -166,7 +196,7 @@ export const VoiceMessageBubble = ({ message }: VoiceMessageBubbleProps) => {
         }
       }
     };
-  }, [message.metadata?.text, showVoice]);
+  }, [message.metadata?.text, showVoice, audioData]);
 
   const handlePlayPause = () => {
     if (!audioRef.current || isLoading || !showVoice) return;
