@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -47,8 +46,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Check if user has completed onboarding
       const hasCompletedOnboarding = await checkOnboardingStatus(session.user.id);
       
-      // Only redirect to chat if onboarding is complete and we're on the auth page
-      if (hasCompletedOnboarding && location.pathname === "/auth") {
+      // Redirect to chat if onboarding is complete and we're on the auth page or landing page
+      if (hasCompletedOnboarding && (location.pathname === "/auth" || location.pathname === "/")) {
         navigate("/chat");
       }
     }
