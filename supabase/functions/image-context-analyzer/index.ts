@@ -57,11 +57,11 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an AI that analyzes conversation context to determine key information for image selection. Extract emotions, relationship dynamics, and key words."
+            content: "You are an AI that analyzes conversation context to determine key information for image selection. Extract the best one word emotion/vibe description, time of day (based on timestamps determine if morning, afternoon, daytime, evening, etc, relationship dynamics, and the most relevant key words (nouns, objects, places, etc)."
           },
           {
             role: "user",
-            content: `Analyze this conversation and current message for image selection context. Current message: "${message}"\n\nRecent conversation:\n${conversationText}\n\nProvide a JSON response with:\n- intimacy_metrics (relationship_stage as string, flirt_level as number 0-100)\n- emotional_essence (primary_emotion as string, intensity as number 0-100)\n- context (temporal_setting as "morning"|"afternoon"|"evening"|"night")\n- visual_core (image_type as "portrait"|"selfie"|"candid"|"full_body")\n- key_words (array of 4 most relevant words/phrases from the conversation that capture the essence of the interaction)`
+            content: `Analyze this conversation and current message for image selection context. Current message: "${message}"\n\nRecent conversation:\n${conversationText}\n\nProvide a JSON response with:\n- intimacy_metrics (relationship_stage as string such as dating or boyfriend ONLY IF APPLICABLE, flirt_level as number 0-100)\n- emotional_essence (primary_emotion as string, intensity as number 0-100)\n- context (temporal_setting based on timestamps as "morning"|"afternoon"|"evening"|"night")\n- visual_core (image_type as "portrait"|"selfie"|"candid"|"full_body")\n- key_words (array of 4 most relevant words/phrases from the conversation that capture the essence of the interaction)`
           }
         ],
         response_format: { type: "json_object" }
